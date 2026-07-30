@@ -44,7 +44,7 @@ function App() {
 
 export default function AppWrapper() {
   return (
-    <BrowserRouter basename="/jare-mainframe">
+    <BrowserRouter>
       <App />
     </BrowserRouter>
   )
