@@ -4,39 +4,130 @@ import { parseOpayEmail } from './parsers/opay'
 import { toast } from './toast'
 
 /**
- * Initiates Google OAuth popup for Gmail Readonly scope
+ * Dynamically load Google Identity Services (GIS) client script
  */
-export async function connectGmail() {
-  const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
-  
-  if (!CLIENT_ID) {
-    // If no client ID provided, simulate connection or prompt
-    // Store mock integration in Supabase for demonstration / fallback
-    const { data: existing } = await supabase.from('integrations').select('*').eq('service', 'gmail').single()
-    
-    if (existing) {
-      await supabase.from('integrations').update({
-        status: 'active',
-        last_sync: new Date().toISOString()
-      }).eq('id', existing.id)
-    } else {
-      await supabase.from('integrations').insert({
-        service: 'gmail',
-        access_token: 'mock_token',
-        status: 'active',
-        last_sync: new Date().toISOString()
-      })
+function loadGsiScript() {
+  return new Promise((resolve, reject) => {
+    if (window.google?.accounts?.oauth2) {
+      resolve(window.google.accounts.oauth2)
+      return
     }
-    toast.success('Gmail connected ✓')
-    return { success: true }
+    const existing = document.getElementById('gsi-client-script')
+    if (existing) {
+      existing.addEventListener('load', () => resolve(window.google.accounts.oauth2))
+      existing.addEventListener('error', reject)
+      return
+    }
+    const script = document.createElement('script')
+    script.id = 'gsi-client-script'
+    script.src = 'https://accounts.google.com/gsi/client'
+    script.async = true
+    script.defer = true
+    script.onload = () => resolve(window.google.accounts.oauth2)
+    script.onerror = (err) => reject(err)
+    document.head.appendChild(script)
+  })
+}
+
+/**
+ * Helper to extract email text body from Gmail API payload
+ */
+function extractEmailBody(payload) {
+  if (!payload) return ''
+
+  if (payload.body && payload.body.data) {
+    try {
+      return atob(payload.body.data.replace(/-/g, '+').replace(/_/g, '/'))
+    } catch (e) {
+      console.error('Base64 decode error:', e)
+    }
   }
 
-  // Google OAuth 2.0 Web Popup
-  const redirectUri = window.location.origin + '/settings'
-  const scope = 'https://www.googleapis.com/auth/gmail.readonly'
-  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${encodeURIComponent(scope)}`
+  if (payload.parts && payload.parts.length > 0) {
+    for (const part of payload.parts) {
+      if (part.mimeType === 'text/plain' && part.body && part.body.data) {
+        try {
+          return atob(part.body.data.replace(/-/g, '+').replace(/_/g, '/'))
+        } catch (e) {}
+      }
+      if (part.mimeType === 'text/html' && part.body && part.body.data) {
+        try {
+          return atob(part.body.data.replace(/-/g, '+').replace(/_/g, '/'))
+        } catch (e) {}
+      }
+      if (part.parts) {
+        const sub = extractEmailBody(part)
+        if (sub) return sub
+      }
+    }
+  }
 
-  window.open(authUrl, 'GoogleAuth', 'width=500,height=600')
+  return payload.snippet || ''
+}
+
+/**
+ * Initiates Google OAuth Token Client flow using Google Identity Services (GIS)
+ * Suitable for pure frontend SPA -- no backend redirect URI dependency.
+ */
+export async function connectGmail(onSuccess) {
+  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
+
+  if (!clientId) {
+    toast.error('VITE_GOOGLE_CLIENT_ID is not configured in environment variables')
+    return { success: false, error: 'Missing VITE_GOOGLE_CLIENT_ID' }
+  }
+
+  try {
+    const oauth2 = await loadGsiScript()
+
+    return new Promise((resolve) => {
+      const client = oauth2.initTokenClient({
+        client_id: clientId,
+        scope: 'https://www.googleapis.com/auth/gmail.readonly',
+        callback: async (response) => {
+          if (response.error) {
+            toast.error('Google authorization failed: ' + response.error)
+            resolve({ success: false, error: response.error })
+            return
+          }
+
+          const token = response.access_token
+          const now = new Date().toISOString()
+
+          const { data: existing } = await supabase
+            .from('integrations')
+            .select('*')
+            .eq('service', 'gmail')
+            .single()
+
+          if (existing) {
+            await supabase.from('integrations').update({
+              access_token: token,
+              status: 'connected',
+              last_sync: existing.last_sync || now
+            }).eq('id', existing.id)
+          } else {
+            await supabase.from('integrations').insert({
+              service: 'gmail',
+              access_token: token,
+              status: 'connected',
+              last_sync: now
+            })
+          }
+
+          toast.success('Gmail connected ✓')
+          if (onSuccess) onSuccess()
+          resolve({ success: true })
+        }
+      })
+
+      client.requestAccessToken()
+    })
+  } catch (err) {
+    console.error('Failed to connect Gmail:', err)
+    toast.error('Failed to load Google Sign-In')
+    return { success: false, error: err.message }
+  }
 }
 
 /**
@@ -51,89 +142,119 @@ export async function syncGmailEmails() {
       .eq('service', 'gmail')
       .single()
 
-    if (intErr || !integration || integration.status !== 'active') {
+    if (intErr || !integration || (integration.status !== 'connected' && integration.status !== 'active')) {
       toast.info('Please connect Gmail first')
       return 0
     }
 
     const token = integration.access_token
-
-    // If mock token or live token:
-    let newTxnsCount = 0
-
-    if (token === 'mock_token' || !token) {
-      // Simulate sync check
-      await new Promise(r => setTimeout(r, 1200))
-      await supabase.from('integrations').update({ last_sync: new Date().toISOString() }).eq('id', integration.id)
-      toast.success('Gmail synced: 0 new transactions found')
+    if (!token) {
+      toast.error('Invalid Gmail access token. Please reconnect.')
       return 0
     }
 
-    // Live Gmail API sync
+    // 2. Search query with last_sync timestamp filter
+    let query = 'from:alerts@gtbank.com OR from:customerservice@opay-inc.com'
+    if (integration.last_sync) {
+      const lastSyncUnix = Math.floor(new Date(integration.last_sync).getTime() / 1000)
+      if (!isNaN(lastSyncUnix) && lastSyncUnix > 0) {
+        query += ` after:${lastSyncUnix}`
+      }
+    }
+
+    // 3. Query Gmail API
     const headers = { Authorization: `Bearer ${token}` }
-    const query = 'from:alerts@gtbank.com OR from:customerservice@opay-inc.com'
-    const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}`, { headers })
-    
+    const res = await fetch(
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}`,
+      { headers }
+    )
+
+    if (res.status === 401) {
+      await supabase
+        .from('integrations')
+        .update({ status: 'disconnected' })
+        .eq('id', integration.id)
+      toast.error('Gmail session expired. Please reconnect Gmail.')
+      return 0
+    }
+
     if (!res.ok) {
-      throw new Error('Failed to query Gmail messages')
+      throw new Error(`Gmail API error (${res.status})`)
     }
 
     const listData = await res.json()
     const messages = listData.messages || []
 
-    // Get wallets mapping
+    if (messages.length === 0) {
+      await supabase
+        .from('integrations')
+        .update({ last_sync: new Date().toISOString() })
+        .eq('id', integration.id)
+      toast.success('Gmail synced: 0 new transactions found')
+      return 0
+    }
+
+    // 4. Get wallets mapping
     const { data: wallets } = await supabase.from('wallets').select('*')
     const gtWallet = wallets?.find(w => w.type === 'bank' || w.name.toLowerCase().includes('gt'))
     const opayWallet = wallets?.find(w => w.type === 'mobile' || w.name.toLowerCase().includes('opay'))
 
-    for (const msg of messages.slice(0, 10)) {
-      const msgRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`, { headers })
+    let newTxnsCount = 0
+
+    // Process messages
+    for (const msg of messages.slice(0, 20)) {
+      const msgRes = await fetch(
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`,
+        { headers }
+      )
       if (!msgRes.ok) continue
       const msgData = await msgRes.json()
 
-      // Extract body
-      let body = ''
-      if (msgData.snippet) body = msgData.snippet
-      if (msgData.payload && msgData.payload.body && msgData.payload.body.data) {
-        body = atob(msgData.payload.body.data.replace(/-/g, '+').replace(/_/g, '/'))
-      }
+      const body = extractEmailBody(msgData.payload) || msgData.snippet || ''
 
       let parsed = null
-      if (body.includes('GTBank') || body.includes('GeNS') || body.includes('Guaranty Trust')) {
+      if (body.includes('GTBank') || body.includes('GeNS') || body.includes('Guaranty Trust') || body.includes('DEBIT transaction')) {
         parsed = parseGTBankEmail(body)
         if (parsed && gtWallet) parsed.wallet_id = gtWallet.id
-      } else if (body.includes('Opay') || body.includes('OPay')) {
+      } else if (body.includes('Opay') || body.includes('OPay') || body.includes('transfer of')) {
         parsed = parseOpayEmail(body)
         if (parsed && opayWallet) parsed.wallet_id = opayWallet.id
       }
 
       if (parsed && parsed.transaction_id) {
-        // Check for duplicate
+        // Check duplicate by transaction_id + source
         const { data: existing } = await supabase
           .from('transactions')
           .select('id')
           .eq('transaction_id', parsed.transaction_id)
           .eq('source', parsed.source)
-          .single()
+          .maybeSingle()
 
         if (!existing) {
           // Insert transaction
-          await supabase.from('transactions').insert(parsed)
-          newTxnsCount++
+          const { error: insErr } = await supabase.from('transactions').insert(parsed)
+          if (!insErr) {
+            newTxnsCount++
 
-          // Update wallet balance if available_balance is provided
-          if (parsed.available_balance != null && parsed.wallet_id) {
-            await supabase.from('wallets').update({
-              balance: parsed.available_balance,
-              last_updated: new Date().toISOString()
-            }).eq('id', parsed.wallet_id)
+            // Update wallet balance if available_balance is provided
+            if (parsed.available_balance != null && parsed.wallet_id) {
+              await supabase.from('wallets').update({
+                balance: parsed.available_balance,
+                last_updated: new Date().toISOString()
+              }).eq('id', parsed.wallet_id)
+            }
           }
         }
       }
     }
 
-    // Update last sync time
-    await supabase.from('integrations').update({ last_sync: new Date().toISOString() }).eq('id', integration.id)
+    // 5. Update last_sync timestamp
+    const nowIso = new Date().toISOString()
+    await supabase
+      .from('integrations')
+      .update({ last_sync: nowIso })
+      .eq('id', integration.id)
+
     toast.success(`${newTxnsCount} new transaction${newTxnsCount === 1 ? '' : 's'} found`)
     return newTxnsCount
   } catch (err) {

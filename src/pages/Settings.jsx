@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { connectGmail, syncGmailEmails } from '../lib/gmailSync'
 import { timeAgo } from '../lib/formatters'
@@ -40,9 +40,8 @@ export default function Settings() {
   }, [])
 
   const handleConnect = async () => {
-    await connectGmail()
-    // Reload after a short delay in case mock token was used
-    setTimeout(loadIntegrations, 1000)
+    await connectGmail(loadIntegrations)
+    loadIntegrations()
   }
 
   const handleSync = async () => {
@@ -52,51 +51,48 @@ export default function Settings() {
     setIsSyncing(false)
   }
 
+  const isConnected = gmailStatus === 'connected' || gmailStatus === 'active'
+
   return (
     <div className="p-4 md:p-6 pb-20 max-w-2xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold mb-6">Settings</h1>
+      <h1 className="text-2xl font-bold text-white mb-6">Settings</h1>
       
-      <section className="bg-card rounded-xl p-5 border border-white/5 space-y-4">
-        <h2 className="text-xl font-semibold border-b border-white/10 pb-2">Email Sync</h2>
+      <section className="bg-card rounded-2xl p-5 border border-white/5 space-y-4">
+        <h2 className="text-lg font-semibold text-white border-b border-white/10 pb-3">Email Sync</h2>
         
         {isLoading ? (
-          <div className="animate-pulse flex items-center h-12 bg-white/5 rounded"></div>
+          <div className="animate-pulse flex items-center h-12 bg-white/5 rounded-xl"></div>
         ) : (
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <p className="font-medium text-lg">Gmail Integration</p>
-              {gmailStatus === 'active' ? (
-                <div className="text-sm text-muted mt-1 space-y-1">
-                  <p className="flex items-center text-accent">
-                    <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
+              <p className="font-bold text-white text-base">Gmail Integration</p>
+              {isConnected ? (
+                <div className="text-xs text-muted mt-1 space-y-1">
+                  <p className="flex items-center text-accent font-medium">
+                    <span className="mr-1">✓</span>
                     Gmail connected
                   </p>
                   {lastSync && <p>Last synced: {timeAgo(lastSync)}</p>}
                 </div>
               ) : (
-                <p className="text-sm text-muted mt-1">
-                  Connect your Gmail to automatically sync GTBank and Opay transactions.
+                <p className="text-xs text-muted mt-1">
+                  Connect your Gmail to automatically sync GTBank and OPay transactions.
                 </p>
               )}
             </div>
 
             <div className="shrink-0 w-full sm:w-auto">
-              {gmailStatus === 'active' ? (
+              {isConnected ? (
                 <button
                   onClick={handleSync}
                   disabled={isSyncing}
-                  className="w-full sm:w-auto h-12 px-6 flex items-center justify-center bg-white/5 hover:bg-white/10 text-white rounded-lg transition-colors font-medium disabled:opacity-50"
+                  className="w-full sm:w-auto h-12 px-6 flex items-center justify-center bg-white/5 hover:bg-white/10 text-white rounded-xl transition-colors text-sm font-bold disabled:opacity-50 min-h-[48px]"
                 >
                   {isSyncing ? (
-                    <>
-                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
+                    <span className="flex items-center gap-2">
+                      <span className="animate-spin">⌛</span>
                       Syncing...
-                    </>
+                    </span>
                   ) : (
                     'Sync Now'
                   )}
@@ -104,7 +100,7 @@ export default function Settings() {
               ) : (
                 <button
                   onClick={handleConnect}
-                  className="w-full sm:w-auto h-12 px-6 bg-accent text-[#0f0f0f] rounded-lg font-medium hover:opacity-90 transition-opacity"
+                  className="w-full sm:w-auto h-12 px-6 bg-accent text-black rounded-xl font-bold text-sm hover:bg-accent/90 transition-opacity min-h-[48px]"
                 >
                   Connect Gmail
                 </button>
