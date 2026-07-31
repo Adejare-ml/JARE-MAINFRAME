@@ -11,6 +11,7 @@ export default function DailyHQ() {
   const [transactions, setTransactions] = useState([])
   const [priorities, setPriorities] = useState(['', '', ''])
   const [unreviewedCount, setUnreviewedCount] = useState(0)
+  const [warnThreshold, setWarnThreshold] = useState(10000)
   const [loading, setLoading] = useState(true)
   const [savingPriorities, setSavingPriorities] = useState(false)
 
@@ -47,7 +48,21 @@ export default function DailyHQ() {
         .or('reviewed.eq.false,category.eq.Uncategorized')
       setUnreviewedCount(count || 0)
 
-      // 4. Fetch Today's Priorities from `goals` table
+      // 4. Fetch Low Balance Threshold from user_settings
+      const { data: setData } = await supabase
+        .from('user_settings')
+        .select('*')
+        .eq('key', 'low_balance_threshold')
+        .maybeSingle()
+
+      if (setData && setData.value) {
+        const parsed = parseFloat(setData.value)
+        if (!isNaN(parsed) && parsed >= 0) {
+          setWarnThreshold(parsed)
+        }
+      }
+
+      // 5. Fetch Today's Priorities from `goals` table
       const { data: gData } = await supabase
         .from('goals')
         .select('*')
@@ -98,14 +113,12 @@ export default function DailyHQ() {
     e.preventDefault()
     setSavingPriorities(true)
     try {
-      // First delete existing daily goals for today
       await supabase
         .from('goals')
         .delete()
         .eq('period', 'daily')
         .eq('target_date', todayDate)
 
-      // Filter non-empty priorities
       const goalsToInsert = priorities
         .filter(p => p.trim() !== '')
         .map(p => ({
@@ -152,8 +165,8 @@ export default function DailyHQ() {
   const opayWallet = wallets.find(w => w.name.toLowerCase().includes('opay'))
   const cashWallet = wallets.find(w => w.name.toLowerCase().includes('cash'))
 
-  // Check Low Balance Alerts (< ₦10,000 threshold)
-  const lowWallets = wallets.filter(w => Number(w.balance || 0) < 10000)
+  // Check Low Balance Alerts against dynamic threshold
+  const lowWallets = wallets.filter(w => Number(w.balance || 0) < warnThreshold)
 
   // Monthly Spending Progress
   const totalSpent = transactions
@@ -264,7 +277,7 @@ export default function DailyHQ() {
                 key={w.id}
                 className="flex items-center justify-between p-3 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-300 text-xs font-semibold"
               >
-                <span>• {w.name} balance low ({formatNaira(w.balance)} &lt; ₦10,000)</span>
+                <span>• {w.name} balance low ({formatNaira(w.balance)} &lt; {formatNaira(warnThreshold)})</span>
                 <span className="text-red-400 font-bold">Warning</span>
               </div>
             ))}

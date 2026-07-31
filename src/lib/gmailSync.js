@@ -73,8 +73,10 @@ export async function connectGmail(onSuccess) {
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
 
   if (!clientId) {
-    toast.error('VITE_GOOGLE_CLIENT_ID is not configured in environment variables')
-    return { success: false, error: 'Missing VITE_GOOGLE_CLIENT_ID' }
+    const errorMsg = 'VITE_GOOGLE_CLIENT_ID is not configured in environment variables'
+    console.error(errorMsg)
+    toast.error(errorMsg)
+    return { success: false, error: errorMsg }
   }
 
   try {
@@ -86,6 +88,7 @@ export async function connectGmail(onSuccess) {
         scope: 'https://www.googleapis.com/auth/gmail.readonly',
         callback: async (response) => {
           if (response.error) {
+            console.error('Google OAuth response error:', response.error)
             toast.error('Google authorization failed: ' + response.error)
             resolve({ success: false, error: response.error })
             return
@@ -94,29 +97,52 @@ export async function connectGmail(onSuccess) {
           const token = response.access_token
           const now = new Date().toISOString()
 
-          const { data: existing } = await supabase
+          // Query existing row
+          const { data: existing, error: fetchErr } = await supabase
             .from('integrations')
             .select('*')
             .eq('service', 'gmail')
-            .single()
+            .maybeSingle()
 
+          if (fetchErr && fetchErr.code !== 'PGRST116') {
+            console.error('Supabase error querying integrations:', fetchErr)
+            toast.error('Database error: ' + fetchErr.message)
+          }
+
+          let dbErr = null
           if (existing) {
-            await supabase.from('integrations').update({
-              access_token: token,
-              status: 'connected',
-              last_sync: existing.last_sync || now
-            }).eq('id', existing.id)
+            const { error } = await supabase
+              .from('integrations')
+              .update({
+                access_token: token,
+                status: 'connected',
+                last_sync: existing.last_sync || now
+              })
+              .eq('id', existing.id)
+            dbErr = error
           } else {
-            await supabase.from('integrations').insert({
-              service: 'gmail',
-              access_token: token,
-              status: 'connected',
-              last_sync: now
-            })
+            const { error } = await supabase
+              .from('integrations')
+              .insert({
+                service: 'gmail',
+                access_token: token,
+                status: 'connected',
+                last_sync: now
+              })
+            dbErr = error
+          }
+
+          if (dbErr) {
+            console.error('Supabase error saving Gmail integration:', dbErr)
+            toast.error('Failed to save connection: ' + dbErr.message)
+            resolve({ success: false, error: dbErr.message })
+            return
           }
 
           toast.success('Gmail connected ✓')
-          if (onSuccess) onSuccess()
+          if (onSuccess) {
+            onSuccess({ status: 'connected', last_sync: existing?.last_sync || now })
+          }
           resolve({ success: true })
         }
       })
@@ -125,8 +151,33 @@ export async function connectGmail(onSuccess) {
     })
   } catch (err) {
     console.error('Failed to connect Gmail:', err)
-    toast.error('Failed to load Google Sign-In')
+    toast.error('Failed to load Google Sign-In: ' + (err.message || err))
     return { success: false, error: err.message }
+  }
+}
+
+/**
+ * Disconnect Gmail integration from Supabase
+ */
+export async function disconnectGmail() {
+  try {
+    const { error } = await supabase
+      .from('integrations')
+      .delete()
+      .eq('service', 'gmail')
+
+    if (error) {
+      console.error('Supabase error deleting Gmail integration:', error)
+      toast.error('Failed to disconnect Gmail: ' + error.message)
+      return false
+    }
+
+    toast.success('Gmail disconnected')
+    return true
+  } catch (err) {
+    console.error('Error disconnecting Gmail:', err)
+    toast.error('Failed to disconnect Gmail')
+    return false
   }
 }
 
@@ -140,9 +191,13 @@ export async function syncGmailEmails() {
       .from('integrations')
       .select('*')
       .eq('service', 'gmail')
-      .single()
+      .maybeSingle()
 
-    if (intErr || !integration || (integration.status !== 'connected' && integration.status !== 'active')) {
+    if (intErr) {
+      console.error('Error fetching integration for sync:', intErr)
+    }
+
+    if (!integration || (integration.status !== 'connected' && integration.status !== 'active')) {
       toast.info('Please connect Gmail first')
       return 0
     }
@@ -190,7 +245,7 @@ export async function syncGmailEmails() {
         .from('integrations')
         .update({ last_sync: new Date().toISOString() })
         .eq('id', integration.id)
-      toast.success('Gmail synced: 0 new transactions found')
+      toast.info('No new transactions')
       return 0
     }
 
@@ -243,6 +298,8 @@ export async function syncGmailEmails() {
                 last_updated: new Date().toISOString()
               }).eq('id', parsed.wallet_id)
             }
+          } else {
+            console.error('Error inserting synced transaction:', insErr)
           }
         }
       }
@@ -255,7 +312,12 @@ export async function syncGmailEmails() {
       .update({ last_sync: nowIso })
       .eq('id', integration.id)
 
-    toast.success(`${newTxnsCount} new transaction${newTxnsCount === 1 ? '' : 's'} found`)
+    if (newTxnsCount > 0) {
+      toast.success(`${newTxnsCount} new transaction${newTxnsCount === 1 ? '' : 's'} synced`)
+    } else {
+      toast.info('No new transactions')
+    }
+
     return newTxnsCount
   } catch (err) {
     console.error('Gmail sync error:', err)

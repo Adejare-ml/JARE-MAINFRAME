@@ -7,6 +7,7 @@ const navItems = [
   { path: '/projects', label: 'Projects', icon: '🛠️' },
   { path: '/debts', label: 'Debts', icon: '🤝' },
   { path: '/repairs', label: 'Repairs', icon: '🔧' },
+  { path: '/settings', label: 'Settings', icon: '⚙️' },
 ]
 
 export default function Sidebar({ onSignOut }) {
