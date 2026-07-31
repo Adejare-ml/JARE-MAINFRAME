@@ -246,11 +246,11 @@ export default function Settings() {
                 <ul className="text-xs text-muted/80 space-y-1 font-mono pl-2">
                   <li className="flex items-center gap-2">
                     <span className="text-accent">•</span>
-                    <span>alerts@gtbank.com</span>
+                    <span>GeNS@gtbank.com</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <span className="text-accent">•</span>
-                    <span>customerservice@opay-inc.com</span>
+                    <span>no-reply@opay-nigeria.com</span>
                   </li>
                 </ul>
               </div>

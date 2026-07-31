@@ -30,39 +30,85 @@ function loadGsiScript() {
 }
 
 /**
- * Helper to extract email text body from Gmail API payload
+ * Helper to strip HTML tags and decode entities for text pattern parsing
+ */
+function stripHtml(html) {
+  if (!html || typeof html !== 'string') return ''
+  return html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<\/tr>/gi, '\n')
+    .replace(/<\/td>/gi, '  ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\r\n/g, '\n')
+    .replace(/\n\s*\n/g, '\n')
+    .trim()
+}
+
+/**
+ * Helper to extract and clean email body text from Gmail API payload
  */
 function extractEmailBody(payload) {
   if (!payload) return ''
 
+  let rawBody = ''
+
   if (payload.body && payload.body.data) {
     try {
-      return atob(payload.body.data.replace(/-/g, '+').replace(/_/g, '/'))
+      rawBody = atob(payload.body.data.replace(/-/g, '+').replace(/_/g, '/'))
     } catch (e) {
       console.error('Base64 decode error:', e)
     }
   }
 
-  if (payload.parts && payload.parts.length > 0) {
+  if (!rawBody && payload.parts && payload.parts.length > 0) {
     for (const part of payload.parts) {
       if (part.mimeType === 'text/plain' && part.body && part.body.data) {
         try {
-          return atob(part.body.data.replace(/-/g, '+').replace(/_/g, '/'))
+          rawBody = atob(part.body.data.replace(/-/g, '+').replace(/_/g, '/'))
+          break
         } catch (e) {}
       }
       if (part.mimeType === 'text/html' && part.body && part.body.data) {
         try {
-          return atob(part.body.data.replace(/-/g, '+').replace(/_/g, '/'))
+          rawBody = atob(part.body.data.replace(/-/g, '+').replace(/_/g, '/'))
+          break
         } catch (e) {}
       }
       if (part.parts) {
         const sub = extractEmailBody(part)
-        if (sub) return sub
+        if (sub) {
+          rawBody = sub
+          break
+        }
       }
     }
   }
 
-  return payload.snippet || ''
+  if (!rawBody) {
+    rawBody = payload.snippet || ''
+  }
+
+  return stripHtml(rawBody)
+}
+
+/**
+ * Format a Date to YYYY/MM/DD for Gmail search query
+ */
+function formatDateForGmail(date) {
+  const d = new Date(date)
+  const year = d.getUTCFullYear()
+  const month = String(d.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(d.getUTCDate()).padStart(2, '0')
+  return `${year}/${month}/${day}`
 }
 
 /**
@@ -95,9 +141,8 @@ export async function connectGmail(onSuccess) {
           }
 
           const token = response.access_token
-          const now = new Date().toISOString()
 
-          // Query existing row
+          // Query existing integration row
           const { data: existing, error: fetchErr } = await supabase
             .from('integrations')
             .select('*')
@@ -110,13 +155,14 @@ export async function connectGmail(onSuccess) {
           }
 
           let dbErr = null
+          // CRITICAL: Do NOT set last_sync at connect time! Keep existing.last_sync or null
           if (existing) {
             const { error } = await supabase
               .from('integrations')
               .update({
                 access_token: token,
                 status: 'connected',
-                last_sync: existing.last_sync || now
+                last_sync: existing.last_sync || null
               })
               .eq('id', existing.id)
             dbErr = error
@@ -127,7 +173,7 @@ export async function connectGmail(onSuccess) {
                 service: 'gmail',
                 access_token: token,
                 status: 'connected',
-                last_sync: now
+                last_sync: null
               })
             dbErr = error
           }
@@ -141,7 +187,7 @@ export async function connectGmail(onSuccess) {
 
           toast.success('Gmail connected ✓')
           if (onSuccess) {
-            onSuccess({ status: 'connected', last_sync: existing?.last_sync || now })
+            onSuccess({ status: 'connected', last_sync: existing?.last_sync || null })
           }
           resolve({ success: true })
         }
@@ -158,6 +204,7 @@ export async function connectGmail(onSuccess) {
 
 /**
  * Disconnect Gmail integration from Supabase
+ * Clears last_sync so reconnecting does a fresh 30-day pull.
  */
 export async function disconnectGmail() {
   try {
@@ -208,14 +255,17 @@ export async function syncGmailEmails() {
       return 0
     }
 
-    // 2. Search query with last_sync timestamp filter
-    let query = 'from:alerts@gtbank.com OR from:customerservice@opay-inc.com'
+    // 2. Build search query with senders & 30-day lookback window if last_sync is null
+    let afterDateStr = ''
     if (integration.last_sync) {
-      const lastSyncUnix = Math.floor(new Date(integration.last_sync).getTime() / 1000)
-      if (!isNaN(lastSyncUnix) && lastSyncUnix > 0) {
-        query += ` after:${lastSyncUnix}`
-      }
+      afterDateStr = formatDateForGmail(integration.last_sync)
+    } else {
+      // 30 days ago lookback window
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      afterDateStr = formatDateForGmail(thirtyDaysAgo)
     }
+
+    const query = `from:GeNS@gtbank.com OR from:no-reply@opay-nigeria.com after:${afterDateStr}`
 
     // 3. Query Gmail API
     const headers = { Authorization: `Bearer ${token}` }
@@ -241,9 +291,11 @@ export async function syncGmailEmails() {
     const messages = listData.messages || []
 
     if (messages.length === 0) {
+      // Only set last_sync AFTER sync executes
+      const nowIso = new Date().toISOString()
       await supabase
         .from('integrations')
-        .update({ last_sync: new Date().toISOString() })
+        .update({ last_sync: nowIso })
         .eq('id', integration.id)
       toast.info('No new transactions')
       return 0
@@ -257,7 +309,7 @@ export async function syncGmailEmails() {
     let newTxnsCount = 0
 
     // Process messages
-    for (const msg of messages.slice(0, 20)) {
+    for (const msg of messages.slice(0, 30)) {
       const msgRes = await fetch(
         `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`,
         { headers }
@@ -265,13 +317,16 @@ export async function syncGmailEmails() {
       if (!msgRes.ok) continue
       const msgData = await msgRes.json()
 
-      const body = extractEmailBody(msgData.payload) || msgData.snippet || ''
+      const body = extractEmailBody(msgData.payload) || stripHtml(msgData.snippet || '')
 
       let parsed = null
-      if (body.includes('GTBank') || body.includes('GeNS') || body.includes('Guaranty Trust') || body.includes('DEBIT transaction')) {
+      const lowerBody = body.toLowerCase()
+
+      // Domain & Sender matching
+      if (lowerBody.includes('gtbank') || lowerBody.includes('gens') || lowerBody.includes('guaranty trust') || lowerBody.includes('debit transaction')) {
         parsed = parseGTBankEmail(body)
         if (parsed && gtWallet) parsed.wallet_id = gtWallet.id
-      } else if (body.includes('Opay') || body.includes('OPay') || body.includes('transfer of')) {
+      } else if (lowerBody.includes('opay') || lowerBody.includes('transfer of')) {
         parsed = parseOpayEmail(body)
         if (parsed && opayWallet) parsed.wallet_id = opayWallet.id
       }
@@ -305,7 +360,7 @@ export async function syncGmailEmails() {
       }
     }
 
-    // 5. Update last_sync timestamp
+    // 5. Update last_sync timestamp ONLY after successful sync completes
     const nowIso = new Date().toISOString()
     await supabase
       .from('integrations')
