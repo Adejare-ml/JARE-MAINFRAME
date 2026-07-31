@@ -4,6 +4,8 @@ import Layout from './components/layout/Layout'
 import Login from './pages/Login'
 import DailyHQ from './pages/DailyHQ'
 import Budget from './pages/Budget'
+import Transactions from './pages/Transactions'
+import Settings from './pages/Settings'
 import Goals from './pages/Goals'
 import Projects from './pages/Projects'
 import Debts from './pages/Debts'
@@ -32,6 +34,8 @@ function App() {
       <Routes>
         <Route path="/" element={<DailyHQ />} />
         <Route path="/budget" element={<Budget />} />
+        <Route path="/transactions" element={<Transactions />} />
+        <Route path="/settings" element={<Settings />} />
         <Route path="/goals" element={<Goals />} />
         <Route path="/projects" element={<Projects />} />
         <Route path="/debts" element={<Debts />} />

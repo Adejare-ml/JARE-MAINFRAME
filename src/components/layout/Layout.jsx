@@ -1,6 +1,7 @@
 import Sidebar from './Sidebar'
 import BottomNav from './BottomNav'
 import QuickLog from '../ui/QuickLog'
+import ToastContainer from '../ui/ToastContainer'
 
 export default function Layout({ children, onSignOut }) {
   return (
@@ -16,6 +17,7 @@ export default function Layout({ children, onSignOut }) {
       </main>
 
       <QuickLog />
+      <ToastContainer />
     </div>
   )
 }
