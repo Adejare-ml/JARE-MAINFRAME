@@ -1,0 +1,26 @@
+name: Gmail Transaction Sync
+
+on:
+  schedule:
+    # UTC times -- Lagos is UTC+1
+    # 8am, 10am, 2pm, 6pm Lagos = 07,09,13,17 UTC
+    - cron: '0 7,9,13,17 * * *'
+  workflow_dispatch:   # manual trigger button
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+      - name: Run Gmail Sync Script
+        run: node scripts/gmail-sync.mjs
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
