@@ -132,7 +132,12 @@ function formatDateForGmail(date) {
 async function run() {
   console.log('🚀 Starting background Gmail sync...')
 
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+  // Initialize Supabase admin client without realtime or persistent auth session for batch script robustness
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+    auth: { persistSession: false },
+    realtime: { disabled: true }
+  })
+
   const accessToken = await getAccessToken()
 
   const { data: integration, error: intErr } = await supabase
