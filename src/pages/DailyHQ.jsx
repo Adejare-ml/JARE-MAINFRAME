@@ -159,21 +159,32 @@ export default function DailyHQ() {
     )
   }
 
-  // Calculate Wallet Totals
-  const totalBalance = wallets.reduce((sum, w) => sum + Number(w.balance || 0), 0)
-  const gtWallet = wallets.find(w => w.name.toLowerCase().includes('gt'))
-  const opayWallet = wallets.find(w => w.name.toLowerCase().includes('opay'))
-  const cashWallet = wallets.find(w => w.name.toLowerCase().includes('cash'))
+  // ── Dynamic Wallet Calculations ──
+  const activeWallets = wallets.filter(w => w.is_active !== false)
+  const liquidWallets = activeWallets.filter(w => ['bank', 'mobile', 'cash'].includes(w.type))
+  const savingsWallets = activeWallets.filter(w => w.type === 'savings')
+  const investmentWallets = activeWallets.filter(w => w.type === 'investment')
 
-  // Check Low Balance Alerts against dynamic threshold
-  const lowWallets = wallets.filter(w => Number(w.balance || 0) < warnThreshold)
+  const liquidBalance = liquidWallets.reduce((sum, w) => sum + Number(w.balance || 0), 0)
+  const savingsBalance = savingsWallets.reduce((sum, w) => sum + Number(w.balance || 0), 0)
+  const investmentBalance = investmentWallets.reduce((sum, w) => sum + Number(w.balance || 0), 0)
+  const totalBalance = liquidBalance + savingsBalance + investmentBalance
 
-  // Monthly Spending Progress
+  const hasSavingsOrInvestments = savingsWallets.length > 0 || investmentWallets.length > 0
+
+  // Check Low Balance Alerts against dynamic threshold (liquid wallets only)
+  const lowWallets = liquidWallets.filter(w => Number(w.balance || 0) < warnThreshold)
+
+  // Monthly Spending Progress (liquid wallets only)
+  const liquidWalletIds = new Set(liquidWallets.map(w => w.id))
   const totalSpent = transactions
-    .filter(t => t.type === 'debit')
+    .filter(t => t.type === 'debit' && (!t.wallet_id || liquidWalletIds.has(t.wallet_id)))
     .reduce((sum, t) => sum + Number(t.amount || 0), 0)
-  const budgetTarget = 85000 // Standard monthly budget benchmark
+  const budgetTarget = 85000
   const percentSpent = Math.min(Math.round((totalSpent / budgetTarget) * 100), 100)
+
+  // Type icons for dynamic rendering
+  const typeIcons = { bank: '🏦', mobile: '📱', cash: '💵', savings: '🐖', investment: '📈' }
 
   return (
     <div className="space-y-6 pb-6">
@@ -191,7 +202,7 @@ export default function DailyHQ() {
       {/* CASH RECONCILIATION PROMPT */}
       <CashReconciliation onReconciled={fetchDailyData} />
 
-      {/* WALLET SNAPSHOT */}
+      {/* WALLET SNAPSHOT — Dynamic */}
       <section className="bg-card rounded-3xl p-6 border border-white/10 relative overflow-hidden shadow-xl">
         <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-1">
           Wallet Snapshot
@@ -200,33 +211,43 @@ export default function DailyHQ() {
           Total: {formatNaira(totalBalance)}
         </p>
 
-        <div className="grid grid-cols-3 gap-2 pt-3 border-t border-white/5 text-center sm:text-left">
-          <div className="bg-background/40 p-3 rounded-2xl border border-white/5">
-            <p className="text-[11px] text-muted flex items-center gap-1">
-              <span>🏦</span> GTBank
-            </p>
-            <p className="text-sm font-bold text-white mt-1">
-              {formatNaira(gtWallet?.balance || 0)}
-            </p>
+        {/* Layered summary if savings/investment exist */}
+        {hasSavingsOrInvestments && (
+          <div className="grid grid-cols-3 gap-2 mb-3">
+            <div className="bg-background/40 p-2 rounded-xl border border-white/5 text-center">
+              <p className="text-[10px] text-muted">💳 Liquid</p>
+              <p className="text-xs font-bold text-white">{formatNaira(liquidBalance)}</p>
+            </div>
+            <div className="bg-background/40 p-2 rounded-xl border border-white/5 text-center">
+              <p className="text-[10px] text-muted">🐖 Savings</p>
+              <p className="text-xs font-bold text-blue-400">{formatNaira(savingsBalance)}</p>
+            </div>
+            <div className="bg-background/40 p-2 rounded-xl border border-white/5 text-center">
+              <p className="text-[10px] text-muted">📈 Invested</p>
+              <p className="text-xs font-bold text-purple-400">{formatNaira(investmentBalance)}</p>
+            </div>
           </div>
+        )}
 
-          <div className="bg-background/40 p-3 rounded-2xl border border-white/5">
-            <p className="text-[11px] text-muted flex items-center gap-1">
-              <span>📱</span> OPay
-            </p>
-            <p className="text-sm font-bold text-white mt-1">
-              {formatNaira(opayWallet?.balance || 0)}
-            </p>
-          </div>
-
-          <div className="bg-background/40 p-3 rounded-2xl border border-white/5">
-            <p className="text-[11px] text-muted flex items-center gap-1">
-              <span>💵</span> Cash
-            </p>
-            <p className="text-sm font-bold text-white mt-1">
-              {formatNaira(cashWallet?.balance || 0)}
-            </p>
-          </div>
+        {/* Individual wallet tiles — dynamic */}
+        <div className={`grid gap-2 pt-3 border-t border-white/5 text-center sm:text-left ${
+          activeWallets.length <= 3 ? 'grid-cols-3' : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4'
+        }`}>
+          {activeWallets.map(w => (
+            <div
+              key={w.id}
+              className="bg-background/40 p-3 rounded-2xl border border-white/5"
+              style={w.color ? { borderColor: `${w.color}15` } : {}}
+            >
+              <p className="text-[11px] text-muted flex items-center gap-1">
+                <span>{typeIcons[w.type] || '💰'}</span> {w.name}
+                {w.account_last4 && <span className="text-muted/40 font-mono">••{w.account_last4}</span>}
+              </p>
+              <p className="text-sm font-bold text-white mt-1">
+                {formatNaira(w.balance)}
+              </p>
+            </div>
+          ))}
         </div>
       </section>
 

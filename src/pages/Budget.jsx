@@ -144,8 +144,16 @@ export default function Budget() {
     )
   }
 
-  // Main Budget View
-  const netWorth = wallets.reduce((sum, w) => sum + (Number(w.balance) || 0), 0)
+  // ── Layered Net Worth Calculations ──
+  const activeWallets = wallets.filter(w => w.is_active !== false)
+  const liquidWallets = activeWallets.filter(w => ['bank', 'mobile', 'cash'].includes(w.type))
+  const savingsWallets = activeWallets.filter(w => w.type === 'savings')
+  const investmentWallets = activeWallets.filter(w => w.type === 'investment')
+
+  const liquidBalance = liquidWallets.reduce((sum, w) => sum + (Number(w.balance) || 0), 0)
+  const savingsBalance = savingsWallets.reduce((sum, w) => sum + (Number(w.balance) || 0), 0)
+  const investmentBalance = investmentWallets.reduce((sum, w) => sum + (Number(w.balance) || 0), 0)
+  const totalNetWorth = liquidBalance + savingsBalance + investmentBalance
   
   let latestLastUpdated = null
   wallets.forEach(w => {
@@ -154,24 +162,29 @@ export default function Budget() {
     }
   })
 
-  // This Month summary
+  // This Month summary — exclude savings/investment from income/spent
   const now = new Date()
   const currentMonthTransactions = transactions.filter(t => {
     const tDate = new Date(t.created_at)
     return tDate.getMonth() === now.getMonth() && tDate.getFullYear() === now.getFullYear()
   })
 
+  // Only count transactions from liquid wallets in income/spent
+  const liquidWalletIds = new Set(liquidWallets.map(w => w.id))
+
   const thisMonthIncome = currentMonthTransactions
-    .filter(t => t.type === 'credit')
+    .filter(t => t.type === 'credit' && (!t.wallet_id || liquidWalletIds.has(t.wallet_id)))
     .reduce((sum, t) => sum + (Number(t.amount) || 0), 0)
 
   const thisMonthSpent = currentMonthTransactions
-    .filter(t => t.type === 'debit')
+    .filter(t => t.type === 'debit' && (!t.wallet_id || liquidWalletIds.has(t.wallet_id)))
     .reduce((sum, t) => sum + (Number(t.amount) || 0), 0)
 
-  const thisMonthRemaining = netWorth // As per requirement: "Net Worth or (Income - Spent)"
+  const thisMonthRemaining = liquidBalance
 
   const last5Transactions = transactions.slice(0, 5)
+
+  const hasSavingsOrInvestments = savingsWallets.length > 0 || investmentWallets.length > 0
 
   return (
     <div className="p-4 md:p-8 space-y-8 max-w-5xl mx-auto">
@@ -194,28 +207,48 @@ export default function Budget() {
         </div>
       </div>
 
-      {/* Net Worth Card */}
+      {/* ── Layered Net Worth Card ── */}
       <div className="bg-card rounded-3xl p-6 md:p-8 border border-white/5 relative overflow-hidden group">
         <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
           <span className="text-8xl">💰</span>
         </div>
-        <p className="text-muted font-medium mb-2">NET WORTH</p>
+        <p className="text-muted font-medium mb-2">TOTAL NET WORTH</p>
         <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
-          {formatNaira(netWorth)}
+          {formatNaira(totalNetWorth)}
         </h2>
-        <p className="text-xs text-muted">
+
+        {/* Layered breakdown */}
+        {hasSavingsOrInvestments && (
+          <div className="grid grid-cols-3 gap-3 pt-4 border-t border-white/5">
+            <div className="bg-background/40 p-3 rounded-2xl border border-white/5">
+              <p className="text-[10px] text-muted uppercase tracking-wider mb-1">💳 Liquid</p>
+              <p className="text-sm font-bold text-white">{formatNaira(liquidBalance)}</p>
+            </div>
+            <div className="bg-background/40 p-3 rounded-2xl border border-white/5">
+              <p className="text-[10px] text-muted uppercase tracking-wider mb-1">🐖 Savings</p>
+              <p className="text-sm font-bold text-blue-400">{formatNaira(savingsBalance)}</p>
+            </div>
+            <div className="bg-background/40 p-3 rounded-2xl border border-white/5">
+              <p className="text-[10px] text-muted uppercase tracking-wider mb-1">📈 Invested</p>
+              <p className="text-sm font-bold text-purple-400">{formatNaira(investmentBalance)}</p>
+            </div>
+          </div>
+        )}
+
+        <p className="text-xs text-muted mt-3">
           Last updated: {latestLastUpdated ? timeAgo(latestLastUpdated) : 'Just now'}
         </p>
       </div>
 
       {/* Wallets List */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {wallets.map((wallet) => (
+        {activeWallets.map((wallet) => (
           <WalletCard
             key={wallet.id}
             name={wallet.name}
             type={wallet.type}
             balance={wallet.balance}
+            color={wallet.color}
           />
         ))}
       </div>
@@ -233,7 +266,7 @@ export default function Budget() {
             <p className="text-lg font-bold text-red-500">{formatNaira(thisMonthSpent)}</p>
           </div>
           <div>
-            <p className="text-xs text-muted mb-1">Remaining</p>
+            <p className="text-xs text-muted mb-1">Liquid Balance</p>
             <p className="text-lg font-bold text-white">{formatNaira(thisMonthRemaining)}</p>
           </div>
         </div>

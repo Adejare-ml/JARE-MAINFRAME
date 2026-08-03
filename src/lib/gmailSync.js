@@ -112,6 +112,41 @@ function formatDateForGmail(date) {
 }
 
 /**
+ * Generate a synthetic transaction ID from email content for dedup.
+ * Browser-compatible using SubtleCrypto-free approach (simple hash).
+ */
+function generateSyntheticId(source, amount, dateStr, description) {
+  const raw = `${source}|${amount}|${dateStr}|${(description || '').slice(0, 60)}`
+  // Simple browser-safe hash
+  let hash = 0
+  for (let i = 0; i < raw.length; i++) {
+    const char = raw.charCodeAt(i)
+    hash = ((hash << 5) - hash) + char
+    hash = hash & hash // Convert to 32bit integer
+  }
+  return 'SYN-' + Math.abs(hash).toString(16).padStart(8, '0') + Date.now().toString(36).slice(-4)
+}
+
+/**
+ * Extract sender email from Gmail API message payload headers.
+ */
+function getSenderEmail(payload) {
+  if (!payload || !payload.headers) return ''
+  const fromHeader = payload.headers.find(h => h.name.toLowerCase() === 'from')
+  if (!fromHeader) return ''
+  const match = fromHeader.value.match(/<([^>]+)>/)
+  return match ? match[1].toLowerCase() : fromHeader.value.trim().toLowerCase()
+}
+
+/**
+ * Extract domain from email address.
+ */
+function getDomain(email) {
+  const at = email.lastIndexOf('@')
+  return at >= 0 ? email.slice(at + 1).toLowerCase() : ''
+}
+
+/**
  * Initiates Google OAuth Token Client flow using Google Identity Services (GIS)
  * Suitable for pure frontend SPA -- no backend redirect URI dependency.
  */
@@ -229,7 +264,8 @@ export async function disconnectGmail() {
 }
 
 /**
- * Perform manual or background sync of emails
+ * Perform manual sync of emails from the frontend.
+ * Uses dynamic sender list from wallets table.
  */
 export async function syncGmailEmails() {
   try {
@@ -255,22 +291,46 @@ export async function syncGmailEmails() {
       return 0
     }
 
-    // 2. Build search query with senders & 30-day lookback window if last_sync is null
+    // 2. Fetch wallets for dynamic sender list
+    const { data: wallets } = await supabase
+      .from('wallets')
+      .select('*')
+      .eq('is_active', true)
+
+    // Build sender → wallet mapping
+    const senderMap = new Map()
+    const searchSenders = []
+
+    for (const w of (wallets || [])) {
+      if (w.alert_sender) {
+        const sender = w.alert_sender.trim().toLowerCase()
+        senderMap.set(sender, w)
+        searchSenders.push(sender)
+      }
+    }
+
+    // Always include defaults
+    const defaults = ['gens@gtbank.com', 'no-reply@opay-nigeria.com']
+    for (const s of defaults) {
+      if (!searchSenders.includes(s)) searchSenders.push(s)
+    }
+
+    // Build Gmail query
     let afterDateStr = ''
     if (integration.last_sync) {
       afterDateStr = formatDateForGmail(integration.last_sync)
     } else {
-      // 30 days ago lookback window
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
       afterDateStr = formatDateForGmail(thirtyDaysAgo)
     }
 
-    const query = `from:GeNS@gtbank.com OR from:no-reply@opay-nigeria.com after:${afterDateStr}`
+    const fromClauses = searchSenders.map(s => `from:${s}`).join(' OR ')
+    const query = `${fromClauses} after:${afterDateStr}`
 
     // 3. Query Gmail API
     const headers = { Authorization: `Bearer ${token}` }
     const res = await fetch(
-      `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}`,
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=50`,
       { headers }
     )
 
@@ -291,7 +351,6 @@ export async function syncGmailEmails() {
     const messages = listData.messages || []
 
     if (messages.length === 0) {
-      // Only set last_sync AFTER sync executes
       const nowIso = new Date().toISOString()
       await supabase
         .from('integrations')
@@ -301,10 +360,15 @@ export async function syncGmailEmails() {
       return 0
     }
 
-    // 4. Get wallets mapping
-    const { data: wallets } = await supabase.from('wallets').select('*')
-    const gtWallet = wallets?.find(w => w.type === 'bank' || w.name.toLowerCase().includes('gt'))
-    const opayWallet = wallets?.find(w => w.type === 'mobile' || w.name.toLowerCase().includes('opay'))
+    // Build domain-to-wallet lookup
+    const walletByDomain = new Map()
+    for (const [sender, wallet] of senderMap.entries()) {
+      walletByDomain.set(getDomain(sender), wallet)
+    }
+
+    // Fallback wallet lookup by name
+    const gtWallet = (wallets || []).find(w => w.name.toLowerCase().includes('gt') || (w.alert_sender && w.alert_sender.toLowerCase().includes('gtbank')))
+    const opayWallet = (wallets || []).find(w => w.name.toLowerCase().includes('opay') || (w.alert_sender && w.alert_sender.toLowerCase().includes('opay')))
 
     let newTxnsCount = 0
 
@@ -318,44 +382,71 @@ export async function syncGmailEmails() {
       const msgData = await msgRes.json()
 
       const body = extractEmailBody(msgData.payload) || stripHtml(msgData.snippet || '')
+      if (!body || body.length < 20) continue
 
-      let parsed = null
-      const lowerBody = body.toLowerCase()
+      const senderEmail = getSenderEmail(msgData.payload)
+      const senderDomain = getDomain(senderEmail)
 
-      // Domain & Sender matching
-      if (lowerBody.includes('gtbank') || lowerBody.includes('gens') || lowerBody.includes('guaranty trust') || lowerBody.includes('debit transaction')) {
-        parsed = parseGTBankEmail(body)
-        if (parsed && gtWallet) parsed.wallet_id = gtWallet.id
-      } else if (lowerBody.includes('opay') || lowerBody.includes('transfer of')) {
-        parsed = parseOpayEmail(body)
-        if (parsed && opayWallet) parsed.wallet_id = opayWallet.id
+      // Find matching wallet
+      let matchedWallet = senderMap.get(senderEmail)
+      if (!matchedWallet) matchedWallet = walletByDomain.get(senderDomain)
+      if (!matchedWallet) {
+        if (senderDomain.includes('gtbank')) matchedWallet = gtWallet
+        else if (senderDomain.includes('opay')) matchedWallet = opayWallet
       }
 
-      if (parsed && parsed.transaction_id) {
-        // Check duplicate by transaction_id + source
-        const { data: existing } = await supabase
-          .from('transactions')
-          .select('id')
-          .eq('transaction_id', parsed.transaction_id)
-          .eq('source', parsed.source)
-          .maybeSingle()
+      // Parse using fast-path rules (frontend doesn't do LLM)
+      let parsed = null
+      if (senderDomain.includes('gtbank.com')) {
+        parsed = parseGTBankEmail(body)
+        if (parsed && matchedWallet) parsed.wallet_id = matchedWallet.id
+      } else if (senderDomain.includes('opay-nigeria.com') || senderDomain.includes('opay.com')) {
+        parsed = parseOpayEmail(body)
+        if (parsed && matchedWallet) parsed.wallet_id = matchedWallet.id
+      } else {
+        // Unknown sender: try both parsers based on body content
+        const lowerBody = body.toLowerCase()
+        if (lowerBody.includes('gtbank') || lowerBody.includes('guaranty trust') || lowerBody.includes('debit transaction')) {
+          parsed = parseGTBankEmail(body)
+          if (parsed && matchedWallet) parsed.wallet_id = matchedWallet.id
+        } else if (lowerBody.includes('opay') || lowerBody.includes('transfer of')) {
+          parsed = parseOpayEmail(body)
+          if (parsed && matchedWallet) parsed.wallet_id = matchedWallet.id
+        }
+      }
 
-        if (!existing) {
-          // Insert transaction
-          const { error: insErr } = await supabase.from('transactions').insert(parsed)
-          if (!insErr) {
-            newTxnsCount++
+      if (!parsed || parsed.amount <= 0) continue
 
-            // Update wallet balance if available_balance is provided
-            if (parsed.available_balance != null && parsed.wallet_id) {
-              await supabase.from('wallets').update({
-                balance: parsed.available_balance,
-                last_updated: new Date().toISOString()
-              }).eq('id', parsed.wallet_id)
-            }
-          } else {
-            console.error('Error inserting synced transaction:', insErr)
+      // Generate synthetic ID if parser didn't extract one
+      if (!parsed.transaction_id) {
+        parsed.transaction_id = generateSyntheticId(
+          parsed.source,
+          parsed.amount,
+          parsed.transaction_date,
+          parsed.description
+        )
+      }
+
+      // Dedup check
+      const { data: existing } = await supabase
+        .from('transactions')
+        .select('id')
+        .eq('transaction_id', parsed.transaction_id)
+        .eq('source', parsed.source)
+        .maybeSingle()
+
+      if (!existing) {
+        const { error: insErr } = await supabase.from('transactions').insert(parsed)
+        if (!insErr) {
+          newTxnsCount++
+          if (parsed.available_balance != null && parsed.wallet_id) {
+            await supabase.from('wallets').update({
+              balance: parsed.available_balance,
+              updated_at: new Date().toISOString()
+            }).eq('id', parsed.wallet_id)
           }
+        } else {
+          console.error('Error inserting synced transaction:', insErr)
         }
       }
     }
