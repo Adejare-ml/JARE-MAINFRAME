@@ -1,22 +1,22 @@
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-*$py.class
+# Node modules & build outputs
+node_modules/
+dist/
 
-# Virtual environments
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Virtual environments & python
 venv/
 env/
 .venv/
-
-# Jupyter Notebooks
-.ipynb_checkpoints/
+__pycache__/
+*.py[cod]
 
 # IDEs
 .vscode/
 .idea/
-
-# Environment variables
-.env
 
 # ML Models & Data dumps
 *.h5
