@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { connectGmail, disconnectGmail, syncGmailEmails } from '../lib/gmailSync'
+import { getParseStrategy } from '../lib/sync'
 import { timeAgo, formatNaira } from '../lib/formatters'
 import { toast } from '../lib/toast'
 import { useAuth } from '../hooks/useAuth'
@@ -12,6 +13,18 @@ const WALLET_TYPES = [
   { value: 'savings', label: 'Savings', icon: '🐖' },
   { value: 'investment', label: 'Investment', icon: '📈' },
 ]
+
+const PARSE_STRATEGIES = [
+  { value: 'auto', label: 'Auto' },
+  { value: 'rules', label: 'Rules' },
+  { value: 'llm', label: 'AI' },
+]
+
+const PARSE_STRATEGY_HELP = {
+  auto: 'Try pattern matching first, fall back to AI. Fine for most banks.',
+  rules: 'Pattern matching only. Fastest, for banks that clearly label DEBIT and CREDIT.',
+  llm: 'Always use AI. Needed where the same wording covers money in and money out (Opay, PiggyVest) — these are skipped by manual sync and picked up by the scheduled one.',
+}
 
 const PRESET_COLORS = [
   '#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6',
@@ -46,6 +59,7 @@ export default function Settings() {
     account_last4: '',
     color: '#22c55e',
     is_active: true,
+    parse_strategy: 'auto',
   })
   const [savingWallet, setSavingWallet] = useState(false)
 
@@ -197,6 +211,7 @@ export default function Settings() {
       account_last4: '',
       color: '#22c55e',
       is_active: true,
+      parse_strategy: 'auto',
     })
     setShowWalletModal(true)
   }
@@ -211,6 +226,9 @@ export default function Settings() {
       account_last4: wallet.account_last4 || '',
       color: wallet.color || '#22c55e',
       is_active: wallet.is_active !== false,
+      // Falls back to the inferred strategy, so a wallet saved before this
+      // column existed doesn't silently reset Opay to rules-based parsing.
+      parse_strategy: getParseStrategy(wallet),
     })
     setShowWalletModal(true)
   }
@@ -233,6 +251,7 @@ export default function Settings() {
         account_last4: walletForm.account_last4.trim() || null,
         color: walletForm.color,
         is_active: walletForm.is_active,
+        parse_strategy: walletForm.parse_strategy,
       }
 
       if (editingWallet) {
@@ -470,6 +489,14 @@ export default function Settings() {
                                   Inactive
                                 </span>
                               )}
+                              {w.alert_sender && getParseStrategy(w) === 'llm' && (
+                                <span
+                                  className="text-[9px] bg-accent/10 text-accent px-1.5 py-0.5 rounded-full uppercase font-bold"
+                                  title="Read by AI — skipped by manual sync, picked up by the scheduled one"
+                                >
+                                  AI
+                                </span>
+                              )}
                             </div>
                             {w.alert_sender && (
                               <p className="text-[10px] text-muted/60 font-mono truncate">{w.alert_sender}</p>
@@ -680,6 +707,32 @@ export default function Settings() {
                   placeholder="alerts@bank.com"
                   className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm font-mono placeholder-muted/40 focus:outline-none focus:border-accent min-h-[48px]"
                 />
+              </div>
+
+              {/* Parse Strategy */}
+              <div>
+                <label className="block text-xs text-muted font-semibold mb-1">
+                  How to Read Alerts
+                </label>
+                <p className="text-[10px] text-muted/60 mb-1.5">
+                  {PARSE_STRATEGY_HELP[walletForm.parse_strategy]}
+                </p>
+                <div className="grid grid-cols-3 gap-2">
+                  {PARSE_STRATEGIES.map(s => (
+                    <button
+                      key={s.value}
+                      type="button"
+                      onClick={() => setWalletForm({ ...walletForm, parse_strategy: s.value })}
+                      className={`px-3 py-3 rounded-xl border text-xs font-semibold transition-all min-h-[48px] ${
+                        walletForm.parse_strategy === s.value
+                          ? 'border-accent bg-accent/10 text-accent'
+                          : 'border-white/10 bg-background text-muted hover:border-white/20'
+                      }`}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Account Last 4 */}
