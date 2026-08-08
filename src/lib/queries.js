@@ -169,8 +169,97 @@ export function daysAgo(days, date = new Date()) {
   return toDateOnly(d)
 }
 
+/** Longest search term we send. Beyond this it is a paste, not a search. */
+const SEARCH_MAX = 60
+
 /**
- * Apply a named filter to a transactions query, server-side.
+ * Quote a value so PostgREST reads it literally.
+ *
+ * PostgREST splits a filter list on commas and treats `.`, `:`, `(` and `)`
+ * structurally. A search for "Rice, Chicken" would otherwise emit a second,
+ * malformed condition -- 400 at best, and at worst a filter that quietly means
+ * something other than what was typed. Double quotes make the value opaque;
+ * inside them, `"` and `\` need escaping.
+ */
+function quoteFilterValue(value) {
+  return `"${String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+}
+
+/**
+ * The OR-conditions a free-text search expands to, or null for no search.
+ *
+ * Searches the three fields that hold anything a human would recognise: the
+ * bank's narration, who it went to, and the note. `category` is deliberately
+ * absent -- there are chips for that, and including it would make searching
+ * "food" return every meal rather than the one you meant.
+ *
+ * @param {string} raw
+ * @returns {string[] | null}
+ */
+export function searchConditions(raw) {
+  const trimmed = String(raw || '').trim()
+  // One character matches most of the ledger; that is not a search result, it
+  // is a full table scan rendered as a list.
+  if (trimmed.length < 2) return null
+
+  // % and _ are LIKE wildcards, and PostgREST gives no way to pass an ESCAPE
+  // clause -- so a typed % would silently turn the search into "everything".
+  const cleaned = trimmed.replace(/[%_]/g, '').slice(0, SEARCH_MAX)
+  if (!cleaned) return null
+
+  const pattern = quoteFilterValue(`%${cleaned}%`)
+  const conditions = [
+    `description.ilike.${pattern}`,
+    `recipient.ilike.${pattern}`,
+    `note.ilike.${pattern}`,
+  ]
+
+  // Typing an amount should find that amount. Exact rather than fuzzy: "5000"
+  // meaning "roughly five thousand" is a different feature, and a wrong one to
+  // guess at.
+  const asNumber = Number(cleaned.replace(/[,₦\s]/g, ''))
+  if (Number.isFinite(asNumber) && asNumber > 0) {
+    conditions.push(`amount.eq.${asNumber}`)
+  }
+
+  return conditions
+}
+
+/**
+ * Fold several OR-groups into the single `or=` PostgREST parameter.
+ *
+ * Two groups have to be AND'd together -- a wallet chip *and* a search term
+ * means both must hold. The obvious way, calling `.or()` twice, emits two
+ * `or=` keys; postgrest-js appends rather than replaces, and nothing in the
+ * PostgREST documentation says how repeated top-level logical operators
+ * combine. Guessing there means a filter that silently returns the wrong rows,
+ * which is the exact failure this codebase keeps finding.
+ *
+ * Nested `and(...)` inside one `or=` *is* documented, so distribute instead:
+ *
+ *     (a OR b) AND (c OR d) == (a AND c) OR (a AND d) OR (b AND c) OR (b AND d)
+ *
+ * Cross-product size is bounded by the callers: at most two groups, of two and
+ * four conditions, so at most eight terms.
+ *
+ * @param {Array<string[]>} groups
+ * @returns {string | null}
+ */
+export function combineOrGroups(groups) {
+  const present = (groups || []).filter((g) => g && g.length > 0)
+  if (present.length === 0) return null
+  if (present.length === 1) return present[0].join(',')
+
+  let combos = present[0].map((c) => [c])
+  for (let i = 1; i < present.length; i++) {
+    combos = combos.flatMap((combo) => present[i].map((c) => [...combo, c]))
+  }
+  return combos.map((combo) => `and(${combo.join(',')})`).join(',')
+}
+
+/**
+ * Apply a named filter and an optional search to a transactions query,
+ * server-side.
  *
  * These have to run in Postgres rather than on the fetched array: with
  * pagination, filtering client-side would only ever search the page already
@@ -180,50 +269,46 @@ export function daysAgo(days, date = new Date()) {
  * @param {object} query - a supabase query builder on `transactions`
  * @param {string} filter - filter id, e.g. 'All' or 'wallet:<uuid>'
  * @param {object[]} wallets
+ * @param {string} search - free text; ignored when shorter than two characters
  * @returns {object} the query with the filter applied
  */
-export function applyTransactionFilter(query, filter, wallets = []) {
-  if (filter === 'Review') {
-    return query.eq(NEEDS_REVIEW_FILTER.column, NEEDS_REVIEW_FILTER.value)
-  }
-  if (filter === 'This Week') {
-    return query.gte('transaction_date', daysAgo(7))
-  }
-  if (filter === 'This Month') {
-    return query.gte('transaction_date', startOfMonth())
-  }
-  if (filter === 'Needs') {
-    return query.eq('want_or_need', 'need')
-  }
-  if (filter === 'Wants') {
-    return query.eq('want_or_need', 'want')
-  }
-  if (filter === 'Uncategorized') {
-    return query.eq('category', 'Uncategorized')
-  }
+export function applyTransactionFilter(query, filter, wallets = [], search = '') {
+  // Collected rather than applied inline, because a wallet chip and a search
+  // both want an OR and only one `or=` may be sent. See combineOrGroups.
+  const orGroups = []
 
-  if (filter.startsWith('category:')) {
+  if (filter === 'Review') {
+    query = query.eq(NEEDS_REVIEW_FILTER.column, NEEDS_REVIEW_FILTER.value)
+  } else if (filter === 'This Week') {
+    query = query.gte('transaction_date', daysAgo(7))
+  } else if (filter === 'This Month') {
+    query = query.gte('transaction_date', startOfMonth())
+  } else if (filter === 'Needs') {
+    query = query.eq('want_or_need', 'need')
+  } else if (filter === 'Wants') {
+    query = query.eq('want_or_need', 'want')
+  } else if (filter === 'Uncategorized') {
+    query = query.eq('category', 'Uncategorized')
+  } else if (filter.startsWith('category:')) {
     // Exact match; category names are validated against ALL_CATEGORIES on
     // write, so no pattern escaping is needed.
-    return query.eq('category', filter.slice('category:'.length))
-  }
-
-  if (filter.startsWith('wallet:')) {
+    query = query.eq('category', filter.slice('category:'.length))
+  } else if (filter.startsWith('wallet:')) {
     const walletId = filter.slice('wallet:'.length)
     const wallet = wallets.find((w) => w.id === walletId)
-    if (!wallet) return query
-
-    // Rows synced before wallets carried IDs only have `source`, so match
-    // either. walletSource is imported rather than reimplemented: the two must
-    // agree or the filter silently stops matching legacy rows, and it is
-    // sanitised to [a-z0-9_] because PostgREST splits this string on commas --
-    // a wallet named "GTBank, Naira" would otherwise emit a third, malformed
-    // condition and 400 the whole query.
-    const sourceSlug = walletSource(wallet)
-    return query.or(`wallet_id.eq.${walletId},source.eq.${sourceSlug}`)
+    if (wallet) {
+      // Rows synced before wallets carried IDs only have `source`, so match
+      // either. walletSource is imported rather than reimplemented: the two
+      // must agree or the filter silently stops matching legacy rows.
+      orGroups.push([`wallet_id.eq.${walletId}`, `source.eq.${walletSource(wallet)}`])
+    }
   }
 
-  return query
+  const search_ = searchConditions(search)
+  if (search_) orGroups.push(search_)
+
+  const combined = combineOrGroups(orGroups)
+  return combined ? query.or(combined) : query
 }
 
 /**

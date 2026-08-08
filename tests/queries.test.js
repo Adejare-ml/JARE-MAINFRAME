@@ -10,6 +10,8 @@ import {
   buildFilterOptions,
   needsReview,
   excludeVoided,
+  searchConditions,
+  combineOrGroups,
 } from '../src/lib/queries.js'
 import { setSchemaCapabilities, resetSchemaCapabilities } from '../src/lib/schema.js'
 
@@ -203,5 +205,100 @@ describe('excludeVoided', () => {
       { method: 'eq', args: ['voided', false] },
       { method: 'eq', args: ['category', 'Uncategorized'] },
     ])
+  })
+})
+
+describe('searchConditions', () => {
+  it('ignores a search shorter than two characters', () => {
+    for (const q of ['', ' ', 'a', null, undefined]) {
+      expect(searchConditions(q)).toBeNull()
+    }
+  })
+
+  it('searches the three human-readable fields', () => {
+    const conditions = searchConditions('chicken')
+    expect(conditions).toEqual([
+      'description.ilike."%chicken%"',
+      'recipient.ilike."%chicken%"',
+      'note.ilike."%chicken%"',
+    ])
+  })
+
+  it('quotes the value so a comma cannot forge a second condition', () => {
+    // Unquoted, PostgREST splits this list on the comma and reads "Chicken%"
+    // as a whole condition of its own -- a 400 at best, and at worst a filter
+    // that means something other than what was typed.
+    const conditions = searchConditions('Rice, Chicken')
+    expect(conditions[0]).toBe('description.ilike."%Rice, Chicken%"')
+  })
+
+  it('escapes quotes and backslashes inside the value', () => {
+    expect(searchConditions('say "hi"')[0]).toBe('description.ilike."%say \\"hi\\"%"')
+    expect(searchConditions('back\\slash')[0]).toBe('description.ilike."%back\\\\slash%"')
+  })
+
+  it('strips LIKE wildcards so a typed % is not a match-everything', () => {
+    // There is no way to pass an ESCAPE clause through PostgREST, so a literal
+    // % would silently widen the search to the whole table.
+    expect(searchConditions('%%%%')).toBeNull()
+    expect(searchConditions('ric%e')[0]).toBe('description.ilike."%rice%"')
+  })
+
+  it('adds an exact amount match when the search is a number', () => {
+    expect(searchConditions('5000')).toContain('amount.eq.5000')
+    expect(searchConditions('₦5,000')).toContain('amount.eq.5000')
+  })
+
+  it('does not add an amount match for text', () => {
+    expect(searchConditions('chicken').some(c => c.startsWith('amount'))).toBe(false)
+  })
+})
+
+describe('combineOrGroups', () => {
+  it('returns null when there is nothing to combine', () => {
+    expect(combineOrGroups([])).toBeNull()
+    expect(combineOrGroups([[], null])).toBeNull()
+  })
+
+  it('passes a single group through unwrapped', () => {
+    expect(combineOrGroups([['a.eq.1', 'b.eq.2']])).toBe('a.eq.1,b.eq.2')
+  })
+
+  it('distributes two groups into one or= rather than emitting two', () => {
+    // (a OR b) AND (c OR d). Calling .or() twice appends two or= keys and
+    // nothing documents how PostgREST combines them; nested and(...) inside a
+    // single or= is documented, so the cross product is the safe form.
+    expect(combineOrGroups([['a.eq.1', 'b.eq.2'], ['c.eq.3', 'd.eq.4']])).toBe(
+      'and(a.eq.1,c.eq.3),and(a.eq.1,d.eq.4),and(b.eq.2,c.eq.3),and(b.eq.2,d.eq.4)',
+    )
+  })
+})
+
+describe('filter and search composition', () => {
+  const wallets = [{ id: 'w1', name: 'GTBank', source_slug: 'gtbank', is_active: true }]
+
+  it('sends exactly one or= when a wallet chip and a search are both active', () => {
+    const q = fakeQuery()
+    applyTransactionFilter(q, 'wallet:w1', wallets, 'chicken')
+    const ors = q.calls.filter(c => c.method === 'or')
+    expect(ors).toHaveLength(1)
+    // Every term must carry both a wallet condition and a search condition.
+    for (const term of ors[0].args[0].split('),and(')) {
+      expect(term).toMatch(/wallet_id\.eq\.w1|source\.eq\.gtbank/)
+      expect(term).toMatch(/ilike|amount\.eq/)
+    }
+  })
+
+  it('keeps a non-or filter as its own eq alongside the search or=', () => {
+    const q = fakeQuery()
+    applyTransactionFilter(q, 'Review', [], 'chicken')
+    expect(q.calls).toContainEqual({ method: 'eq', args: ['reviewed', false] })
+    expect(q.calls.filter(c => c.method === 'or')).toHaveLength(1)
+  })
+
+  it('sends no or= at all when neither a wallet nor a search is active', () => {
+    const q = fakeQuery()
+    applyTransactionFilter(q, 'This Month', [], '')
+    expect(q.calls.filter(c => c.method === 'or')).toHaveLength(0)
   })
 })
