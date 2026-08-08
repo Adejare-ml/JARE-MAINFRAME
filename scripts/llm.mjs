@@ -51,6 +51,32 @@ const NVIDIA_MODEL = env('NVIDIA_MODEL', 'deepseek-ai/deepseek-v4-flash')
 /** Extraction is a short, mechanical job -- a long budget only buys a model
  *  room to ramble past the JSON. */
 const MAX_TOKENS = 500
+
+/**
+ * NVIDIA gets a larger ceiling than Ollama.
+ *
+ * DeepSeek V4 Flash reasons by default, and while we ask it not to (see
+ * NVIDIA_THINKING_OFF), max_tokens is a hard stop rather than a hint: a model
+ * that reasons anyway spends the budget narrating and gets cut off mid-JSON.
+ * The cost is charged on output actually produced, not on the cap, so a
+ * generous ceiling is close to free and buys a truncated answer the room to
+ * still land.
+ */
+const NVIDIA_MAX_TOKENS = 1500
+const NVIDIA_BATCH_MAX_TOKENS = 2500
+
+/**
+ * Switching off DeepSeek's reasoning on NVIDIA NIM.
+ *
+ * NIM drives this through `chat_template_kwargs` rather than the OpenAI-standard
+ * `reasoning_effort`, and it uses two keys in tandem. Sending only `thinking`
+ * leaves `enable_thinking` at its default -- which is on -- so the model reasons
+ * regardless, burns the output budget before emitting any JSON, and the response
+ * arrives truncated. That reads downstream as "no JSON object in response" and
+ * quietly downgrades a whole batch to Uncategorized.
+ */
+const NVIDIA_THINKING_OFF = { enable_thinking: false, thinking: false }
+
 const REQUEST_TIMEOUT_MS = 30000
 /** Enough for any alert; keeps a pathological email from blowing the context. */
 const MAX_BODY_CHARS = 3000
@@ -144,6 +170,9 @@ async function callOllama(userPrompt, systemPrompt = SYSTEM_PROMPT, maxTokens = 
  * spends the token budget narrating and can push the JSON past the limit.
  */
 async function callNvidia(userPrompt, systemPrompt = SYSTEM_PROMPT, maxTokens = MAX_TOKENS) {
+  // Scale the caller's budget up for this provider; see NVIDIA_MAX_TOKENS.
+  const budget = maxTokens > MAX_TOKENS ? NVIDIA_BATCH_MAX_TOKENS : NVIDIA_MAX_TOKENS
+
   const res = await withTimeout((signal) =>
     fetch(`${NVIDIA_BASE_URL.replace(/\/$/, '')}/chat/completions`, {
       method: 'POST',
@@ -158,11 +187,11 @@ async function callNvidia(userPrompt, systemPrompt = SYSTEM_PROMPT, maxTokens = 
           { role: 'user', content: userPrompt },
         ],
         temperature: 0,
-        max_tokens: maxTokens,
+        max_tokens: budget,
         response_format: { type: 'json_object' },
-        // Ignored by non-reasoning models; suppresses the <think> block on
-        // those that support it. extractJsonObject copes either way.
-        chat_template_kwargs: { thinking: false },
+        // Ignored by non-reasoning models. Both keys are required together on
+        // reasoning ones -- see NVIDIA_THINKING_OFF.
+        chat_template_kwargs: NVIDIA_THINKING_OFF,
       }),
       signal,
     }),
@@ -173,7 +202,19 @@ async function callNvidia(userPrompt, systemPrompt = SYSTEM_PROMPT, maxTokens = 
   }
 
   const data = await res.json()
-  return data?.choices?.[0]?.message?.content ?? null
+  const choice = data?.choices?.[0]
+
+  // Truncation and malformed JSON are indistinguishable downstream -- both
+  // surface as "no JSON object in response". Naming it here is the difference
+  // between "raise the budget" and "the model is broken".
+  if (choice?.finish_reason === 'length') {
+    throw new Error(
+      `NVIDIA response hit the ${budget}-token cap before finishing. ` +
+        'The model is probably still reasoning despite chat_template_kwargs.',
+    )
+  }
+
+  return choice?.message?.content ?? null
 }
 
 /**
@@ -268,4 +309,39 @@ export async function categorizeBatch(items, corrections = [], warn = console.wa
 
   // Both providers unavailable: everything goes to review rather than nowhere.
   return { results: parseBatchResponse(null, items), provider: null }
+}
+
+/**
+ * Call one named provider directly and report what happened.
+ *
+ * Used by scripts/test-llm.mjs, which needs to know whether *each* provider
+ * works rather than whether *any* does. extractTransaction deliberately stops
+ * at the first success, which is right for syncing and useless for diagnosis:
+ * it cannot tell you the fallback is broken until the primary also is.
+ *
+ * @param {'ollama'|'nvidia'} name
+ * @param {string} emailBody
+ * @returns {Promise<{ok: true, data: object} | {ok: false, error: string}>}
+ */
+export async function probeProvider(name, emailBody) {
+  const call = name === 'ollama' ? callOllama : callNvidia
+  const userPrompt = `Parse this bank notification email:\n\n${emailBody.slice(0, MAX_BODY_CHARS)}`
+
+  try {
+    const content = await call(userPrompt)
+    if (!content) return { ok: false, error: 'empty response' }
+
+    const parsed = extractJsonObject(content)
+    if (!parsed) {
+      return { ok: false, error: `no JSON object in response: ${String(content).slice(0, 200)}` }
+    }
+    if (parsed.error) {
+      return { ok: false, error: `model says unparseable: ${parsed.error}` }
+    }
+
+    return { ok: true, data: parsed }
+  } catch (err) {
+    const reason = err.name === 'AbortError' ? `timed out after ${REQUEST_TIMEOUT_MS}ms` : err.message
+    return { ok: false, error: reason }
+  }
 }

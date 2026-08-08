@@ -1,0 +1,35 @@
+name: Verify LLM Providers
+
+# Manual only. Answers one question: do both configured models actually respond
+# with usable JSON, using the same secrets and the same runner the scheduled
+# sync uses? A wrong model ID or a missing secret otherwise shows up as every
+# transaction quietly landing in the review queue as Uncategorized.
+on:
+  workflow_dispatch:
+    inputs:
+      fixture:
+        description: 'Email fixture to parse'
+        required: false
+        default: 'tests/fixtures/emails/opay-out.txt'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Probe both providers
+        run: node scripts/test-llm.mjs "${{ inputs.fixture }}"
+        env:
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          # Same optional overrides as the sync workflow, so a model swapped
+          # there is swapped here too.
+          OLLAMA_BASE_URL: ${{ vars.OLLAMA_BASE_URL }}
+          OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL }}
+          NVIDIA_BASE_URL: ${{ vars.NVIDIA_BASE_URL }}
+          NVIDIA_MODEL: ${{ vars.NVIDIA_MODEL }}
