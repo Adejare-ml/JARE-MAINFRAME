@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { toast } from '../lib/toast';
 import { formatNaira } from '../lib/formatters';
-import { toDateOnly } from '../lib/queries';
+import { toDateOnly, excludeVoided } from '../lib/queries';
 
 export default function CashReconciliation({ onReconciled }) {
   const [cashWallet, setCashWallet] = useState(null);
@@ -46,13 +46,17 @@ export default function CashReconciliation({ onReconciled }) {
 
       // Check for manual transactions logged today
       // Existence check only -- no need to pull the row, let alone its email body.
-      const { data: transactions, error: txError } = await supabase
-        .from('transactions')
-        .select('id')
-        .eq('wallet_id', wallet.id)
-        .eq('transaction_date', todayDate)
-        .eq('source', 'manual')
-        .limit(1);
+      // Voided rows do not count: logging a cash spend and then striking it off
+      // should leave the day looking un-reconciled, because it is.
+      const { data: transactions, error: txError } = await excludeVoided(
+        supabase
+          .from('transactions')
+          .select('id')
+          .eq('wallet_id', wallet.id)
+          .eq('transaction_date', todayDate)
+          .eq('source', 'manual')
+          .limit(1)
+      );
 
       if (txError) throw txError;
 

@@ -16,6 +16,7 @@ import {
   startOfMonth,
   toDateOnly,
   NEEDS_REVIEW_FILTER,
+  excludeVoided,
 } from '../lib/queries'
 
 export default function DailyHQ() {
@@ -57,24 +58,30 @@ export default function DailyHQ() {
       const [walletsRes, recentRes, countRes, settingsRes, monthRes, goalsRes, debtsRes] =
         await Promise.all([
           supabase.from('wallets').select('*'),
-          supabase
-            .from('transactions')
-            .select(transactionListColumns())
-            .order('transaction_date', { ascending: false })
-            .order('created_at', { ascending: false })
-            .limit(3),
-          supabase
-            .from('transactions')
-            .select('id', { count: 'exact', head: true })
-            .eq(NEEDS_REVIEW_FILTER.column, NEEDS_REVIEW_FILTER.value),
+          excludeVoided(
+            supabase
+              .from('transactions')
+              .select(transactionListColumns())
+              .order('transaction_date', { ascending: false })
+              .order('created_at', { ascending: false })
+              .limit(3),
+          ),
+          excludeVoided(
+            supabase
+              .from('transactions')
+              .select('id', { count: 'exact', head: true })
+              .eq(NEEDS_REVIEW_FILTER.column, NEEDS_REVIEW_FILTER.value),
+          ),
           supabase
             .from('user_settings')
             .select('key, value')
             .in('key', ['low_balance_threshold', 'monthly_budget_target']),
-          supabase
-            .from('transactions')
-            .select(transactionSummaryColumns())
-            .gte('transaction_date', startOfMonth()),
+          excludeVoided(
+            supabase
+              .from('transactions')
+              .select(transactionSummaryColumns())
+              .gte('transaction_date', startOfMonth()),
+          ),
           orderGoalsBySlot(
             supabase
               .from('goals')

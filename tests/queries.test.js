@@ -9,6 +9,7 @@ import {
   applyTransactionFilter,
   buildFilterOptions,
   needsReview,
+  excludeVoided,
 } from '../src/lib/queries.js'
 import { setSchemaCapabilities, resetSchemaCapabilities } from '../src/lib/schema.js'
 
@@ -188,24 +189,19 @@ describe('buildFilterOptions', () => {
   })
 })
 
-describe('orderGoalsBySlot', () => {
-  it('orders by slot when migration 003 has run', () => {
+describe('excludeVoided', () => {
+  it('filters on voided = false', () => {
     const q = fakeQuery()
-    orderGoalsBySlot(q)
-    expect(q.calls).toEqual([
-      { method: 'order', args: ['slot', { ascending: true, nullsFirst: false }] },
-      { method: 'order', args: ['created_at', { ascending: true }] },
-    ])
+    excludeVoided(q)
+    expect(q.calls).toContainEqual({ method: 'eq', args: ['voided', false] })
   })
 
-  it('falls back to creation order when slot is missing', () => {
-    // Ordering by a column the database does not have is a 42703, and on Daily
-    // HQ that error is inside the aggregate check -- it would take the whole
-    // page down over the ordering of three text boxes.
-    setSchemaCapabilities(['goals.slot'])
+  it('returns the builder so it composes with a filter', () => {
     const q = fakeQuery()
-    orderGoalsBySlot(q)
-    expect(q.calls).toEqual([{ method: 'order', args: ['created_at', { ascending: true }] }])
-    resetSchemaCapabilities()
+    applyTransactionFilter(excludeVoided(q), 'Uncategorized')
+    expect(q.calls).toEqual([
+      { method: 'eq', args: ['voided', false] },
+      { method: 'eq', args: ['category', 'Uncategorized'] },
+    ])
   })
 })

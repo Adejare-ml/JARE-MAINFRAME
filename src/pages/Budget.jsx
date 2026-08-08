@@ -13,6 +13,7 @@ import {
   transactionListColumns,
   transactionSummaryColumns,
   startOfMonth,
+  excludeVoided,
 } from '../lib/queries'
 
 export default function Budget() {
@@ -35,16 +36,20 @@ export default function Budget() {
         // money moved -- not created_at, which is when the sync happened. A
         // backfill inserts last month's transactions today, and keying on
         // created_at counted every one of them against this month.
-        supabase
-          .from('transactions')
-          .select(transactionSummaryColumns())
-          .gte('transaction_date', startOfMonth()),
-        supabase
-          .from('transactions')
-          .select(transactionListColumns())
-          .order('transaction_date', { ascending: false })
-          .order('created_at', { ascending: false })
-          .limit(5),
+        excludeVoided(
+          supabase
+            .from('transactions')
+            .select(transactionSummaryColumns())
+            .gte('transaction_date', startOfMonth()),
+        ),
+        excludeVoided(
+          supabase
+            .from('transactions')
+            .select(transactionListColumns())
+            .order('transaction_date', { ascending: false })
+            .order('created_at', { ascending: false })
+            .limit(5),
+        ),
       ])
 
       if (walletsRes.error) throw walletsRes.error

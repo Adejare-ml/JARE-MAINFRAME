@@ -13,7 +13,9 @@ import {
   buildFilterOptions,
   NEEDS_REVIEW_FILTER,
   needsReview,
+  excludeVoided,
 } from '../lib/queries'
+import { validateCorrection, isMissingFunctionError } from '../lib/corrections'
 
 export default function Transactions() {
   const [transactions, setTransactions] = useState([])
@@ -36,7 +38,15 @@ export default function Transactions() {
   const [editCategory, setEditCategory] = useState('')
   const [editNote, setEditNote] = useState('')
   const [editWantNeed, setEditWantNeed] = useState(null)
+  // A parse can be wrong about more than its category. A flipped direction or a
+  // mis-read amount used to be fixable only in the Supabase dashboard, and
+  // re-syncing would not repair it either -- the upsert's ignoreDuplicates
+  // discards the corrected second read.
+  const [editType, setEditType] = useState('debit')
+  const [editAmount, setEditAmount] = useState('')
+  const [editDate, setEditDate] = useState('')
   const [updating, setUpdating] = useState(false)
+  const [confirmVoidId, setConfirmVoidId] = useState(null)
 
   /**
    * Fetch one page of transactions.
@@ -52,14 +62,16 @@ export default function Transactions() {
    */
   const fetchRange = useCallback(
     async (from, size, currentWallets) => {
-      let query = supabase
-        .from('transactions')
-        .select(transactionListColumns())
-        .order('transaction_date', { ascending: false })
-        .order('created_at', { ascending: false })
-        // One extra row, purely to know whether a "Load more" button belongs
-        // on screen without paying for a separate count query.
-        .range(from, from + size)
+      let query = excludeVoided(
+        supabase
+          .from('transactions')
+          .select(transactionListColumns())
+          .order('transaction_date', { ascending: false })
+          .order('created_at', { ascending: false })
+          // One extra row, purely to know whether a "Load more" button belongs
+          // on screen without paying for a separate count query.
+          .range(from, from + size),
+      )
 
       query = applyTransactionFilter(query, filter, currentWallets)
 
@@ -89,10 +101,12 @@ export default function Transactions() {
         fetchRange(0, loaded, walletList),
         // Counted across the whole table, not the loaded page -- a head query
         // returns the number without transferring any rows.
-        supabase
-          .from('transactions')
-          .select('id', { count: 'exact', head: true })
-          .eq(NEEDS_REVIEW_FILTER.column, NEEDS_REVIEW_FILTER.value),
+        excludeVoided(
+          supabase
+            .from('transactions')
+            .select('id', { count: 'exact', head: true })
+            .eq(NEEDS_REVIEW_FILTER.column, NEEDS_REVIEW_FILTER.value),
+        ),
       ])
 
       setTransactions(page.rows)
@@ -172,45 +186,135 @@ export default function Transactions() {
       // unchanged copied the bank's narration into the note.
       setEditNote(txn.note || '')
       setEditWantNeed(txn.want_or_need || null)
+      setEditType(txn.type || 'debit')
+      setEditAmount(txn.amount != null ? String(txn.amount) : '')
+      setEditDate(txn.transaction_date || '')
+      setConfirmVoidId(null)
+    }
+  }
+
+  /**
+   * Write a correction, through the RPC when it exists.
+   *
+   * The RPC is not ceremony. A manual row moved its wallet balance when it was
+   * logged, so correcting a ₦5,000 cash spend to ₦500 -- or voiding it -- has
+   * to move the balance back by the difference, in the same database
+   * transaction as the edit. Two statements from the browser means a dropped
+   * connection between them leaves the ledger and the balance disagreeing with
+   * nothing to say which is lying. Synced rows carry no such debt: their
+   * balance is whatever the bank's last alert said.
+   *
+   * The fallback covers the window between this deploying (which happens on
+   * push) and migration 007 being run by hand: the edit still lands, only the
+   * manual balance compensation is skipped.
+   */
+  const writeCorrection = async (txnId, fields) => {
+    const { error } = await supabase.rpc('correct_transaction', {
+      p_id: txnId,
+      p_type: fields.type,
+      p_amount: fields.amount,
+      p_date: fields.date,
+      p_category: fields.category,
+      p_note: fields.note ?? null,
+      p_want_or_need: fields.wantOrNeed ?? null,
+      p_voided: fields.voided,
+    })
+    if (!error) return
+    if (!isMissingFunctionError(error)) throw error
+
+    console.warn('correct_transaction is missing -- run migration 007. Falling back.')
+    const { error: updateError } = await supabase
+      .from('transactions')
+      .update({
+        type: fields.type,
+        amount: fields.amount,
+        transaction_date: fields.date,
+        category: fields.category,
+        note: (fields.note || '').trim() || null,
+        // `description` is deliberately not written. It holds the bank's own
+        // narration, and an earlier version overwrote it with the note -- or,
+        // when the note was empty, with the category name. That destroyed the
+        // only durable record of what the bank actually said, which is also
+        // the text a correction keys on.
+        want_or_need: fields.wantOrNeed ?? null,
+        voided: fields.voided,
+        reviewed: true,
+      })
+      .eq('id', txnId)
+    if (updateError) throw updateError
+  }
+
+  /**
+   * Remember a disagreement so future categorization matches this habit.
+   * Best-effort: failing to record a preference must not fail the edit the
+   * user actually asked for.
+   */
+  const recordCategoryCorrection = async (original, category) => {
+    const { error } = await supabase.from('category_corrections').insert({
+      recipient: original.recipient || null,
+      description_snippet: (original.description || '').slice(0, 120) || null,
+      corrected_category: category,
+    })
+    if (error) console.warn('Could not record category correction:', error.message)
+  }
+
+  /**
+   * Strike a transaction off without deleting it.
+   *
+   * Soft on purpose: the unique index on (source, transaction_id) is what stops
+   * the sync re-inserting an email it has already read, so a hard-deleted
+   * synced row would come straight back on the next run. A delete that silently
+   * undoes itself is worse than none.
+   */
+  const handleVoid = async (txn) => {
+    setUpdating(true)
+    try {
+      // Voided rows are excluded from every total, so the amount no longer
+      // matters -- but the RPC validates it regardless, and sending the row's
+      // own values keeps un-voiding from the dashboard a coherent operation.
+      await writeCorrection(txn.id, {
+        type: txn.type || 'debit',
+        amount: Number(txn.amount) || 0.01,
+        date: txn.transaction_date,
+        category: txn.category || 'Uncategorized',
+        note: txn.note,
+        wantOrNeed: txn.want_or_need,
+        voided: true,
+      })
+
+      toast.success('Transaction voided')
+      setExpandedId(null)
+      setConfirmVoidId(null)
+      fetchData()
+    } catch (err) {
+      console.error('Error voiding transaction:', err)
+      toast.error('Failed to void: ' + (err.message || 'check connection'))
+    } finally {
+      setUpdating(false)
     }
   }
 
   const handleSaveChanges = async (txnId) => {
+    const checked = validateCorrection({ type: editType, amount: editAmount, date: editDate })
+    if (!checked.ok) {
+      toast.error(checked.error)
+      return
+    }
+
     setUpdating(true)
     try {
       const original = transactions.find(t => t.id === txnId)
       const categoryChanged = original && original.category !== editCategory
 
-      const { error } = await supabase
-        .from('transactions')
-        .update({
-          category: editCategory,
-          note: editNote.trim() || null,
-          // `description` is deliberately not written. It holds the bank's own
-          // narration, and the previous version overwrote it with the note --
-          // or, when the note was empty, with the category name. That destroyed
-          // the only durable record of what the bank actually said, which is
-          // also the text a correction keys on.
-          want_or_need: editWantNeed,
-          reviewed: true,
-        })
-        .eq('id', txnId)
+      await writeCorrection(txnId, {
+        ...checked.value,
+        category: editCategory,
+        note: editNote.trim() || null,
+        wantOrNeed: editWantNeed,
+        voided: false,
+      })
 
-      if (error) throw error
-
-      // Remember the disagreement so future categorization matches this habit.
-      // Best-effort: failing to record a preference must not fail the edit the
-      // user actually asked for.
-      if (categoryChanged) {
-        const { error: correctionError } = await supabase.from('category_corrections').insert({
-          recipient: original.recipient || null,
-          description_snippet: (original.description || '').slice(0, 120) || null,
-          corrected_category: editCategory,
-        })
-        if (correctionError) {
-          console.warn('Could not record category correction:', correctionError.message)
-        }
-      }
+      if (categoryChanged) await recordCategoryCorrection(original, editCategory)
 
       toast.success('Transaction updated ✓')
       setExpandedId(null)
@@ -360,7 +464,65 @@ export default function Transactions() {
                 {/* Expanded Details & Editor */}
                 {isExpanded && (
                   <div className="px-4 pb-5 pt-2 border-t border-white/5 space-y-4 bg-background/50 animate-fade-in">
-                    
+
+                    {/* Direction, amount and date -- what the parse can get
+                        wrong about the money itself. These used to be fixable
+                        only in the Supabase dashboard, and re-syncing would not
+                        repair them either: the upsert's ignoreDuplicates throws
+                        away the corrected second read. */}
+                    <div>
+                      <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">
+                        Direction
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { value: 'debit', label: 'Money out', sign: '−' },
+                          { value: 'credit', label: 'Money in', sign: '+' },
+                        ].map(({ value, label, sign }) => (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() => setEditType(value)}
+                            className={`py-3 rounded-xl text-xs font-bold border transition-all min-h-[48px] ${
+                              editType === value
+                                ? 'bg-accent/20 border-accent text-accent'
+                                : 'bg-card border-white/5 text-muted hover:text-white'
+                            }`}
+                          >
+                            {sign} {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">
+                          Amount (₦)
+                        </label>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          min="0"
+                          step="0.01"
+                          value={editAmount}
+                          onChange={(e) => setEditAmount(e.target.value)}
+                          className="w-full px-4 py-3 bg-card border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-accent min-h-[48px]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">
+                          Date
+                        </label>
+                        <input
+                          type="date"
+                          value={editDate}
+                          onChange={(e) => setEditDate(e.target.value)}
+                          className="w-full px-4 py-3 bg-card border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-accent min-h-[48px]"
+                        />
+                      </div>
+                    </div>
+
                     {/* Category Selector */}
                     <div>
                       <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">
@@ -429,6 +591,43 @@ export default function Transactions() {
                       >
                         Cancel
                       </button>
+                    </div>
+
+                    {/* Void, behind a second tap. Not a delete: the unique
+                        index on (source, transaction_id) is what stops the sync
+                        re-importing an email, so a hard-deleted synced row
+                        would return on the next run. */}
+                    <div className="pt-1">
+                      {confirmVoidId === t.id ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleVoid(t)}
+                              disabled={updating}
+                              className="flex-1 py-3 bg-red-500/15 border border-red-500/40 text-red-300 font-bold text-sm rounded-xl hover:bg-red-500/25 transition-all min-h-[48px] disabled:opacity-50"
+                            >
+                              {updating ? 'Voiding…' : 'Yes, void it'}
+                            </button>
+                            <button
+                              onClick={() => setConfirmVoidId(null)}
+                              className="px-4 py-3 bg-white/5 text-muted hover:text-white text-sm font-semibold rounded-xl min-h-[48px]"
+                            >
+                              Keep
+                            </button>
+                          </div>
+                          <p className="text-[11px] text-muted leading-relaxed">
+                            Hides it from every list and every total. Nothing is deleted — the
+                            record is what stops the sync importing this email again.
+                          </p>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmVoidId(t.id)}
+                          className="w-full py-2.5 text-xs font-semibold text-muted hover:text-red-300 transition-colors min-h-[44px]"
+                        >
+                          Void this transaction
+                        </button>
+                      )}
                     </div>
 
                   </div>
