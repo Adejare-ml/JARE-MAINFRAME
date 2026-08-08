@@ -12,18 +12,35 @@
 import { ALL_CATEGORIES } from '../src/lib/constants.js'
 import { extractJsonObject } from '../src/lib/sync/normalize.js'
 
+/**
+ * Read an env var, treating blank as absent.
+ *
+ * A destructuring default only fires on `undefined`, and GitHub Actions renders
+ * an unset `vars.X` as an empty string while still exporting it. So
+ * `OLLAMA_BASE_URL: ${{ vars.OLLAMA_BASE_URL }}` with no variable configured
+ * produced `''`, the default never applied, and `fetch('/api/chat')` threw a
+ * URL parse error on every call -- silently, because hasAnyProvider() was still
+ * true and the failure landed in the parse-failure count.
+ *
+ * @param {string} name
+ * @param {string} [fallback]
+ * @returns {string}
+ */
+function env(name, fallback = '') {
+  const raw = process.env[name]
+  return typeof raw === 'string' && raw.trim() !== '' ? raw.trim() : fallback
+}
+
 // Defaults are the models chosen during design. They have never been called
 // successfully, so treat them as unverified until `node scripts/test-llm.mjs`
-// passes -- if either ID is wrong, override it with a secret rather than
-// editing this file.
-const {
-  OLLAMA_API_KEY,
-  NVIDIA_API_KEY,
-  OLLAMA_BASE_URL = 'https://ollama.com',
-  OLLAMA_MODEL = 'gemma4:31b-cloud',
-  NVIDIA_BASE_URL = 'https://integrate.api.nvidia.com/v1',
-  NVIDIA_MODEL = 'deepseek-ai/deepseek-v4-flash',
-} = process.env
+// passes -- if either ID is wrong, override it with a repository variable
+// rather than editing this file.
+const OLLAMA_API_KEY = env('OLLAMA_API_KEY')
+const NVIDIA_API_KEY = env('NVIDIA_API_KEY')
+const OLLAMA_BASE_URL = env('OLLAMA_BASE_URL', 'https://ollama.com')
+const OLLAMA_MODEL = env('OLLAMA_MODEL', 'gemma4:31b-cloud')
+const NVIDIA_BASE_URL = env('NVIDIA_BASE_URL', 'https://integrate.api.nvidia.com/v1')
+const NVIDIA_MODEL = env('NVIDIA_MODEL', 'deepseek-ai/deepseek-v4-flash')
 
 /** Extraction is a short, mechanical job -- a long budget only buys a model
  *  room to ramble past the JSON. */

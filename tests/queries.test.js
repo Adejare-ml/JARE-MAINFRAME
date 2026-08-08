@@ -120,6 +120,25 @@ describe('applyTransactionFilter', () => {
     expect(q.calls[0]).toEqual({ method: 'or', args: ['wallet_id.eq.w2,source.eq.zenith_bank'] })
   })
 
+  it('prefers the wallet’s immutable slug over its name', () => {
+    const q = fakeQuery()
+    applyTransactionFilter(q, 'wallet:w3', [{ id: 'w3', name: 'Renamed Later', source_slug: 'gtbank' }])
+    expect(q.calls[0].args[0]).toBe('wallet_id.eq.w3,source.eq.gtbank')
+  })
+
+  // PostgREST splits the .or() string on commas, so a name containing one used
+  // to emit a third malformed condition and 400 the whole query, which the page
+  // rendered as "Failed to load transactions".
+  it('cannot be broken by punctuation in a wallet name', () => {
+    const q = fakeQuery()
+    applyTransactionFilter(q, 'wallet:w4', [{ id: 'w4', name: 'GTBank, Naira' }])
+
+    const filter = q.calls[0].args[0]
+    expect(filter).toBe('wallet_id.eq.w4,source.eq.gtbank_naira')
+    // Exactly two conditions, not three.
+    expect(filter.split(',')).toHaveLength(2)
+  })
+
   it('ignores a wallet filter for a wallet that no longer exists', () => {
     const q = fakeQuery()
     applyTransactionFilter(q, 'wallet:deleted', wallets)

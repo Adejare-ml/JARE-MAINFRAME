@@ -33,6 +33,8 @@ export {
   PAGE_SIZE,
 } from './gmailQuery.js'
 
+export { nextCursor } from './cursor.js'
+
 export {
   validateParsedTransaction,
   extractJsonObject,
@@ -47,6 +49,7 @@ export {
   buildWalletIndex,
   matchWallet,
   walletSource,
+  sanitizeSlug,
   PARSE_STRATEGIES,
   DEFAULT_PARSE_STRATEGY,
 } from './wallets.js'

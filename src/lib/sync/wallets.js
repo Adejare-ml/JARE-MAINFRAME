@@ -33,25 +33,21 @@ export function getParseStrategy(wallet) {
   return DEFAULT_PARSE_STRATEGY
 }
 
-/**
- * @param {string} email
- * @returns {string} domain part, lowercased
- */
-function domainOf(email) {
-  const at = String(email || '').lastIndexOf('@')
-  return at >= 0 ? email.slice(at + 1).toLowerCase() : ''
-}
+import { getDomain } from './email.js'
 
 /**
  * Build lookup structures from the wallets table. Senders are data, not
  * hardcoded constants, so adding a bank is a Settings edit rather than a deploy.
  *
  * @param {object[]} wallets
- * @returns {{senders: string[], byAddress: Map<string, object>, byDomain: Map<string, object>}}
+ * @returns {{senders: string[], byAddress: Map<string, object>, byDomain: Map<string, object>, byId: Map<string, object>}}
  */
 export function buildWalletIndex(wallets) {
   const byAddress = new Map()
   const byDomain = new Map()
+  // Every wallet, active or not -- callers look up a wallet they already
+  // matched, which is a different question from which senders to search.
+  const byId = new Map((wallets || []).map((w) => [w.id, w]))
   const senders = []
 
   for (const w of wallets || []) {
@@ -66,11 +62,11 @@ export function buildWalletIndex(wallets) {
 
     // First wallet wins the domain, so a precise address match is never
     // overridden by a later wallet sharing the same bank domain.
-    const domain = domainOf(sender)
+    const domain = getDomain(sender)
     if (domain && !byDomain.has(domain)) byDomain.set(domain, w)
   }
 
-  return { senders, byAddress, byDomain }
+  return { senders, byAddress, byDomain, byId }
 }
 
 /**
@@ -84,18 +80,46 @@ export function buildWalletIndex(wallets) {
 export function matchWallet(senderEmail, index) {
   const address = String(senderEmail || '').trim().toLowerCase()
   if (!address) return null
-  return index.byAddress.get(address) || index.byDomain.get(domainOf(address)) || null
+  return index.byAddress.get(address) || index.byDomain.get(getDomain(address)) || null
 }
 
 /**
- * Stable `source` value for a wallet. This is half of the dedup key, so it must
- * not change once transactions exist -- derive it from the wallet's UUID-backed
- * name only, never from anything sync-run specific.
+ * Restrict a slug to characters that are safe as half of a dedup key and as a
+ * literal inside a PostgREST `.or()` filter, where a comma would split the
+ * expression and a dot or parenthesis would silently change its meaning.
+ *
+ * @param {string} value
+ * @returns {string}
+ */
+export function sanitizeSlug(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/[^a-z0-9_]/g, '')
+}
+
+/**
+ * The `source` half of a transaction's dedup key.
+ *
+ * Reads the wallet's immutable `source_slug`, never its display name. The name
+ * is user-editable in Settings, so deriving the key from it meant renaming
+ * "GTBank" to "GT Bank" changed the key on every future alert and the next sync
+ * re-inserted the whole window as new rows.
+ *
+ * `source_slug` is written once by the migration -- seeded from the source
+ * already dominant in that wallet's existing transactions, so history keeps its
+ * key -- and is never rewritten afterwards.
+ *
+ * The name fallback exists only for the window before the migration runs. It is
+ * why this returns the same value the old code did rather than something safer:
+ * changing it would itself re-key everything.
  *
  * @param {object|null} wallet
  * @returns {string}
  */
 export function walletSource(wallet) {
+  if (wallet?.source_slug) return sanitizeSlug(wallet.source_slug)
   if (!wallet?.name) return 'email'
-  return String(wallet.name).trim().toLowerCase().replace(/\s+/g, '_')
+  return sanitizeSlug(wallet.name)
 }

@@ -99,10 +99,28 @@ describe('matchWallet', () => {
 })
 
 describe('walletSource', () => {
-  it('derives a stable slug from the wallet name', () => {
+  // The dedup key must not follow the display name. Renaming a wallet in
+  // Settings used to change `source` on every future alert, so the next sync
+  // re-inserted the entire history under the new key.
+  it('reads the immutable slug, not the editable name', () => {
+    const wallet = { name: 'GTBank', source_slug: 'gtbank' }
+    expect(walletSource(wallet)).toBe('gtbank')
+    expect(walletSource({ ...wallet, name: 'GT Bank' })).toBe('gtbank')
+    expect(walletSource({ ...wallet, name: 'Guaranty Trust' })).toBe('gtbank')
+  })
+
+  it('falls back to the name only before the migration has run', () => {
     expect(walletSource({ name: 'GTBank' })).toBe('gtbank')
     expect(walletSource({ name: 'Zenith Bank' })).toBe('zenith_bank')
     expect(walletSource({ name: '  Polaris  ' })).toBe('polaris')
+  })
+
+  // The value is interpolated into a PostgREST .or() filter, which splits on
+  // commas -- an unsanitised name would emit a third, malformed condition.
+  it('strips characters that would break a PostgREST filter', () => {
+    expect(walletSource({ name: 'GTBank, Naira' })).toBe('gtbank_naira')
+    expect(walletSource({ name: 'Opay (main)' })).toBe('opay_main')
+    expect(walletSource({ source_slug: 'a.b,c)d' })).toBe('abcd')
   })
 
   it('falls back to "email" when there is no wallet', () => {

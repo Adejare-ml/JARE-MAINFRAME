@@ -23,12 +23,18 @@ describe('generateSyntheticId', () => {
   })
 
   it('produces a stable known value, so the algorithm cannot change silently', () => {
-    // Changing this expectation orphans every synthetic ID already in the
-    // database. If you must, ship a backfill alongside it.
+    // These are literals on purpose. The previous version of this test compared
+    // generateSyntheticId to itself, which is a tautology: it stayed green
+    // through any change to the hash, the 60-character truncation or the field
+    // separator, while every synthetic ID already in the database was orphaned
+    // and every GTBank charge email was re-inserted as new.
+    //
+    // If a change here is deliberate, ship a backfill alongside it. If it is a
+    // surprise, something upstream in buildNaturalKey moved.
     expect(generateSyntheticId('gtbank', 20000, '2026-07-29', 'TRF TO JOHN DOE')).toBe(
-      generateSyntheticId('gtbank', 20000, '2026-07-29', 'TRF TO JOHN DOE'),
+      'SYN-fde821d3256524dc',
     )
-    expect(generateSyntheticId(...txn)).toMatch(/^SYN-[0-9a-f]{16}$/)
+    expect(generateSyntheticId(...txn)).toBe('SYN-d2173cafecc9cfc3')
   })
 
   it('separates transactions that differ in any field', () => {

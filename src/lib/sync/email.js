@@ -43,15 +43,15 @@ export function toStandardBase64(data) {
 }
 
 /**
- * Walk a Gmail message payload and pull out the best available body text.
+ * Walk a message part and pull out the best available body text.
  * Prefers text/plain, falls back to text/html, then recurses into multipart
- * containers, then finally the snippet.
+ * containers.
  *
- * @param {object} payload - Gmail API message payload
+ * @param {object} payload - a Gmail message payload or nested part
  * @param {(data: string) => string} decodeBase64 - platform base64 decoder
- * @returns {string} plain text
+ * @returns {string} plain text, or '' if nothing decoded
  */
-export function extractEmailBody(payload, decodeBase64) {
+function extractFromPart(payload, decodeBase64) {
   if (!payload) return ''
 
   let rawBody = ''
@@ -94,7 +94,7 @@ export function extractEmailBody(payload, decodeBase64) {
     if (!rawBody) {
       for (const part of payload.parts) {
         if (part.parts) {
-          const sub = extractEmailBody(part, decodeBase64)
+          const sub = extractFromPart(part, decodeBase64)
           if (sub) {
             // Already stripped by the recursive call.
             return sub
@@ -104,11 +104,28 @@ export function extractEmailBody(payload, decodeBase64) {
     }
   }
 
-  if (!rawBody) {
-    rawBody = payload.snippet || ''
-  }
-
   return stripHtml(rawBody)
+}
+
+/**
+ * Extract readable body text from a Gmail message.
+ *
+ * Takes the whole message, not its payload. `snippet` lives on the message
+ * resource and never on the payload, so reading `payload.snippet` was always
+ * undefined -- the fallback silently did nothing, and any email whose parts
+ * failed to decode came back empty and was dropped without a counter.
+ *
+ * @param {object} message - Gmail API message resource ({ payload, snippet })
+ * @param {(data: string) => string} decodeBase64 - platform base64 decoder
+ * @returns {string} plain text
+ */
+export function extractEmailBody(message, decodeBase64) {
+  if (!message) return ''
+
+  const fromParts = extractFromPart(message.payload, decodeBase64)
+  if (fromParts) return fromParts
+
+  return stripHtml(message.snippet || '')
 }
 
 /**

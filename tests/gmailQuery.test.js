@@ -118,35 +118,66 @@ describe('getMessageDate', () => {
   })
 })
 
+// extractEmailBody takes the whole message, not its payload. `snippet` lives on
+// the message resource, so the old signature could never reach its own fallback.
 describe('extractEmailBody', () => {
   it('prefers text/plain even when the HTML part comes first', () => {
-    const payload = {
-      parts: [
-        { mimeType: 'text/html', body: { data: b64url('<p>html twin</p>') } },
-        { mimeType: 'text/plain', body: { data: b64url('plain original') } },
-      ],
+    const message = {
+      payload: {
+        parts: [
+          { mimeType: 'text/html', body: { data: b64url('<p>html twin</p>') } },
+          { mimeType: 'text/plain', body: { data: b64url('plain original') } },
+        ],
+      },
     }
-    expect(extractEmailBody(payload, decode)).toBe('plain original')
+    expect(extractEmailBody(message, decode)).toBe('plain original')
   })
 
   it('falls back to text/html when there is no plain part', () => {
-    const payload = { parts: [{ mimeType: 'text/html', body: { data: b64url('<p>Amount : NGN 5</p>') } }] }
-    expect(extractEmailBody(payload, decode)).toBe('Amount : NGN 5')
+    const message = {
+      payload: { parts: [{ mimeType: 'text/html', body: { data: b64url('<p>Amount : NGN 5</p>') } }] },
+    }
+    expect(extractEmailBody(message, decode)).toBe('Amount : NGN 5')
   })
 
   it('recurses into nested multipart containers', () => {
-    const payload = {
-      parts: [{ mimeType: 'multipart/alternative', parts: [{ mimeType: 'text/plain', body: { data: b64url('nested') } }] }],
+    const message = {
+      payload: {
+        parts: [
+          {
+            mimeType: 'multipart/alternative',
+            parts: [{ mimeType: 'text/plain', body: { data: b64url('nested') } }],
+          },
+        ],
+      },
     }
-    expect(extractEmailBody(payload, decode)).toBe('nested')
+    expect(extractEmailBody(message, decode)).toBe('nested')
   })
 
-  it('falls back to the snippet when no part decodes', () => {
+  // The regression: this fallback was reading payload.snippet, which is always
+  // undefined, so an email whose parts did not decode came back empty and was
+  // dropped with no counter and no error.
+  it('falls back to the message snippet when no part decodes', () => {
     expect(extractEmailBody({ snippet: 'just a snippet' }, decode)).toBe('just a snippet')
+
+    const undecodable = {
+      payload: { parts: [{ mimeType: 'application/pdf', body: { attachmentId: 'x' } }] },
+      snippet: 'Amount : NGN 5,000',
+    }
+    expect(extractEmailBody(undecodable, decode)).toBe('Amount : NGN 5,000')
   })
 
-  it('returns empty string for a missing payload', () => {
+  it('does not reach for the snippet when a part decoded fine', () => {
+    const message = {
+      payload: { parts: [{ mimeType: 'text/plain', body: { data: b64url('real body') } }] },
+      snippet: 'truncated preview…',
+    }
+    expect(extractEmailBody(message, decode)).toBe('real body')
+  })
+
+  it('returns empty string for a missing message', () => {
     expect(extractEmailBody(null, decode)).toBe('')
+    expect(extractEmailBody({}, decode)).toBe('')
   })
 })
 

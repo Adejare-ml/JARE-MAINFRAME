@@ -26,6 +26,7 @@ import {
   matchWallet,
   walletSource,
   getParseStrategy,
+  nextCursor,
 } from '../src/lib/sync/index.js'
 import { extractTransaction, hasAnyProvider, LLM_CONFIG } from './llm.mjs'
 
@@ -241,13 +242,33 @@ async function run() {
   // loop meant the last message processed won, and Gmail returns newest first,
   // so the wallet ended up holding the *oldest* balance in the batch.
   const latestBalances = new Map()
-  // last_sync advances to the oldest message we handled, not to "now" -- a
-  // message that failed today gets another attempt tomorrow instead of falling
-  // into a permanent gap.
-  let oldestProcessed = null
+
+  // The cursor needs both ends of the batch.
+  //
+  // `newest` is where last_sync wants to land; `oldestFailed` is how far it has
+  // to be pulled back so a message that failed today gets another attempt
+  // tomorrow. Advancing to the *oldest* processed message -- which is what this
+  // used to do -- pinned last_sync at the first run's oldest message forever,
+  // because every subsequent run re-read the same window and computed the same
+  // minimum. The scan then grew until it tripped the page limit permanently.
+  let newestProcessed = null
+  let oldestFailed = null
   let loopFailed = false
 
+  const markProcessed = (at) => {
+    if (at && (!newestProcessed || at > newestProcessed)) newestProcessed = at
+  }
+  const markFailed = (at) => {
+    loopFailed = true
+    if (at && (!oldestFailed || at < oldestFailed)) oldestFailed = at
+  }
+
   for (const msg of messages) {
+    // Every path out of this block has to call markProcessed or markFailed.
+    // A `continue` that records neither used to let last_sync move past a
+    // message that was never handled, so it was never seen again.
+    let messageDate = null
+
     try {
       stats.messagesProcessed++
 
@@ -256,35 +277,50 @@ async function run() {
         { headers },
       )
       if (!msgRes.ok) {
+        // No date to anchor on, so hold the cursor entirely rather than guess.
         stats.errors.push(`Fetch failed for message ${msg.id} (${msgRes.status})`)
-        loopFailed = true
+        markFailed(null)
         continue
       }
       const msgData = await msgRes.json()
+      messageDate = getMessageDate(msgData)
 
-      const body = extractEmailBody(msgData.payload, decodeBase64)
-      if (!body || body.length < 20) continue
+      const body = extractEmailBody(msgData, decodeBase64)
+      if (!body || body.length < 20) {
+        // Nothing readable in it. Retrying will not help, so let the cursor pass.
+        stats.parseFailures++
+        markProcessed(messageDate)
+        continue
+      }
 
       const senderEmail = getSenderEmail(msgData.payload)
       const wallet = matchWallet(senderEmail, walletIndex)
       if (!wallet) {
         // Gmail matched the query but no wallet claims the address -- usually a
-        // bank sending from a second domain.
+        // bank sending from a second domain. Hold the cursor: adding the wallet
+        // in Settings should be enough to pick these up on the next run.
         stats.unmatchedSenders.add(senderEmail || '(no From header)')
+        markFailed(messageDate)
         continue
       }
 
       const source = walletSource(wallet)
       const parsed = await parseEmail(getDomain(senderEmail), body, source, getParseStrategy(wallet))
       if (!parsed) {
+        // A transient LLM outage looks exactly like this, so hold the cursor
+        // and try again next run rather than losing the transaction.
         stats.parseFailures++
+        markFailed(messageDate)
         continue
       }
 
       const check = validateParsedTransaction({ ...parsed, source, wallet_id: wallet.id })
       if (!check.ok) {
+        // The parse succeeded and produced something unusable. That is
+        // deterministic, so retrying forever would wedge the cursor.
         stats.validationRejects++
         stats.warnings.push(`Rejected ${source} message ${msg.id}: ${check.reason}`)
+        markProcessed(messageDate)
         continue
       }
       for (const warning of check.warnings) stats.warnings.push(`${source}: ${warning}`)
@@ -307,18 +343,20 @@ async function run() {
         recordBalance(latestBalances, txn)
       }
 
-      const messageDate = getMessageDate(msgData)
-      if (messageDate && (!oldestProcessed || messageDate < oldestProcessed)) {
-        oldestProcessed = messageDate
-      }
+      markProcessed(messageDate)
     } catch (msgErr) {
       stats.errors.push(`Message ${msg.id}: ${msgErr.message}`)
-      loopFailed = true
+      markFailed(messageDate)
     }
   }
 
-  await applyBalances(supabase, latestBalances)
-  await advanceLastSync(supabase, integration, { oldestProcessed, truncated, loopFailed })
+  await applyBalances(supabase, latestBalances, wallets)
+  await advanceLastSync(supabase, integration, {
+    newestProcessed,
+    oldestFailed,
+    truncated,
+    loopFailed,
+  })
 
   printRunReport(startTime)
 }
@@ -371,11 +409,33 @@ function recordBalance(latestBalances, txn) {
   }
 }
 
-async function applyBalances(supabase, latestBalances) {
-  for (const [walletId, { balance }] of latestBalances) {
+/**
+ * Write each wallet's balance once, from the newest alert that carried one.
+ *
+ * The comparison has to include the balance already stored, not just the newest
+ * within this batch. A delayed alert from 06:30 arriving in the 10am run seeds
+ * an empty map and would otherwise overwrite a balance already taken from the
+ * 07:59 alert, walking the wallet backwards in time.
+ *
+ * `balance_as_of` records which alert a balance came from. Where the column is
+ * absent the write is skipped rather than guessed at, since overwriting a newer
+ * balance with an older one is worse than leaving it alone.
+ */
+async function applyBalances(supabase, latestBalances, wallets) {
+  const byId = new Map((wallets || []).map((w) => [w.id, w]))
+
+  for (const [walletId, { balance, at }] of latestBalances) {
+    const stored = byId.get(walletId)?.balance_as_of
+    if (stored && stored >= at) {
+      stats.warnings.push(
+        `Wallet ${walletId}: kept stored balance from ${stored}, newer than this batch's ${at}`,
+      )
+      continue
+    }
+
     const { error } = await supabase
       .from('wallets')
-      .update({ balance, updated_at: new Date().toISOString() })
+      .update({ balance, balance_as_of: at, updated_at: new Date().toISOString() })
       .eq('id', walletId)
 
     if (error) stats.errors.push(`Balance update failed for wallet ${walletId}: ${error.message}`)
@@ -383,14 +443,21 @@ async function applyBalances(supabase, latestBalances) {
   }
 }
 
-async function advanceLastSync(supabase, integration, { oldestProcessed, truncated, loopFailed }) {
-  if (truncated || loopFailed) {
-    console.warn('⚠️  Leaving last_sync unchanged so the missed messages are retried next run.')
+/**
+ * Move the Gmail watermark. The rule itself lives in src/lib/sync/cursor.js so
+ * it can be tested; this only reports and writes.
+ */
+async function advanceLastSync(supabase, integration, run) {
+  const { advance, cursor, reason } = nextCursor(run)
+
+  if (!advance) {
+    console.warn(`⚠️  Holding last_sync: ${reason}.`)
     return
   }
 
-  const nextSync = oldestProcessed || new Date().toISOString()
-  const payload = { last_sync: nextSync, status: 'connected' }
+  console.log(`🔖 last_sync → ${cursor} (${reason})`)
+
+  const payload = { last_sync: cursor, status: 'connected' }
 
   const { error } = integration
     ? await supabase.from('integrations').update(payload).eq('id', integration.id)

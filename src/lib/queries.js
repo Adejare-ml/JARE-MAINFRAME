@@ -1,3 +1,5 @@
+import { walletSource } from './sync/wallets.js'
+
 /**
  * Shared Supabase query helpers for transactions.
  *
@@ -103,8 +105,12 @@ export function applyTransactionFilter(query, filter, wallets = []) {
     if (!wallet) return query
 
     // Rows synced before wallets carried IDs only have `source`, so match
-    // either. The source slug is derived the same way the sync derives it.
-    const sourceSlug = String(wallet.name).trim().toLowerCase().replace(/\s+/g, '_')
+    // either. walletSource is imported rather than reimplemented: the two must
+    // agree or the filter silently stops matching legacy rows, and it is
+    // sanitised to [a-z0-9_] because PostgREST splits this string on commas --
+    // a wallet named "GTBank, Naira" would otherwise emit a third, malformed
+    // condition and 400 the whole query.
+    const sourceSlug = walletSource(wallet)
     return query.or(`wallet_id.eq.${walletId},source.eq.${sourceSlug}`)
   }
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { formatNaira, formatDate, formatTime } from '../lib/formatters'
 import { CATEGORIES, getCategoryIcon } from '../lib/constants'
@@ -20,6 +20,9 @@ export default function Transactions() {
   const [expandedId, setExpandedId] = useState(null)
   const [hasMore, setHasMore] = useState(false)
   const [unreviewedCount, setUnreviewedCount] = useState(0)
+  // How many rows are on screen, so a refetch can restore the same depth.
+  // A ref rather than state: fetchData reads it without wanting to re-run.
+  const loadedCountRef = useRef(0)
 
   // Edit state for expanded row
   const [editCategory, setEditCategory] = useState('')
@@ -35,9 +38,12 @@ export default function Transactions() {
    * loaded, so "Uncategorized" would show whatever happened to be in the most
    * recent 50 rather than the actual answer.
    */
-  const fetchPage = useCallback(
-    async (pageIndex, currentWallets) => {
-      const from = pageIndex * PAGE_SIZE
+  /**
+   * Fetch rows [from, from+size). Used both for the initial page and, on a
+   * refetch, for every page currently on screen at once.
+   */
+  const fetchRange = useCallback(
+    async (from, size, currentWallets) => {
       let query = supabase
         .from('transactions')
         .select(TRANSACTION_LIST_COLUMNS)
@@ -45,7 +51,7 @@ export default function Transactions() {
         .order('created_at', { ascending: false })
         // One extra row, purely to know whether a "Load more" button belongs
         // on screen without paying for a separate count query.
-        .range(from, from + PAGE_SIZE)
+        .range(from, from + size)
 
       query = applyTransactionFilter(query, filter, currentWallets)
 
@@ -53,7 +59,7 @@ export default function Transactions() {
       if (error) throw error
 
       const rows = data || []
-      return { rows: rows.slice(0, PAGE_SIZE), hasMore: rows.length > PAGE_SIZE }
+      return { rows: rows.slice(0, size), hasMore: rows.length > size }
     },
     [filter],
   )
@@ -64,8 +70,13 @@ export default function Transactions() {
       const walletList = wData || []
       setWallets(walletList)
 
+      // Refetch everything currently on screen, not just the first page.
+      // Resetting to page 0 here meant editing one row's category threw away
+      // the other 150 the user had loaded, and so did every realtime event.
+      const loaded = Math.max(loadedCountRef.current, PAGE_SIZE)
+
       const [page, countRes] = await Promise.all([
-        fetchPage(0, walletList),
+        fetchRange(0, loaded, walletList),
         // Counted across the whole table, not the loaded page -- a head query
         // returns the number without transferring any rows.
         supabase
@@ -75,6 +86,7 @@ export default function Transactions() {
       ])
 
       setTransactions(page.rows)
+      loadedCountRef.current = page.rows.length
       setHasMore(page.hasMore)
       setUnreviewedCount(countRes.count || 0)
     } catch (err) {
@@ -83,9 +95,11 @@ export default function Transactions() {
     } finally {
       setLoading(false)
     }
-  }, [fetchPage])
+  }, [fetchRange])
 
+  // Changing the filter is the one case that *should* go back to one page.
   useEffect(() => {
+    loadedCountRef.current = 0
     setLoading(true)
     fetchData()
   }, [fetchData])
@@ -95,9 +109,12 @@ export default function Transactions() {
   const handleLoadMore = async () => {
     setLoadingMore(true)
     try {
-      const nextPage = Math.floor(transactions.length / PAGE_SIZE)
-      const page = await fetchPage(nextPage, wallets)
-      setTransactions(prev => [...prev, ...page.rows])
+      const page = await fetchRange(transactions.length, PAGE_SIZE, wallets)
+      setTransactions(prev => {
+        const next = [...prev, ...page.rows]
+        loadedCountRef.current = next.length
+        return next
+      })
       setHasMore(page.hasMore)
     } catch (err) {
       console.error('Error loading more transactions:', err)

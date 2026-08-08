@@ -7,7 +7,6 @@ import {
   listAllMessages,
   extractEmailBody,
   getSenderEmail,
-  getMessageDate,
   getDomain,
   generateSyntheticId,
   isSyntheticId,
@@ -25,14 +24,26 @@ import {
  * ./sync -- these used to be two copies that drifted apart, and every bug that
  * produced lived in the gap between them.
  *
- * One deliberate difference remains: wallets whose alerts need an LLM to
- * determine direction are skipped here rather than parsed with rules. Calling
- * an LLM from the browser would mean shipping an API key in the bundle, and
- * guessing the direction with rules would write confidently wrong data. The
- * background sync picks them up instead.
+ * Two deliberate differences remain.
+ *
+ * Wallets whose alerts need an LLM to determine direction are skipped here
+ * rather than parsed with rules. Calling an LLM from the browser would mean
+ * shipping an API key in the bundle, and guessing the direction with rules
+ * would write confidently wrong data. The background sync picks them up.
+ *
+ * And this path is stateless: it scans a fixed recent window and never writes
+ * `last_sync`. The two paths share one `integrations` row but have different
+ * capabilities, so a shared cursor is wrong by construction -- a manual sync
+ * that saw only Opay mail used to skip it all, then advance the cursor past it,
+ * and the cron never saw those emails again. Inserts are idempotent, so
+ * re-scanning the same window costs nothing but a few requests.
  */
 
 const decodeBase64 = (data) => atob(data)
+
+/** How far back a manual sync looks. Bounded on purpose: this runs in a tab on
+ *  mobile data, against a token that expires in about an hour. */
+const MANUAL_SYNC_DAYS = 7
 
 /**
  * Dynamically load Google Identity Services (GIS) client script
@@ -255,8 +266,12 @@ export async function syncGmailEmails() {
       return 0
     }
 
+    // Deliberately not integration.last_sync -- see the note at the top of this
+    // file. A fixed window keeps this path stateless and bounds the work.
+    const since = new Date(Date.now() - MANUAL_SYNC_DAYS * 24 * 60 * 60 * 1000)
+
     const headers = { Authorization: `Bearer ${token}` }
-    const query = buildSenderQuery(walletIndex.senders, integration.last_sync || null)
+    const query = buildSenderQuery(walletIndex.senders, since)
 
     let messages = []
     let truncated = false
@@ -281,8 +296,6 @@ export async function syncGmailEmails() {
     const latestBalances = new Map()
     let newTxnsCount = 0
     let skippedNeedingLlm = 0
-    let oldestProcessed = null
-    let loopFailed = false
 
     for (const msg of messages) {
       try {
@@ -290,13 +303,10 @@ export async function syncGmailEmails() {
           `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`,
           { headers },
         )
-        if (!msgRes.ok) {
-          loopFailed = true
-          continue
-        }
+        if (!msgRes.ok) continue
         const msgData = await msgRes.json()
 
-        const body = extractEmailBody(msgData.payload, decodeBase64)
+        const body = extractEmailBody(msgData, decodeBase64)
         if (!body || body.length < 20) continue
 
         const senderEmail = getSenderEmail(msgData.payload)
@@ -338,33 +348,31 @@ export async function syncGmailEmails() {
             }
           }
         }
-
-        const messageDate = getMessageDate(msgData)
-        if (messageDate && (!oldestProcessed || messageDate < oldestProcessed)) {
-          oldestProcessed = messageDate
-        }
       } catch (msgErr) {
+        // Nothing to hold back: this path owns no cursor, so a failed message is
+        // simply picked up by the next manual sync or the next cron run.
         console.error('Error processing message:', msgErr)
-        loopFailed = true
       }
     }
 
     // Written once, after the loop. Gmail returns newest first, so updating
     // inside the loop left the wallet holding the oldest balance in the batch.
-    for (const [walletId, { balance }] of latestBalances) {
+    // Skipped entirely when the stored balance came from a newer alert.
+    for (const [walletId, { balance, at }] of latestBalances) {
+      const stored = walletIndex.byId?.get(walletId)?.balance_as_of
+      if (stored && stored >= at) continue
+
       await supabase
         .from('wallets')
-        .update({ balance, updated_at: new Date().toISOString() })
+        .update({ balance, balance_as_of: at, updated_at: new Date().toISOString() })
         .eq('id', walletId)
     }
 
-    // Only advance last_sync when everything was handled, so a failure is
-    // retried rather than skipped forever.
-    if (!truncated && !loopFailed) {
-      await supabase
-        .from('integrations')
-        .update({ last_sync: oldestProcessed || new Date().toISOString() })
-        .eq('id', integration.id)
+    // last_sync is deliberately NOT written here. It belongs to the background
+    // sync, which is the only path that can handle every wallet.
+
+    if (truncated) {
+      toast.info(`Showing the last ${MANUAL_SYNC_DAYS} days only. The scheduled sync covers the rest.`)
     }
 
     if (newTxnsCount > 0) {
