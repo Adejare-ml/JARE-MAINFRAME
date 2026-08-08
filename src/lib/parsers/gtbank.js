@@ -8,18 +8,31 @@ export function parseGTBankEmail(emailBody) {
     return null;
   }
 
-  const isDebit = emailBody.includes('DEBIT transaction');
+  // GTBank states the direction outright. Record whether we actually saw a
+  // label or fell through to the default, because the sync trusts a stated
+  // direction and re-derives a guessed one from balance movement.
+  const isDebit = /DEBIT transaction/i.test(emailBody);
+  const isCredit = /CREDIT transaction/i.test(emailBody);
   const type = isDebit ? 'debit' : 'credit';
+  const direction_source = isDebit || isCredit ? 'label' : 'guess';
+
+  // Every field below matches with [ \t]* after the colon rather than \s*.
+  // GTBank leaves fields blank on some alerts -- charge and stamp-duty emails
+  // ship an empty Document Number -- and \s* happily crosses the newline and
+  // captures the *next* label's value. That gave every charge email the same
+  // transaction_id ("Available", off the Available Balance line), so the first
+  // one inserted and every later one was silently discarded as a duplicate.
+  // A blank field must parse as absent.
 
   // Amount: "Amount              : NGN 20000" or "NGN 20,000.00"
-  const amountMatch = emailBody.match(/Amount\s*:\s*NGN\s*([\d,.]+)/i);
+  const amountMatch = emailBody.match(/Amount[ \t]*:[ \t]*NGN[ \t]*([\d,.]+)/i);
   let amount = 0;
   if (amountMatch) {
     amount = parseFloat(amountMatch[1].replace(/,/g, '')) || 0;
   }
 
   // Description: "Description         : ..."
-  const descMatch = emailBody.match(/Description\s*:\s*([\s\S]*?)(?=\n\s*(?:Amount|Value Date|Remarks|Time of Transaction|Document Number|$))/i);
+  const descMatch = emailBody.match(/Description[ \t]*:[ \t]*([\s\S]*?)(?=\n\s*(?:Amount|Value Date|Remarks|Time of Transaction|Document Number|Available Balance)|$)/i);
   const description = descMatch ? descMatch[1].replace(/\s+/g, ' ').trim() : '';
 
   // Recipient / Sender extraction
@@ -33,11 +46,11 @@ export function parseGTBankEmail(emailBody) {
   }
 
   // Date: "Value Date          : 2026-07-29"
-  const dateMatch = emailBody.match(/Value Date\s*:\s*(\d{4}-\d{2}-\d{2})/i);
+  const dateMatch = emailBody.match(/Value Date[ \t]*:[ \t]*(\d{4}-\d{2}-\d{2})/i);
   let transaction_date = dateMatch ? dateMatch[1] : new Date().toISOString().split('T')[0];
 
   // Time: "Time of Transaction : 8:02:23 PM"
-  const timeMatch = emailBody.match(/Time of Transaction\s*:\s*(\d{1,2}:\d{2}:\d{2}\s*(?:AM|PM)?)/i);
+  const timeMatch = emailBody.match(/Time of Transaction[ \t]*:[ \t]*(\d{1,2}:\d{2}:\d{2}[ \t]*(?:AM|PM)?)/i);
   let transaction_time = '12:00:00';
   if (timeMatch) {
     const timeStr = timeMatch[1].trim();
@@ -54,14 +67,14 @@ export function parseGTBankEmail(emailBody) {
   }
 
   // Available Balance: "Available Balance   : NGN 50000.7"
-  const availMatch = emailBody.match(/Available Balance\s*:\s*NGN\s*([\d,.]+)/i);
+  const availMatch = emailBody.match(/Available Balance[ \t]*:[ \t]*NGN[ \t]*([\d,.]+)/i);
   let available_balance = null;
   if (availMatch) {
     available_balance = parseFloat(availMatch[1].replace(/,/g, '')) || 0;
   }
 
   // Document Number / Transaction ID: "Document Number     : 044884719406769l5872"
-  const docMatch = emailBody.match(/Document Number\s*:\s*([A-Za-z0-9]+)/i);
+  const docMatch = emailBody.match(/Document Number[ \t]*:[ \t]*([A-Za-z0-9]+)[ \t]*$/im);
   const transaction_id = docMatch ? docMatch[1].trim() : null;
 
   // Auto categorization
@@ -88,6 +101,7 @@ export function parseGTBankEmail(emailBody) {
 
   return {
     type,
+    direction_source,
     amount,
     currency: 'NGN',
     source: 'gtbank',

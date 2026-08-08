@@ -25,7 +25,15 @@ export default function ToastContainer() {
   if (toasts.length === 0) return null
 
   return (
-    <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 w-full max-w-sm px-4 pointer-events-none">
+    // bottom-36, not bottom-20: the QuickLog floating button occupies
+    // bottom-20 right-4 (80-136px up from the bottom), and on a 390px phone the
+    // toast card spans the same rectangle. A failed action used to park its
+    // error card directly over the button needed to retry it.
+    <div
+      role="status"
+      aria-live="polite"
+      className="fixed bottom-36 lg:bottom-8 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 w-full max-w-sm px-4 pointer-events-none"
+    >
       {toasts.map(t => {
         const bg = t.type === 'success' ? 'bg-accent/90 text-black border-emerald-400' :
                    t.type === 'error' ? 'bg-red-500/90 text-white border-red-400' :
@@ -39,6 +47,7 @@ export default function ToastContainer() {
             <span>{t.message}</span>
             <button
               onClick={() => removeToast(t.id)}
+              aria-label="Dismiss notification"
               className="text-xs opacity-70 hover:opacity-100 p-1 min-w-[24px] min-h-[24px] flex items-center justify-center"
             >
               ✕

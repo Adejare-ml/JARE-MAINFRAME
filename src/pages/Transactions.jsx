@@ -1,15 +1,36 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { formatNaira, formatDate, formatTime } from '../lib/formatters'
 import { CATEGORIES, getCategoryIcon } from '../lib/constants'
 import { toast } from '../lib/toast'
+import ErrorState from '../components/ui/ErrorState'
+import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
+import {
+  TRANSACTION_LIST_COLUMNS,
+  PAGE_SIZE,
+  applyTransactionFilter,
+  buildFilterOptions,
+  NEEDS_REVIEW_FILTER,
+  needsReview,
+} from '../lib/queries'
 
 export default function Transactions() {
   const [transactions, setTransactions] = useState([])
   const [wallets, setWallets] = useState([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState('All')
+  const [loadingMore, setLoadingMore] = useState(false)
+  // Deep links from the Budget breakdown arrive as /transactions?category=Rent.
+  const [searchParams] = useSearchParams()
+  const initialCategory = searchParams.get('category')
+  const [filter, setFilter] = useState(initialCategory ? `category:${initialCategory}` : 'All')
   const [expandedId, setExpandedId] = useState(null)
+  const [hasMore, setHasMore] = useState(false)
+  const [unreviewedCount, setUnreviewedCount] = useState(0)
+  const [pageError, setPageError] = useState(null)
+  // How many rows are on screen, so a refetch can restore the same depth.
+  // A ref rather than state: fetchData reads it without wanting to re-run.
+  const loadedCountRef = useRef(0)
 
   // Edit state for expanded row
   const [editCategory, setEditCategory] = useState('')
@@ -17,54 +38,116 @@ export default function Transactions() {
   const [editWantNeed, setEditWantNeed] = useState(null)
   const [updating, setUpdating] = useState(false)
 
-  const fetchData = async () => {
-    try {
-      const { data: wData } = await supabase.from('wallets').select('*')
-      setWallets(wData || [])
-
-      const { data: tData, error } = await supabase
+  /**
+   * Fetch one page of transactions.
+   *
+   * Filtering runs in Postgres rather than over the fetched array. With
+   * pagination, a client-side filter would only ever search the rows already
+   * loaded, so "Uncategorized" would show whatever happened to be in the most
+   * recent 50 rather than the actual answer.
+   */
+  /**
+   * Fetch rows [from, from+size). Used both for the initial page and, on a
+   * refetch, for every page currently on screen at once.
+   */
+  const fetchRange = useCallback(
+    async (from, size, currentWallets) => {
+      let query = supabase
         .from('transactions')
-        .select('*')
+        .select(TRANSACTION_LIST_COLUMNS)
         .order('transaction_date', { ascending: false })
         .order('created_at', { ascending: false })
+        // One extra row, purely to know whether a "Load more" button belongs
+        // on screen without paying for a separate count query.
+        .range(from, from + size)
 
+      query = applyTransactionFilter(query, filter, currentWallets)
+
+      const { data, error } = await query
       if (error) throw error
-      setTransactions(tData || [])
+
+      const rows = data || []
+      return { rows: rows.slice(0, size), hasMore: rows.length > size }
+    },
+    [filter],
+  )
+
+  const fetchData = useCallback(async () => {
+    try {
+      setPageError(null)
+      const { data: wData, error: wError } = await supabase.from('wallets').select('*')
+      if (wError) throw wError
+      const walletList = wData || []
+      setWallets(walletList)
+
+      // Refetch everything currently on screen, not just the first page.
+      // Resetting to page 0 here meant editing one row's category threw away
+      // the other 150 the user had loaded, and so did every realtime event.
+      const loaded = Math.max(loadedCountRef.current, PAGE_SIZE)
+
+      const [page, countRes] = await Promise.all([
+        fetchRange(0, loaded, walletList),
+        // Counted across the whole table, not the loaded page -- a head query
+        // returns the number without transferring any rows.
+        supabase
+          .from('transactions')
+          .select('id', { count: 'exact', head: true })
+          .eq(NEEDS_REVIEW_FILTER.column, NEEDS_REVIEW_FILTER.value),
+      ])
+
+      setTransactions(page.rows)
+      loadedCountRef.current = page.rows.length
+      setHasMore(page.hasMore)
+      setUnreviewedCount(countRes.count || 0)
     } catch (err) {
       console.error('Error fetching transactions:', err)
-      toast.error('Failed to load transactions')
+      // The empty-list state below says "No transactions found", which is a
+      // wrong answer when the truth is "could not ask".
+      setPageError(err.message || 'Failed to load')
     } finally {
       setLoading(false)
     }
+  }, [fetchRange])
+
+  // Changing the filter is the one case that *should* go back to one page.
+  useEffect(() => {
+    loadedCountRef.current = 0
+    setLoading(true)
+    fetchData()
+  }, [fetchData])
+
+  useRealtimeRefresh(['transactions'], fetchData, { channelPrefix: 'transactions_page' })
+
+  const handleLoadMore = async () => {
+    setLoadingMore(true)
+    try {
+      const page = await fetchRange(transactions.length, PAGE_SIZE, wallets)
+      setTransactions(prev => {
+        const next = [...prev, ...page.rows]
+        loadedCountRef.current = next.length
+        return next
+      })
+      setHasMore(page.hasMore)
+    } catch (err) {
+      console.error('Error loading more transactions:', err)
+      toast.error('Failed to load more')
+    } finally {
+      setLoadingMore(false)
+    }
   }
 
-  useEffect(() => {
-    fetchData()
-
-    const txnSub = supabase
-      .channel('realtime:transactions_page')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => {
-        fetchData()
-      })
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(txnSub)
+  // Wallet chips come from the wallets table, so a bank added in Settings is
+  // immediately filterable. The old hardcoded GTBank/OPay/Cash list went stale
+  // the moment Zenith, Polaris and PiggyVest were added.
+  const filterOptions = useMemo(() => {
+    const options = buildFilterOptions(wallets)
+    // A category filter arrives by deep link, not from the standing chip row --
+    // give it a chip so the active filter is visible and dismissible.
+    if (filter.startsWith('category:')) {
+      options.splice(1, 0, { id: filter, label: filter.slice('category:'.length) })
     }
-  }, [])
-
-  const filterOptions = [
-    'All',
-    'Review',
-    'This Week',
-    'This Month',
-    'GTBank',
-    'OPay',
-    'Cash',
-    'Needs',
-    'Wants',
-    'Uncategorized',
-  ]
+    return options
+  }, [wallets, filter])
 
   const getWalletName = (walletId, source) => {
     const found = wallets.find(w => w.id === walletId)
@@ -74,44 +157,20 @@ export default function Transactions() {
     return 'Manual'
   }
 
-  const now = new Date()
-  const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-  const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-
-  const filteredTransactions = transactions.filter(t => {
-    const tDate = new Date(t.transaction_date || t.created_at)
-    
-    if (filter === 'All') return true
-    if (filter === 'Review') return t.reviewed === false || t.category === 'Uncategorized'
-    if (filter === 'This Week') return tDate >= oneWeekAgo
-    if (filter === 'This Month') return tDate >= firstDayOfMonth
-    if (filter === 'GTBank') {
-      const wName = getWalletName(t.wallet_id, t.source).toLowerCase()
-      return wName.includes('gt') || t.source === 'gtbank'
-    }
-    if (filter === 'OPay') {
-      const wName = getWalletName(t.wallet_id, t.source).toLowerCase()
-      return wName.includes('opay') || t.source === 'opay'
-    }
-    if (filter === 'Cash') {
-      const wName = getWalletName(t.wallet_id, t.source).toLowerCase()
-      return wName.includes('cash')
-    }
-    if (filter === 'Needs') return t.want_or_need === 'need'
-    if (filter === 'Wants') return t.want_or_need === 'want'
-    if (filter === 'Uncategorized') return t.category === 'Uncategorized'
-    return true
-  })
-
-  const unreviewedCount = transactions.filter(t => t.reviewed === false || t.category === 'Uncategorized').length
+  const filteredTransactions = transactions
 
   const handleRowClick = (txn) => {
     if (expandedId === txn.id) {
       setExpandedId(null)
     } else {
       setExpandedId(txn.id)
+      // Pre-filled with the model's suggestion, so accepting it is one tap and
+      // only a disagreement costs a change.
       setEditCategory(txn.category || 'Uncategorized')
-      setEditNote(txn.note || txn.description || '')
+      // Seeded from the note alone. It used to fall back to `description`,
+      // which combined with the write below meant opening a row and saving it
+      // unchanged copied the bank's narration into the note.
+      setEditNote(txn.note || '')
       setEditWantNeed(txn.want_or_need || null)
     }
   }
@@ -119,12 +178,19 @@ export default function Transactions() {
   const handleSaveChanges = async (txnId) => {
     setUpdating(true)
     try {
+      const original = transactions.find(t => t.id === txnId)
+      const categoryChanged = original && original.category !== editCategory
+
       const { error } = await supabase
         .from('transactions')
         .update({
           category: editCategory,
           note: editNote.trim() || null,
-          description: editNote.trim() || editCategory,
+          // `description` is deliberately not written. It holds the bank's own
+          // narration, and the previous version overwrote it with the note --
+          // or, when the note was empty, with the category name. That destroyed
+          // the only durable record of what the bank actually said, which is
+          // also the text a correction keys on.
           want_or_need: editWantNeed,
           reviewed: true,
         })
@@ -132,12 +198,26 @@ export default function Transactions() {
 
       if (error) throw error
 
+      // Remember the disagreement so future categorization matches this habit.
+      // Best-effort: failing to record a preference must not fail the edit the
+      // user actually asked for.
+      if (categoryChanged) {
+        const { error: correctionError } = await supabase.from('category_corrections').insert({
+          recipient: original.recipient || null,
+          description_snippet: (original.description || '').slice(0, 120) || null,
+          corrected_category: editCategory,
+        })
+        if (correctionError) {
+          console.warn('Could not record category correction:', correctionError.message)
+        }
+      }
+
       toast.success('Transaction updated ✓')
       setExpandedId(null)
       fetchData()
     } catch (err) {
       console.error('Error updating transaction:', err)
-      toast.error('Failed to update transaction')
+      toast.error('Failed to update: ' + (err.message || 'check connection'))
     } finally {
       setUpdating(false)
     }
@@ -165,7 +245,7 @@ export default function Transactions() {
           <h1 className="text-2xl md:text-3xl font-bold text-white flex items-center gap-3">
             <span>Transactions</span>
             <span className="text-xs bg-white/10 px-3 py-1 rounded-full text-muted font-normal">
-              {filteredTransactions.length}
+              {filteredTransactions.length}{hasMore ? '+' : ''}
             </span>
           </h1>
           <p className="text-muted text-sm mt-0.5">Filter, review, and categorize transactions</p>
@@ -175,19 +255,19 @@ export default function Transactions() {
       {/* Filter Chips Horizontal Scroll */}
       <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
         {filterOptions.map((opt) => {
-          const isActive = filter === opt
-          const isReview = opt === 'Review'
+          const isActive = filter === opt.id
+          const isReview = opt.id === 'Review'
           return (
             <button
-              key={opt}
-              onClick={() => setFilter(opt)}
+              key={opt.id}
+              onClick={() => setFilter(opt.id)}
               className={`px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 min-h-[48px] ${
                 isActive
                   ? 'bg-accent text-black font-bold shadow-md shadow-accent/20'
                   : 'bg-card text-muted hover:text-white border border-white/5'
               }`}
             >
-              <span>{opt}</span>
+              <span>{opt.label}</span>
               {isReview && unreviewedCount > 0 && (
                 <span className={`px-1.5 py-0.5 text-[10px] rounded-full font-extrabold ${
                   isActive ? 'bg-black text-accent' : 'bg-orange-500 text-black'
@@ -201,7 +281,9 @@ export default function Transactions() {
       </div>
 
       {/* Transaction List */}
-      {filteredTransactions.length === 0 ? (
+      {pageError ? (
+        <ErrorState message={pageError} onRetry={fetchData} />
+      ) : filteredTransactions.length === 0 ? (
         <div className="bg-card rounded-3xl p-12 border border-white/5 text-center space-y-3">
           <span className="text-4xl">💳</span>
           <p className="text-base font-bold text-white">No transactions found</p>
@@ -214,7 +296,7 @@ export default function Transactions() {
             const isCredit = t.type === 'credit'
             const icon = getCategoryIcon(t.category)
             const walletName = getWalletName(t.wallet_id, t.source)
-            const isUnreviewed = t.reviewed === false || t.category === 'Uncategorized'
+            const isUnreviewed = needsReview(t)
 
             return (
               <div
@@ -256,6 +338,14 @@ export default function Transactions() {
                       <p className="text-xs text-muted mt-0.5">
                         {walletName} · {formatDate(t.transaction_date)} {t.transaction_time ? `at ${formatTime(t.transaction_time)}` : ''}
                       </p>
+                      {/* The model's reasoning, shown on unreviewed rows only.
+                          On a settled row it is noise; here it is the whole
+                          point -- it turns reviewing into confirming. */}
+                      {isUnreviewed && t.explanation && (
+                        <p className="text-[11px] text-muted/70 italic mt-1 line-clamp-2">
+                          {t.explanation}
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -347,6 +437,16 @@ export default function Transactions() {
             )
           })}
         </div>
+      )}
+
+      {hasMore && (
+        <button
+          onClick={handleLoadMore}
+          disabled={loadingMore}
+          className="w-full py-3.5 bg-card border border-white/5 text-muted hover:text-white text-sm font-semibold rounded-2xl transition-all min-h-[48px] disabled:opacity-50"
+        >
+          {loadingMore ? 'Loading…' : `Load ${PAGE_SIZE} more`}
+        </button>
       )}
     </div>
   )

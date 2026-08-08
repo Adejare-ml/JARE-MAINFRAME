@@ -1,15 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { toast } from '../lib/toast';
-
-const formatNaira = (amount) => {
-  return new Intl.NumberFormat('en-NG', {
-    style: 'currency',
-    currency: 'NGN',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2
-  }).format(amount || 0).replace('NGN', '₦');
-};
+import { formatNaira } from '../lib/formatters';
+import { toDateOnly } from '../lib/queries';
 
 export default function CashReconciliation({ onReconciled }) {
   const [cashWallet, setCashWallet] = useState(null);
@@ -18,6 +11,9 @@ export default function CashReconciliation({ onReconciled }) {
   const [actualCash, setActualCash] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  // Minted when the update form opens; makes a retried submit a no-op instead
+  // of a second adjustment.
+  const [submissionId, setSubmissionId] = useState(null);
 
   useEffect(() => {
     checkTriggerConditions();
@@ -30,7 +26,9 @@ export default function CashReconciliation({ onReconciled }) {
       // Only show after 8:00 PM (20:00) local time
       if (now.getHours() < 20) return;
 
-      const todayDate = now.toISOString().split('T')[0];
+      // Local date, not UTC: after 8pm Lagos this is always "today", but the
+      // UTC form flips at 1am and re-prompted for a day already reconciled.
+      const todayDate = toDateOnly(now);
       const isReconciled = localStorage.getItem('cash_reconciled_' + todayDate);
       
       if (isReconciled === 'true') return;
@@ -47,9 +45,10 @@ export default function CashReconciliation({ onReconciled }) {
       if (!wallet) return;
 
       // Check for manual transactions logged today
+      // Existence check only -- no need to pull the row, let alone its email body.
       const { data: transactions, error: txError } = await supabase
         .from('transactions')
-        .select('*')
+        .select('id')
         .eq('wallet_id', wallet.id)
         .eq('transaction_date', todayDate)
         .eq('source', 'manual')
@@ -71,8 +70,7 @@ export default function CashReconciliation({ onReconciled }) {
   };
 
   const handleLooksRight = () => {
-    const todayDate = new Date().toISOString().split('T')[0];
-    localStorage.setItem('cash_reconciled_' + todayDate, 'true');
+    localStorage.setItem('cash_reconciled_' + toDateOnly(new Date()), 'true');
     setShouldShow(false);
     if (onReconciled) onReconciled();
   };
@@ -88,41 +86,32 @@ export default function CashReconciliation({ onReconciled }) {
       setIsSubmitting(true);
       setError(null);
       const newBalance = parseFloat(actualCash);
-      const diff = newBalance - cashWallet.balance;
+      const diff = newBalance - (parseFloat(cashWallet.balance) || 0);
 
       const now = new Date();
-      const today = now.toISOString().split('T')[0];
-      const nowTime = now.toTimeString().split(' ')[0].substring(0, 5); // HH:MM
+      const today = toDateOnly(now);
+      const nowTime = now.toTimeString().split(' ')[0]; // HH:MM:SS -- the
+      // validator treats a shorter time as malformed and rewrites it to noon.
 
       if (diff !== 0) {
         const txType = diff > 0 ? 'credit' : 'debit';
-        const amount = Math.abs(diff);
 
-        const newTx = {
-          wallet_id: cashWallet.id,
-          type: txType,
-          source: 'manual',
-          amount: amount,
-          category: txType === 'credit' ? 'Cash Received' : 'Miscellaneous',
-          description: 'Cash reconciliation adjustment',
-          note: 'Cash reconciliation adjustment',
-          reviewed: true,
-          transaction_date: today,
-          transaction_time: nowTime
-        };
+        // Atomic + idempotent: the adjustment row and the balance delta land
+        // together or not at all. The delta form (rather than writing
+        // newBalance) means a stale read here cannot clobber a sync that
+        // updated the wallet since the prompt rendered.
+        const { error: rpcError } = await supabase.rpc('log_manual_transaction', {
+          p_transaction_id: submissionId,
+          p_wallet_id: cashWallet.id,
+          p_type: txType,
+          p_amount: Math.abs(diff),
+          p_category: txType === 'credit' ? 'Cash Received' : 'Miscellaneous',
+          p_note: 'Cash reconciliation adjustment',
+          p_date: today,
+          p_time: nowTime,
+        });
 
-        const { error: insertError } = await supabase
-          .from('transactions')
-          .insert([newTx]);
-
-        if (insertError) throw insertError;
-
-        const { error: updateError } = await supabase
-          .from('wallets')
-          .update({ balance: newBalance, last_updated: new Date().toISOString() })
-          .eq('id', cashWallet.id);
-
-        if (updateError) throw updateError;
+        if (rpcError) throw rpcError;
       }
 
       localStorage.setItem('cash_reconciled_' + today, 'true');
@@ -159,7 +148,10 @@ export default function CashReconciliation({ onReconciled }) {
               Yes, looks right
             </button>
             <button
-              onClick={() => setShowUpdateForm(true)}
+              onClick={() => {
+                setSubmissionId(crypto.randomUUID())
+                setShowUpdateForm(true)
+              }}
               className="flex-1 bg-transparent border border-[#a0a0a0] hover:bg-neutral-800 text-white font-medium py-3 px-4 rounded-lg min-h-[48px] transition-colors"
             >
               No, let me update
@@ -167,7 +159,7 @@ export default function CashReconciliation({ onReconciled }) {
           </div>
         </div>
       ) : (
-        <form onSubmit={handleUpdateSubmit} className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <form onSubmit={handleUpdateSubmit} className="animate-fade-in">
           <p className="text-[#a0a0a0] mb-4">How much cash do you have right now?</p>
           
           <div className="relative mb-4">

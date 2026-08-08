@@ -104,3 +104,14 @@ body {
 .animate-slide-up {
   animation: slideUp 0.4s ease-out;
 }
+
+/* Used by the horizontally-scrolling filter chip rows. Was referenced before
+   it existed, so the scrollbar showed through under the chips on desktop. */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}

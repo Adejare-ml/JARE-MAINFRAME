@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
+import ErrorBoundary from './components/ErrorBoundary'
 import Layout from './components/layout/Layout'
 import Login from './pages/Login'
 import DailyHQ from './pages/DailyHQ'
@@ -31,7 +32,8 @@ function App() {
 
   return (
     <Layout onSignOut={signOut}>
-      <Routes>
+      <ErrorBoundary>
+        <Routes>
         <Route path="/" element={<DailyHQ />} />
         <Route path="/budget" element={<Budget />} />
         <Route path="/transactions" element={<Transactions />} />
@@ -42,6 +44,7 @@ function App() {
         <Route path="/repairs" element={<Repairs />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </ErrorBoundary>
     </Layout>
   )
 }

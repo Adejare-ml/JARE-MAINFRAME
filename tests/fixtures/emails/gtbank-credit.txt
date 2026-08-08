@@ -1,0 +1,14 @@
+Dear Customer,
+
+This is to notify you of a CREDIT transaction on your account.
+
+Account Number      : ****5872
+Description         : TRF FROM ANNALYXX GLOBAL LIMITED TO ADELUGBA A
+Amount              : NGN 150,000.00
+Value Date          : 2026-07-25
+Time of Transaction : 9:15:04 AM
+Document Number     : 098112340987654a5872
+Available Balance   : NGN 201,455.30
+
+Thank you for banking with us.
+GTBank

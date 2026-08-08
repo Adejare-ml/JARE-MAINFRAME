@@ -2,6 +2,54 @@ import { supabase } from './supabase'
 import { parseGTBankEmail } from './parsers/gtbank'
 import { parseOpayEmail } from './parsers/opay'
 import { toast } from './toast'
+import {
+  buildSenderQuery,
+  listAllMessages,
+  extractEmailBody,
+  getSenderEmail,
+  getDomain,
+  generateSyntheticId,
+  isSyntheticId,
+  validateParsedTransaction,
+  buildWalletIndex,
+  matchWallet,
+  walletSource,
+  getParseStrategy,
+  BalanceChain,
+  sortChronologically,
+  directionFromBalance,
+  hasReliableDirection,
+} from './sync'
+
+/**
+ * Manual "Sync now" from Settings.
+ *
+ * Shares all its parsing, dedup and routing with the background Action via
+ * ./sync -- these used to be two copies that drifted apart, and every bug that
+ * produced lived in the gap between them.
+ *
+ * Two deliberate differences remain.
+ *
+ * Categories are left to the background sync. Categorization needs a model, and
+ * calling one from the browser would mean shipping an API key in the bundle, so
+ * transactions logged here arrive Uncategorized at LOW confidence and wait in
+ * the review queue. Direction, though, is now settled locally by balance
+ * movement -- which is arithmetic, not inference -- so Opay alerts no longer
+ * have to be skipped entirely.
+ *
+ * And this path is stateless: it scans a fixed recent window and never writes
+ * `last_sync`. The two paths share one `integrations` row but have different
+ * capabilities, so a shared cursor is wrong by construction -- a manual sync
+ * that saw only Opay mail used to skip it all, then advance the cursor past it,
+ * and the cron never saw those emails again. Inserts are idempotent, so
+ * re-scanning the same window costs nothing but a few requests.
+ */
+
+const decodeBase64 = (data) => atob(data)
+
+/** How far back a manual sync looks. Bounded on purpose: this runs in a tab on
+ *  mobile data, against a token that expires in about an hour. */
+const MANUAL_SYNC_DAYS = 7
 
 /**
  * Dynamically load Google Identity Services (GIS) client script
@@ -30,125 +78,12 @@ function loadGsiScript() {
 }
 
 /**
- * Helper to strip HTML tags and decode entities for text pattern parsing
- */
-function stripHtml(html) {
-  if (!html || typeof html !== 'string') return ''
-  return html
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/p>/gi, '\n')
-    .replace(/<\/tr>/gi, '\n')
-    .replace(/<\/td>/gi, '  ')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    .replace(/\r\n/g, '\n')
-    .replace(/\n\s*\n/g, '\n')
-    .trim()
-}
-
-/**
- * Helper to extract and clean email body text from Gmail API payload
- */
-function extractEmailBody(payload) {
-  if (!payload) return ''
-
-  let rawBody = ''
-
-  if (payload.body && payload.body.data) {
-    try {
-      rawBody = atob(payload.body.data.replace(/-/g, '+').replace(/_/g, '/'))
-    } catch (e) {
-      console.error('Base64 decode error:', e)
-    }
-  }
-
-  if (!rawBody && payload.parts && payload.parts.length > 0) {
-    for (const part of payload.parts) {
-      if (part.mimeType === 'text/plain' && part.body && part.body.data) {
-        try {
-          rawBody = atob(part.body.data.replace(/-/g, '+').replace(/_/g, '/'))
-          break
-        } catch (e) {}
-      }
-      if (part.mimeType === 'text/html' && part.body && part.body.data) {
-        try {
-          rawBody = atob(part.body.data.replace(/-/g, '+').replace(/_/g, '/'))
-          break
-        } catch (e) {}
-      }
-      if (part.parts) {
-        const sub = extractEmailBody(part)
-        if (sub) {
-          rawBody = sub
-          break
-        }
-      }
-    }
-  }
-
-  if (!rawBody) {
-    rawBody = payload.snippet || ''
-  }
-
-  return stripHtml(rawBody)
-}
-
-/**
- * Format a Date to YYYY/MM/DD for Gmail search query
- */
-function formatDateForGmail(date) {
-  const d = new Date(date)
-  const year = d.getUTCFullYear()
-  const month = String(d.getUTCMonth() + 1).padStart(2, '0')
-  const day = String(d.getUTCDate()).padStart(2, '0')
-  return `${year}/${month}/${day}`
-}
-
-/**
- * Generate a synthetic transaction ID from email content for dedup.
- * Browser-compatible using SubtleCrypto-free approach (simple hash).
- */
-function generateSyntheticId(source, amount, dateStr, description) {
-  const raw = `${source}|${amount}|${dateStr}|${(description || '').slice(0, 60)}`
-  // Simple browser-safe hash
-  let hash = 0
-  for (let i = 0; i < raw.length; i++) {
-    const char = raw.charCodeAt(i)
-    hash = ((hash << 5) - hash) + char
-    hash = hash & hash // Convert to 32bit integer
-  }
-  return 'SYN-' + Math.abs(hash).toString(16).padStart(8, '0') + Date.now().toString(36).slice(-4)
-}
-
-/**
- * Extract sender email from Gmail API message payload headers.
- */
-function getSenderEmail(payload) {
-  if (!payload || !payload.headers) return ''
-  const fromHeader = payload.headers.find(h => h.name.toLowerCase() === 'from')
-  if (!fromHeader) return ''
-  const match = fromHeader.value.match(/<([^>]+)>/)
-  return match ? match[1].toLowerCase() : fromHeader.value.trim().toLowerCase()
-}
-
-/**
- * Extract domain from email address.
- */
-function getDomain(email) {
-  const at = email.lastIndexOf('@')
-  return at >= 0 ? email.slice(at + 1).toLowerCase() : ''
-}
-
-/**
  * Initiates Google OAuth Token Client flow using Google Identity Services (GIS)
  * Suitable for pure frontend SPA -- no backend redirect URI dependency.
+ *
+ * Note: this yields a ~60-minute access token and no refresh token, so manual
+ * sync needs periodic reconnection. The background Action holds a refresh token
+ * and is the durable path.
  */
 export async function connectGmail(onSuccess) {
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
@@ -177,7 +112,6 @@ export async function connectGmail(onSuccess) {
 
           const token = response.access_token
 
-          // Query existing integration row
           const { data: existing, error: fetchErr } = await supabase
             .from('integrations')
             .select('*')
@@ -190,14 +124,15 @@ export async function connectGmail(onSuccess) {
           }
 
           let dbErr = null
-          // CRITICAL: Do NOT set last_sync at connect time! Keep existing.last_sync or null
+          // Do NOT set last_sync at connect time -- that would skip every email
+          // between the previous sync and now.
           if (existing) {
             const { error } = await supabase
               .from('integrations')
               .update({
                 access_token: token,
                 status: 'connected',
-                last_sync: existing.last_sync || null
+                last_sync: existing.last_sync || null,
               })
               .eq('id', existing.id)
             dbErr = error
@@ -208,7 +143,7 @@ export async function connectGmail(onSuccess) {
                 service: 'gmail',
                 access_token: token,
                 status: 'connected',
-                last_sync: null
+                last_sync: null,
               })
             dbErr = error
           }
@@ -225,7 +160,7 @@ export async function connectGmail(onSuccess) {
             onSuccess({ status: 'connected', last_sync: existing?.last_sync || null })
           }
           resolve({ success: true })
-        }
+        },
       })
 
       client.requestAccessToken()
@@ -238,15 +173,12 @@ export async function connectGmail(onSuccess) {
 }
 
 /**
- * Disconnect Gmail integration from Supabase
+ * Disconnect Gmail integration from Supabase.
  * Clears last_sync so reconnecting does a fresh 30-day pull.
  */
 export async function disconnectGmail() {
   try {
-    const { error } = await supabase
-      .from('integrations')
-      .delete()
-      .eq('service', 'gmail')
+    const { error } = await supabase.from('integrations').delete().eq('service', 'gmail')
 
     if (error) {
       console.error('Supabase error deleting Gmail integration:', error)
@@ -264,21 +196,62 @@ export async function disconnectGmail() {
 }
 
 /**
- * Perform manual sync of emails from the frontend.
- * Uses dynamic sender list from wallets table.
+ * Parse an email with the rules parsers. The frontend has no LLM, so wallets
+ * that need one are filtered out before we get here.
+ */
+function parseWithRules(senderDomain, body) {
+  if (senderDomain.includes('gtbank.com')) return parseGTBankEmail(body)
+  if (senderDomain.includes('opay-nigeria.com') || senderDomain.includes('opay.com')) {
+    return parseOpayEmail(body)
+  }
+  return null
+}
+
+/**
+ * Insert one transaction idempotently. Mirrors the background sync: the unique
+ * index on (source, transaction_id) is the real guard, plus a natural-key
+ * lookup for synthetic IDs, which are derived from content and so change if the
+ * derivation ever does.
+ *
+ * @returns {'inserted'|'duplicate'}
+ */
+async function insertTransaction(txn) {
+  if (isSyntheticId(txn.transaction_id)) {
+    const { data: existing, error } = await supabase
+      .from('transactions')
+      .select('id')
+      .eq('source', txn.source)
+      .eq('transaction_date', txn.transaction_date)
+      .eq('amount', txn.amount)
+      .eq('description', txn.description)
+      .limit(1)
+
+    if (error) throw new Error(error.message)
+    if (existing && existing.length > 0) return 'duplicate'
+  }
+
+  const { data, error } = await supabase
+    .from('transactions')
+    .upsert(txn, { onConflict: 'source,transaction_id', ignoreDuplicates: true })
+    .select('id')
+
+  if (error) throw new Error(error.message)
+  return data && data.length > 0 ? 'inserted' : 'duplicate'
+}
+
+/**
+ * Perform a manual sync of emails from the frontend.
+ * @returns {Promise<number>} count of newly inserted transactions
  */
 export async function syncGmailEmails() {
   try {
-    // 1. Get integration status
     const { data: integration, error: intErr } = await supabase
       .from('integrations')
       .select('*')
       .eq('service', 'gmail')
       .maybeSingle()
 
-    if (intErr) {
-      console.error('Error fetching integration for sync:', intErr)
-    }
+    if (intErr) console.error('Error fetching integration for sync:', intErr)
 
     if (!integration || (integration.status !== 'connected' && integration.status !== 'active')) {
       toast.info('Please connect Gmail first')
@@ -291,177 +264,183 @@ export async function syncGmailEmails() {
       return 0
     }
 
-    // 2. Fetch wallets for dynamic sender list
-    const { data: wallets } = await supabase
-      .from('wallets')
-      .select('*')
-      .eq('is_active', true)
-
-    // Build sender → wallet mapping
-    const senderMap = new Map()
-    const searchSenders = []
-
-    for (const w of (wallets || [])) {
-      if (w.alert_sender) {
-        const sender = w.alert_sender.trim().toLowerCase()
-        senderMap.set(sender, w)
-        searchSenders.push(sender)
-      }
+    const { data: wallets, error: walletsError } = await supabase.from('wallets').select('*')
+    if (walletsError) {
+      // Dropping this error made a permissions or network failure report as
+      // "No wallet has an alert sender set yet" -- the wrong diagnosis.
+      toast.error('Could not load wallets: ' + walletsError.message)
+      return 0
     }
+    const walletIndex = buildWalletIndex(wallets)
 
-    // Always include defaults
-    const defaults = ['gens@gtbank.com', 'no-reply@opay-nigeria.com']
-    for (const s of defaults) {
-      if (!searchSenders.includes(s)) searchSenders.push(s)
-    }
-
-    // Build Gmail query
-    let afterDateStr = ''
-    if (integration.last_sync) {
-      afterDateStr = formatDateForGmail(integration.last_sync)
-    } else {
-      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-      afterDateStr = formatDateForGmail(thirtyDaysAgo)
-    }
-
-    const fromClauses = searchSenders.map(s => `from:${s}`).join(' OR ')
-    const query = `${fromClauses} after:${afterDateStr}`
-
-    // 3. Query Gmail API
-    const headers = { Authorization: `Bearer ${token}` }
-    const res = await fetch(
-      `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=50`,
-      { headers }
-    )
-
-    if (res.status === 401) {
-      await supabase
-        .from('integrations')
-        .update({ status: 'disconnected' })
-        .eq('id', integration.id)
-      toast.error('Gmail session expired. Please reconnect Gmail.')
+    if (walletIndex.senders.length === 0) {
+      toast.info('No wallet has an alert sender set yet')
       return 0
     }
 
-    if (!res.ok) {
-      throw new Error(`Gmail API error (${res.status})`)
+    // Deliberately not integration.last_sync -- see the note at the top of this
+    // file. A fixed window keeps this path stateless and bounds the work.
+    const since = new Date(Date.now() - MANUAL_SYNC_DAYS * 24 * 60 * 60 * 1000)
+
+    const headers = { Authorization: `Bearer ${token}` }
+    const query = buildSenderQuery(walletIndex.senders, since)
+
+    let messages = []
+    let truncated = false
+    try {
+      const result = await listAllMessages(query, headers, fetch)
+      messages = result.messages
+      truncated = result.truncated
+    } catch (err) {
+      if (err.status === 401) {
+        await supabase.from('integrations').update({ status: 'disconnected' }).eq('id', integration.id)
+        toast.error('Gmail session expired. Please reconnect Gmail.')
+        return 0
+      }
+      throw err
     }
 
-    const listData = await res.json()
-    const messages = listData.messages || []
-
     if (messages.length === 0) {
-      const nowIso = new Date().toISOString()
-      await supabase
-        .from('integrations')
-        .update({ last_sync: nowIso })
-        .eq('id', integration.id)
       toast.info('No new transactions')
       return 0
     }
 
-    // Build domain-to-wallet lookup
-    const walletByDomain = new Map()
-    for (const [sender, wallet] of senderMap.entries()) {
-      walletByDomain.set(getDomain(sender), wallet)
-    }
-
-    // Fallback wallet lookup by name
-    const gtWallet = (wallets || []).find(w => w.name.toLowerCase().includes('gt') || (w.alert_sender && w.alert_sender.toLowerCase().includes('gtbank')))
-    const opayWallet = (wallets || []).find(w => w.name.toLowerCase().includes('opay') || (w.alert_sender && w.alert_sender.toLowerCase().includes('opay')))
-
+    const latestBalances = new Map()
     let newTxnsCount = 0
+    let skippedNeedingLlm = 0
 
-    // Process messages
-    for (const msg of messages.slice(0, 30)) {
-      const msgRes = await fetch(
-        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`,
-        { headers }
-      )
-      if (!msgRes.ok) continue
-      const msgData = await msgRes.json()
-
-      const body = extractEmailBody(msgData.payload) || stripHtml(msgData.snippet || '')
-      if (!body || body.length < 20) continue
-
-      const senderEmail = getSenderEmail(msgData.payload)
-      const senderDomain = getDomain(senderEmail)
-
-      // Find matching wallet
-      let matchedWallet = senderMap.get(senderEmail)
-      if (!matchedWallet) matchedWallet = walletByDomain.get(senderDomain)
-      if (!matchedWallet) {
-        if (senderDomain.includes('gtbank')) matchedWallet = gtWallet
-        else if (senderDomain.includes('opay')) matchedWallet = opayWallet
-      }
-
-      // Parse using fast-path rules (frontend doesn't do LLM)
-      let parsed = null
-      if (senderDomain.includes('gtbank.com')) {
-        parsed = parseGTBankEmail(body)
-        if (parsed && matchedWallet) parsed.wallet_id = matchedWallet.id
-      } else if (senderDomain.includes('opay-nigeria.com') || senderDomain.includes('opay.com')) {
-        parsed = parseOpayEmail(body)
-        if (parsed && matchedWallet) parsed.wallet_id = matchedWallet.id
-      } else {
-        // Unknown sender: try both parsers based on body content
-        const lowerBody = body.toLowerCase()
-        if (lowerBody.includes('gtbank') || lowerBody.includes('guaranty trust') || lowerBody.includes('debit transaction')) {
-          parsed = parseGTBankEmail(body)
-          if (parsed && matchedWallet) parsed.wallet_id = matchedWallet.id
-        } else if (lowerBody.includes('opay') || lowerBody.includes('transfer of')) {
-          parsed = parseOpayEmail(body)
-          if (parsed && matchedWallet) parsed.wallet_id = matchedWallet.id
-        }
-      }
-
-      if (!parsed || parsed.amount <= 0) continue
-
-      // Generate synthetic ID if parser didn't extract one
-      if (!parsed.transaction_id) {
-        parsed.transaction_id = generateSyntheticId(
-          parsed.source,
-          parsed.amount,
-          parsed.transaction_date,
-          parsed.description
+    // Fetch everything first, then process oldest-first. Balance movement needs
+    // each alert compared against the one before it, and Gmail lists newest
+    // first.
+    const fetched = []
+    for (const msg of messages) {
+      try {
+        const msgRes = await fetch(
+          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`,
+          { headers },
         )
-      }
-
-      // Dedup check
-      const { data: existing } = await supabase
-        .from('transactions')
-        .select('id')
-        .eq('transaction_id', parsed.transaction_id)
-        .eq('source', parsed.source)
-        .maybeSingle()
-
-      if (!existing) {
-        const { error: insErr } = await supabase.from('transactions').insert(parsed)
-        if (!insErr) {
-          newTxnsCount++
-          if (parsed.available_balance != null && parsed.wallet_id) {
-            await supabase.from('wallets').update({
-              balance: parsed.available_balance,
-              updated_at: new Date().toISOString()
-            }).eq('id', parsed.wallet_id)
-          }
-        } else {
-          console.error('Error inserting synced transaction:', insErr)
-        }
+        if (msgRes.ok) fetched.push(await msgRes.json())
+      } catch (fetchErr) {
+        console.error('Error fetching message:', fetchErr)
       }
     }
 
-    // 5. Update last_sync timestamp ONLY after successful sync completes
-    const nowIso = new Date().toISOString()
+    const chain = new BalanceChain(wallets)
+
+    for (const msgData of sortChronologically(fetched)) {
+      try {
+        const body = extractEmailBody(msgData, decodeBase64)
+        if (!body || body.length < 20) continue
+
+        const senderEmail = getSenderEmail(msgData.payload)
+        const wallet = matchWallet(senderEmail, walletIndex)
+        if (!wallet) continue
+
+        const source = walletSource(wallet)
+        let parsed = parseWithRules(getDomain(senderEmail), body)
+        if (!parsed || parsed.amount <= 0) {
+          // No rules parser for this bank's format. The browser has no LLM, so
+          // this one genuinely does need the scheduled sync.
+          if (getParseStrategy(wallet) === 'llm') skippedNeedingLlm++
+          continue
+        }
+
+        // Direction by arithmetic, exactly as the background sync does it. This
+        // is why Opay no longer has to be skipped here: its alerts never say
+        // debit or credit, but they always state a balance, and comparing that
+        // against the previous one is not a guess.
+        if (!hasReliableDirection(parsed)) {
+          const fromBalance = directionFromBalance(parsed.available_balance, chain.priorFor(wallet.id))
+          if (fromBalance) {
+            parsed = { ...parsed, ...fromBalance }
+          } else {
+            // Cannot settle it here. Store it for review rather than guessing;
+            // the scheduled sync will categorize it properly.
+            parsed = { ...parsed, confidence: 'LOW' }
+          }
+        }
+
+        // Advance the chain whether or not this row inserts, so a duplicate
+        // from the re-scan overlap still positions the next comparison.
+        if (parsed.available_balance != null) chain.observe(wallet.id, parsed.available_balance)
+
+        const check = validateParsedTransaction({ ...parsed, source, wallet_id: wallet.id })
+        if (!check.ok) continue
+
+        const txn = check.value
+        if (!txn.transaction_id) {
+          txn.transaction_id = generateSyntheticId(
+            txn.source,
+            txn.amount,
+            txn.transaction_date,
+            txn.description,
+          )
+        }
+
+        if ((await insertTransaction(txn)) === 'inserted') {
+          newTxnsCount++
+          if (txn.available_balance != null && txn.wallet_id) {
+            const at = `${txn.transaction_date}T${txn.transaction_time}`
+            const current = latestBalances.get(txn.wallet_id)
+            if (!current || at > current.at) {
+              latestBalances.set(txn.wallet_id, { balance: txn.available_balance, at })
+            }
+          }
+        }
+      } catch (msgErr) {
+        // Nothing to hold back: this path owns no cursor, so a failed message is
+        // simply picked up by the next manual sync or the next cron run.
+        console.error('Error processing message:', msgErr)
+      }
+    }
+
+    // Written once, after the loop. Gmail returns newest first, so updating
+    // inside the loop left the wallet holding the oldest balance in the batch.
+    // Skipped entirely when the stored balance came from a newer alert.
+    for (const [walletId, { balance, at }] of latestBalances) {
+      const stored = walletIndex.byId?.get(walletId)?.balance_as_of
+      if (stored && stored >= at) continue
+
+      const { error: balanceError } = await supabase
+        .from('wallets')
+        .update({ balance, balance_as_of: at, updated_at: new Date().toISOString() })
+        .eq('id', walletId)
+
+      // Discarding this meant that on a database where migration 001 had not
+      // run, balance_as_of did not exist, PostgREST rejected every update, and
+      // the user still saw "N new transactions synced" while no balance moved.
+      if (balanceError) {
+        console.error('Balance update failed:', balanceError)
+        toast.error('Transactions synced, but balances could not update: ' + balanceError.message)
+      }
+    }
+
+    // last_sync is deliberately NOT written here -- it belongs to the
+    // background sync, the only path that can handle every wallet. But
+    // last_checked is a plain heartbeat, and a manual sync is a check, so
+    // Settings can stop implying nothing has run.
     await supabase
       .from('integrations')
-      .update({ last_sync: nowIso })
+      .update({ last_checked: new Date().toISOString() })
       .eq('id', integration.id)
+
+    if (truncated) {
+      // Not "showing 7 days only" -- truncated means the page cap was hit
+      // *inside* that window, so some messages in range were never listed.
+      toast.info('Too many emails to read in one go. The scheduled sync will pick up the rest.')
+    }
 
     if (newTxnsCount > 0) {
       toast.success(`${newTxnsCount} new transaction${newTxnsCount === 1 ? '' : 's'} synced`)
     } else {
       toast.info('No new transactions')
+    }
+
+    if (skippedNeedingLlm > 0) {
+      toast.info(
+        `${skippedNeedingLlm} email${skippedNeedingLlm === 1 ? '' : 's'} need the background sync ` +
+          '(scheduled 8am, 10am, 2pm, 6pm)',
+      )
     }
 
     return newTxnsCount

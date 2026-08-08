@@ -19,8 +19,10 @@ class ToastManager {
     this.show(message, 'success', duration)
   }
 
-  error(message, duration = 0) {
-    // Error stays until dismissed by default or auto-dismiss if specified
+  error(message, duration = 6000) {
+    // Long enough to read, but it must go away: an undismissed error card used
+    // to park itself over the QuickLog button -- exactly the button needed to
+    // retry the action that failed. Pass 0 explicitly for a sticky toast.
     this.show(message, 'error', duration)
   }
 

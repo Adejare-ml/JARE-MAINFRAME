@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { toast } from '../../lib/toast';
 import { CATEGORIES, getCategoryIcon } from '../../lib/constants';
+import { toDateOnly } from '../../lib/queries';
 
 const STEPS = {
   AMOUNT: 1,
@@ -11,9 +12,24 @@ const STEPS = {
   CONFIRM: 5,
 };
 
+// Module-level opener, same pattern as lib/toast.js. Pages call
+// openQuickLog('debit'|'credit') instead of mounting their own copy -- the
+// component renders its own floating action button when closed, so a second
+// instance would put a second FAB on screen.
+let openListener = null;
+
+export function openQuickLog(type = 'debit') {
+  if (openListener) openListener(type);
+}
+
 export default function QuickLog() {
   const [isOpen, setIsOpen] = useState(false);
   const [step, setStep] = useState(STEPS.AMOUNT);
+  // Idempotency key, minted when the sheet opens. If "Log" is tapped twice, or
+  // retried after a dropped connection, the second call hits the unique index
+  // on (source, transaction_id) and the whole operation is a no-op -- no
+  // duplicate row, no double balance delta.
+  const [submissionId, setSubmissionId] = useState(null);
   
   const [type, setType] = useState('debit'); // 'debit' or 'credit'
   const [amount, setAmount] = useState('');
@@ -28,11 +44,22 @@ export default function QuickLog() {
 
   useEffect(() => {
     if (isOpen) {
+      setSubmissionId(crypto.randomUUID());
       fetchWallets();
     } else {
       resetForm();
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    openListener = (openType) => {
+      setType(openType === 'credit' ? 'credit' : 'debit');
+      setIsOpen(true);
+    };
+    return () => {
+      openListener = null;
+    };
+  }, []);
 
   const fetchWallets = async () => {
     setIsLoadingWallets(true);
@@ -81,48 +108,36 @@ export default function QuickLog() {
         throw new Error('Invalid amount');
       }
 
+      // Local date on purpose: the server clock is UTC, so letting it default
+      // would file anything logged between midnight and 01:00 Lagos time to
+      // yesterday.
       const now = new Date();
-      const txDate = now.toISOString().split('T')[0];
+      const txDate = toDateOnly(now);
       const txTime = now.toTimeString().split(' ')[0];
 
-      // 1. Insert transaction
-      const { error: txError } = await supabase
-        .from('transactions')
-        .insert({
-          wallet_id: wallet.id,
-          type: type,
-          source: 'manual',
-          amount: numAmount,
-          currency: 'NGN',
-          category: category,
-          description: note.trim() || category,
-          note: note.trim() || null,
-          want_or_need: wantOrNeed || null,
-          reviewed: true,
-          transaction_date: txDate,
-          transaction_time: txTime
-        });
+      // One atomic call: insert + balance delta together, idempotent on
+      // submissionId. Replaces an insert-then-update pair whose second half
+      // failed after the first had committed -- the user was told the log
+      // failed while the row existed, and a retry duplicated it.
+      const { error } = await supabase.rpc('log_manual_transaction', {
+        p_transaction_id: submissionId,
+        p_wallet_id: wallet.id,
+        p_type: type,
+        p_amount: numAmount,
+        p_category: category,
+        p_note: note.trim() || null,
+        p_want_or_need: wantOrNeed || null,
+        p_date: txDate,
+        p_time: txTime,
+      });
 
-      if (txError) throw txError;
-
-      // 2. Update wallet balance
-      const currentBalance = parseFloat(wallet.balance) || 0;
-      const newBalance = type === 'credit' 
-        ? currentBalance + numAmount 
-        : currentBalance - numAmount;
-
-      const { error: updateError } = await supabase
-        .from('wallets')
-        .update({ balance: newBalance, last_updated: new Date().toISOString() })
-        .eq('id', wallet.id);
-
-      if (updateError) throw updateError;
+      if (error) throw error;
 
       toast.success(`₦${numAmount.toLocaleString()} logged ✓`);
       setIsOpen(false);
     } catch (err) {
       console.error('Error logging transaction:', err);
-      toast.error('Failed to log transaction');
+      toast.error('Failed to log: ' + (err.message || 'check connection and retry'));
     } finally {
       setIsSubmitting(false);
     }

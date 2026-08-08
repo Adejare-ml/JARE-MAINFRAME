@@ -1,14 +1,7 @@
 import { NavLink } from 'react-router-dom'
+import { sidebarItems } from '../../lib/nav'
 
-const navItems = [
-  { path: '/', label: 'Daily HQ', icon: '🏠' },
-  { path: '/budget', label: 'Budget', icon: '💰' },
-  { path: '/goals', label: 'Goals', icon: '🎯' },
-  { path: '/projects', label: 'Projects', icon: '🛠️' },
-  { path: '/debts', label: 'Debts', icon: '🤝' },
-  { path: '/repairs', label: 'Repairs', icon: '🔧' },
-  { path: '/settings', label: 'Settings', icon: '⚙️' },
-]
+const navItems = sidebarItems()
 
 export default function Sidebar({ onSignOut }) {
   return (

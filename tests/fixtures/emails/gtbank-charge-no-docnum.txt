@@ -1,0 +1,14 @@
+Dear Customer,
+
+This is to notify you of a DEBIT transaction on your account.
+
+Account Number      : ****5872
+Description         : STAMP DUTY CHARGE
+Amount              : NGN 50.00
+Value Date          : 2026-07-29
+Time of Transaction : 8:02:25 PM
+Document Number     :
+Available Balance   : NGN 49,950.70
+
+Thank you for banking with us.
+GTBank

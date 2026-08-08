@@ -1,54 +1,98 @@
+/**
+ * Background Gmail transaction sync.
+ *
+ * Runs on a schedule from .github/workflows/gmail-sync.yml. Reads bank alert
+ * emails, parses them into transactions, and writes them to Supabase.
+ *
+ * All parsing, dedup and routing logic lives in src/lib/sync/, shared with the
+ * frontend manual sync. This file is the Node-side wiring: credentials, the
+ * Gmail and Supabase calls, and the run report.
+ */
+
 import { createClient } from '@supabase/supabase-js'
 import { parseGTBankEmail } from '../src/lib/parsers/gtbank.js'
 import { parseOpayEmail } from '../src/lib/parsers/opay.js'
-import crypto from 'crypto'
+import {
+  buildSenderQuery,
+  listAllMessages,
+  extractEmailBody,
+  getSenderEmail,
+  getMessageDate,
+  getDomain,
+  generateSyntheticId,
+  isSyntheticId,
+  validateParsedTransaction,
+  buildWalletIndex,
+  matchWallet,
+  walletSource,
+  getParseStrategy,
+  nextCursor,
+  directionFromBalance,
+  hasReliableDirection,
+  BalanceChain,
+  sortChronologically,
+  applyCategoryOverrides,
+  combineConfidence,
+  chunk,
+  MAX_CORRECTION_EXAMPLES,
+} from '../src/lib/sync/index.js'
+import { extractTransaction, categorizeBatch, hasAnyProvider, LLM_CONFIG } from './llm.mjs'
 
 // ───────────────────────────────────────────────────────────────
-// 1. Verify required environment variables
+// 1. Credentials
 // ───────────────────────────────────────────────────────────────
+
 const {
   GOOGLE_CLIENT_ID,
   GOOGLE_CLIENT_SECRET,
   GOOGLE_REFRESH_TOKEN,
   SUPABASE_URL,
   SUPABASE_SERVICE_KEY,
-  OLLAMA_API_KEY,
-  NVIDIA_API_KEY,
 } = process.env
 
-const missingVars = []
-if (!GOOGLE_CLIENT_ID) missingVars.push('GOOGLE_CLIENT_ID')
-if (!GOOGLE_CLIENT_SECRET) missingVars.push('GOOGLE_CLIENT_SECRET')
-if (!GOOGLE_REFRESH_TOKEN) missingVars.push('GOOGLE_REFRESH_TOKEN')
-if (!SUPABASE_URL) missingVars.push('SUPABASE_URL')
-if (!SUPABASE_SERVICE_KEY) missingVars.push('SUPABASE_SERVICE_KEY')
+const missingVars = [
+  ['GOOGLE_CLIENT_ID', GOOGLE_CLIENT_ID],
+  ['GOOGLE_CLIENT_SECRET', GOOGLE_CLIENT_SECRET],
+  ['GOOGLE_REFRESH_TOKEN', GOOGLE_REFRESH_TOKEN],
+  ['SUPABASE_URL', SUPABASE_URL],
+  ['SUPABASE_SERVICE_KEY', SUPABASE_SERVICE_KEY],
+]
+  .filter(([, value]) => !value)
+  .map(([name]) => name)
 
 if (missingVars.length > 0) {
   console.error(`❌ Missing required environment variables: ${missingVars.join(', ')}`)
   process.exit(1)
 }
 
-// Optional LLM keys
-if (!OLLAMA_API_KEY && !NVIDIA_API_KEY) {
-  console.warn('⚠️  No LLM API keys configured (OLLAMA_API_KEY, NVIDIA_API_KEY). LLM parsing disabled, will use rules-based parsing only.')
-}
+const decodeBase64 = (data) => Buffer.from(data, 'base64').toString('utf-8')
 
 // ───────────────────────────────────────────────────────────────
-// 2. Run stats for per-run logging
+// 2. Run stats
 // ───────────────────────────────────────────────────────────────
+
 const stats = {
   messagesFound: 0,
   messagesProcessed: 0,
   newTransactions: 0,
   duplicatesSkipped: 0,
   parseFailures: 0,
-  llmCalls: { ollama: 0, nvidia: 0, rulesBased: 0 },
+  validationRejects: 0,
+  unmatchedSenders: new Set(),
+  parsedBy: { rules: 0, ollama: 0, nvidia: 0 },
+  // How each transaction's debit/credit was decided.
+  directionBy: { label: 0, balance: 0, noPriorBalance: 0, flatBalance: 0, unresolved: 0 },
+  categorizedBy: { ollama: 0, nvidia: 0, none: 0, override: 0 },
+  autoAccepted: 0,
+  needsReview: 0,
   walletsUpdated: new Set(),
+  truncated: false,
+  warnings: [],
   errors: [],
 }
 
 // ───────────────────────────────────────────────────────────────
-// 3. Helpers
+// 3. Google auth
 // ───────────────────────────────────────────────────────────────
 
 async function getAccessToken() {
@@ -66,525 +110,666 @@ async function getAccessToken() {
   })
 
   if (!res.ok) {
-    const errText = await res.text()
-    throw new Error(`Failed to refresh Google token (${res.status}): ${errText}`)
+    throw new Error(`Failed to refresh Google token (${res.status}): ${await res.text()}`)
   }
 
-  const data = await res.json()
-  return data.access_token
-}
-
-function stripHtml(html) {
-  if (!html || typeof html !== 'string') return ''
-  return html
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/p>/gi, '\n')
-    .replace(/<\/tr>/gi, '\n')
-    .replace(/<\/td>/gi, '  ')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    .replace(/\r\n/g, '\n')
-    .replace(/\n\s*\n/g, '\n')
-    .trim()
-}
-
-function extractEmailBody(payload) {
-  if (!payload) return ''
-
-  let rawBody = ''
-
-  if (payload.body && payload.body.data) {
-    try {
-      rawBody = Buffer.from(payload.body.data.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf-8')
-    } catch (e) {}
-  }
-
-  if (!rawBody && payload.parts && payload.parts.length > 0) {
-    for (const part of payload.parts) {
-      if (part.mimeType === 'text/plain' && part.body && part.body.data) {
-        try {
-          rawBody = Buffer.from(part.body.data.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf-8')
-          break
-        } catch (e) {}
-      }
-      if (part.mimeType === 'text/html' && part.body && part.body.data) {
-        try {
-          rawBody = Buffer.from(part.body.data.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf-8')
-          break
-        } catch (e) {}
-      }
-      if (part.parts) {
-        const sub = extractEmailBody(part)
-        if (sub) {
-          rawBody = sub
-          break
-        }
-      }
-    }
-  }
-
-  if (!rawBody) {
-    rawBody = payload.snippet || ''
-  }
-
-  return stripHtml(rawBody)
-}
-
-function formatDateForGmail(date) {
-  const d = new Date(date)
-  const year = d.getUTCFullYear()
-  const month = String(d.getUTCMonth() + 1).padStart(2, '0')
-  const day = String(d.getUTCDate()).padStart(2, '0')
-  return `${year}/${month}/${day}`
-}
-
-/**
- * Generate a synthetic transaction ID from email content for dedup.
- * Used when the parser cannot extract a transaction_id from the email body.
- */
-function generateSyntheticId(source, amount, dateStr, description) {
-  const raw = `${source}|${amount}|${dateStr}|${(description || '').slice(0, 60)}`
-  return 'SYN-' + crypto.createHash('sha256').update(raw).digest('hex').slice(0, 16)
-}
-
-/**
- * Extract the From header sender email from Gmail message payload.
- */
-function getSenderEmail(payload) {
-  if (!payload || !payload.headers) return ''
-  const fromHeader = payload.headers.find(h => h.name.toLowerCase() === 'from')
-  if (!fromHeader) return ''
-  // Extract email from "Name <email@domain.com>" or plain "email@domain.com"
-  const match = fromHeader.value.match(/<([^>]+)>/)
-  return match ? match[1].toLowerCase() : fromHeader.value.trim().toLowerCase()
-}
-
-/**
- * Extract the domain from an email address.
- */
-function getDomain(email) {
-  const at = email.lastIndexOf('@')
-  return at >= 0 ? email.slice(at + 1).toLowerCase() : ''
+  return (await res.json()).access_token
 }
 
 // ───────────────────────────────────────────────────────────────
-// 4. LLM Parsing
+// 4. Parsing
 // ───────────────────────────────────────────────────────────────
 
-const LLM_SYSTEM_PROMPT = `You are a financial email parser. Extract transaction data from bank/fintech notification emails.
-Return ONLY valid JSON with these fields:
-{
-  "type": "debit" or "credit",
-  "amount": number (no currency symbol, no commas),
-  "currency": "NGN",
-  "description": "short description of the transaction",
-  "recipient": "name of recipient/sender or null",
-  "category": "one of: Feeding / Groceries, Transport, Airtime & Data, Electricity, Generator, Rent, Water, Work Expenses, Courses & Learning, Tools & Software, Equipment, Pharmacy, Hospital / Clinic, Personal Care, Family Support, Social Events, Church / Mosque, Ajo / Esusu, Loan Repayment, Bank Charges, Savings Transfer, Cash Withdrawal, Cash Received, Clothing & Fashion, Entertainment, Dining Out, Subscriptions, Repairs, Miscellaneous, Uncategorized",
-  "transaction_date": "YYYY-MM-DD",
-  "transaction_time": "HH:MM:SS",
-  "transaction_id": "the reference/document number if found, or null",
-  "available_balance": number or null
-}
-If you cannot parse the email, return: {"error": "unparseable"}`
+const RULES_PARSERS = [
+  { match: (domain) => domain.includes('gtbank.com'), parse: parseGTBankEmail },
+  {
+    match: (domain) => domain.includes('opay-nigeria.com') || domain.includes('opay.com'),
+    parse: parseOpayEmail,
+  },
+]
 
-/**
- * Call LLM with Ollama as primary, NVIDIA as fallback.
- * Returns parsed JSON object or null.
- */
-async function callLLM(emailBody) {
-  const userPrompt = `Parse this bank notification email:\n\n${emailBody.slice(0, 3000)}`
-
-  // Try Ollama first
-  if (OLLAMA_API_KEY) {
-    try {
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 20000)
-
-      const res = await fetch('https://api.ollama.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${OLLAMA_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: 'llama3.1',
-          messages: [
-            { role: 'system', content: LLM_SYSTEM_PROMPT },
-            { role: 'user', content: userPrompt },
-          ],
-          temperature: 0.1,
-          response_format: { type: 'json_object' },
-        }),
-        signal: controller.signal,
-      })
-
-      clearTimeout(timeout)
-
-      if (res.ok) {
-        const data = await res.json()
-        const content = data.choices?.[0]?.message?.content
-        if (content) {
-          const parsed = JSON.parse(content)
-          if (!parsed.error) {
-            stats.llmCalls.ollama++
-            return parsed
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('⚠️  Ollama call failed:', e.message || e.name)
-    }
+function tryRules(senderDomain, body) {
+  for (const { match, parse } of RULES_PARSERS) {
+    if (!match(senderDomain)) continue
+    const parsed = parse(body)
+    if (parsed && parsed.amount > 0) return parsed
   }
-
-  // Fallback: NVIDIA
-  if (NVIDIA_API_KEY) {
-    try {
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 20000)
-
-      const res = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${NVIDIA_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: 'deepseek-ai/deepseek-r1',
-          messages: [
-            { role: 'system', content: LLM_SYSTEM_PROMPT },
-            { role: 'user', content: userPrompt },
-          ],
-          temperature: 0.1,
-          max_tokens: 1024,
-        }),
-        signal: controller.signal,
-      })
-
-      clearTimeout(timeout)
-
-      if (res.ok) {
-        const data = await res.json()
-        const content = data.choices?.[0]?.message?.content
-        if (content) {
-          // DeepSeek sometimes wraps JSON in markdown code blocks
-          const jsonMatch = content.match(/\{[\s\S]*\}/)
-          if (jsonMatch) {
-            const parsed = JSON.parse(jsonMatch[0])
-            if (!parsed.error) {
-              stats.llmCalls.nvidia++
-              return parsed
-            }
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('⚠️  NVIDIA call failed:', e.message || e.name)
-    }
-  }
-
-  return null
-}
-
-// ───────────────────────────────────────────────────────────────
-// 5. Routing & Parsing Logic
-// ───────────────────────────────────────────────────────────────
-
-/**
- * Try fast-path rules-based parsing for known banks.
- * Returns { parsed, source } or null.
- */
-function tryFastPath(senderDomain, body) {
-  if (senderDomain.includes('gtbank.com')) {
-    const parsed = parseGTBankEmail(body)
-    if (parsed && parsed.amount > 0) {
-      stats.llmCalls.rulesBased++
-      return { parsed, source: 'gtbank' }
-    }
-  }
-
-  if (senderDomain.includes('opay-nigeria.com') || senderDomain.includes('opay.com')) {
-    const parsed = parseOpayEmail(body)
-    if (parsed && parsed.amount > 0) {
-      stats.llmCalls.rulesBased++
-      return { parsed, source: 'opay' }
-    }
-  }
-
   return null
 }
 
 /**
- * Parse email using fast-path first, then LLM fallback.
- * Returns parsed transaction object or null.
+ * Parse an email and settle its direction.
+ *
+ * Direction is resolved in order of how much the answer can be trusted:
+ *
+ *   1. An explicit DEBIT/CREDIT label the parser read (GTBank, Zenith, Polaris).
+ *   2. Balance movement -- the balance this alert states, against the balance
+ *      before it. Subtraction, not inference, so it outranks the model.
+ *   3. The LLM, for the cases arithmetic cannot reach: the first alert ever
+ *      seen for a wallet, and a balance that did not move.
+ *
+ * Rules run for every wallet now, including ones marked 'llm'. An Opay alert
+ * yields a perfectly good amount, date, reference and balance -- only its
+ * *direction* was ever untrustworthy, and step 2 supplies that. The strategy
+ * still governs whether the expensive per-email LLM extraction may run.
+ *
+ * @returns {Promise<object|null>} parsed transaction, or null
  */
-async function parseEmail(senderDomain, body, walletSource) {
-  // 1. Try fast-path rules for known banks
-  const fastResult = tryFastPath(senderDomain, body)
-  if (fastResult) return fastResult.parsed
+async function parseEmail(senderDomain, body, source, strategy, chain, walletId) {
+  const priorBalance = chain.priorFor(walletId)
+  let parsed = tryRules(senderDomain, body)
 
-  // 2. LLM fallback
-  const llmResult = await callLLM(body)
-  if (llmResult && llmResult.amount > 0) {
-    return {
-      type: llmResult.type || 'debit',
-      amount: Number(llmResult.amount) || 0,
+  if (parsed) {
+    stats.parsedBy.rules++
+    parsed = { ...parsed, source }
+  } else if (strategy === 'rules' || !hasAnyProvider()) {
+    // Rules could not read this format and we are not allowed to (or cannot)
+    // ask the model.
+    return null
+  } else {
+    const llm = await extractTransaction(body, (msg) => stats.warnings.push(msg))
+    if (!llm) return null
+
+    stats.parsedBy[llm.provider]++
+    parsed = {
+      ...llm.data,
+      source,
       currency: 'NGN',
-      source: walletSource || 'email',
-      category: llmResult.category || 'Uncategorized',
-      description: llmResult.description || '',
-      recipient: llmResult.recipient || null,
-      available_balance: llmResult.available_balance != null ? Number(llmResult.available_balance) : null,
-      transaction_date: llmResult.transaction_date || new Date().toISOString().split('T')[0],
-      transaction_time: llmResult.transaction_time || '12:00:00',
-      transaction_id: llmResult.transaction_id || null,
+      // Inference, not a stated label -- so balance movement below still gets
+      // first refusal on the direction.
+      direction_source: 'llm',
       confidence: 'MEDIUM',
-      reviewed: false,
       raw_email: body,
     }
   }
 
-  return null
+  // Tracked separately from `confidence`, which describes the category. A
+  // GTBank alert can state DEBIT unambiguously while its category is a guess;
+  // those are two different questions and conflating them meant every such
+  // transaction landed in the review queue.
+  let directionConfidence
+
+  if (hasReliableDirection(parsed)) {
+    stats.directionBy.label++
+    directionConfidence = 'HIGH'
+  } else {
+    const fromBalance = directionFromBalance(parsed.available_balance, priorBalance)
+
+    if (fromBalance) {
+      stats.directionBy.balance++
+      parsed = { ...parsed, type: fromBalance.type }
+      directionConfidence = 'HIGH'
+    } else if (parsed.available_balance == null) {
+      // No balance stated, so arithmetic cannot help. The model's inference is
+      // the best available; a keyword guess is not.
+      stats.directionBy.unresolved++
+      directionConfidence = parsed.direction_source === 'llm' ? 'MEDIUM' : 'LOW'
+    } else if (priorBalance == null) {
+      // First alert for this wallet: nothing to compare against yet. The next
+      // one will have this alert's balance to work from.
+      stats.directionBy.noPriorBalance++
+      directionConfidence = parsed.direction_source === 'llm' ? 'MEDIUM' : 'LOW'
+    } else {
+      // Balance did not move -- a reversal, or two alerts for one event.
+      stats.directionBy.flatBalance++
+      directionConfidence = parsed.direction_source === 'llm' ? 'MEDIUM' : 'LOW'
+    }
+  }
+
+  return { ...parsed, directionConfidence }
 }
 
 // ───────────────────────────────────────────────────────────────
-// 6. Main Run
+// 5. Main
 // ───────────────────────────────────────────────────────────────
 
 async function run() {
   console.log('🚀 Starting background Gmail sync...')
   const startTime = Date.now()
 
-  // Initialize Supabase admin client
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
     auth: { persistSession: false },
-    realtime: { disabled: true }
+    realtime: { disabled: true },
   })
 
-  const accessToken = await getAccessToken()
-
-  // Fetch integration record
   const { data: integration, error: intErr } = await supabase
     .from('integrations')
     .select('*')
     .eq('service', 'gmail')
     .maybeSingle()
+  if (intErr) throw new Error(`Supabase query error on integrations: ${intErr.message}`)
 
-  if (intErr) {
-    throw new Error(`Supabase query error on integrations: ${intErr.message}`)
+  const { data: wallets, error: wErr } = await supabase.from('wallets').select('*')
+  if (wErr) throw new Error(`Failed to fetch wallets: ${wErr.message}`)
+
+  // Senders are data, read from the wallets table, so adding a bank is a
+  // Settings edit rather than a deploy.
+  const walletIndex = buildWalletIndex(wallets)
+
+  if (walletIndex.senders.length === 0) {
+    console.error('❌ No active wallet has an alert_sender set. Add one in Settings → Banks & Wallets.')
+    process.exit(1)
   }
 
-  const lastSync = integration?.last_sync || null
-
-  // ── Fetch wallets with alert_sender for dynamic sender list ──
-  const { data: wallets, error: wErr } = await supabase
-    .from('wallets')
-    .select('*')
-    .eq('is_active', true)
-
-  if (wErr) {
-    throw new Error(`Failed to fetch wallets: ${wErr.message}`)
+  const llmWallets = (wallets || []).filter(
+    (w) => w.is_active !== false && w.alert_sender && getParseStrategy(w) === 'llm',
+  )
+  if (llmWallets.length > 0 && !hasAnyProvider()) {
+    // Failing loudly beats running and silently skipping every Opay email.
+    console.error(
+      `❌ ${llmWallets.map((w) => w.name).join(', ')} require LLM parsing, but neither ` +
+        'OLLAMA_API_KEY nor NVIDIA_API_KEY is set. Add one, or change those wallets to ' +
+        "parse_strategy 'rules' in Settings.",
+    )
+    process.exit(1)
   }
 
-  // Build sender → wallet mapping from wallets with alert_sender
-  const senderMap = new Map() // senderEmail → wallet
-  const searchSenders = []
-
-  for (const w of (wallets || [])) {
-    if (w.alert_sender) {
-      const sender = w.alert_sender.trim().toLowerCase()
-      senderMap.set(sender, w)
-      searchSenders.push(sender)
-    }
+  console.log(`👛 ${walletIndex.senders.length} sender(s): ${walletIndex.senders.join(', ')}`)
+  if (llmWallets.length > 0) {
+    console.log(
+      `🤖 LLM parsing for ${llmWallets.map((w) => w.name).join(', ')} ` +
+        `(ollama=${LLM_CONFIG.ollama.configured ? LLM_CONFIG.ollama.model : 'off'}, ` +
+        `nvidia=${LLM_CONFIG.nvidia.configured ? LLM_CONFIG.nvidia.model : 'off'})`,
+    )
   }
 
-  // Fallback: always include known defaults if no dynamic senders
-  const defaultSenders = ['gens@gtbank.com', 'no-reply@opay-nigeria.com']
-  if (searchSenders.length === 0) {
-    for (const s of defaultSenders) {
-      if (!searchSenders.includes(s)) searchSenders.push(s)
-    }
-  } else {
-    // Ensure defaults are included too
-    for (const s of defaultSenders) {
-      if (!searchSenders.includes(s)) searchSenders.push(s)
-    }
-  }
+  const accessToken = await getAccessToken()
+  const headers = { Authorization: `Bearer ${accessToken}` }
 
-  // Build Gmail search query
-  let afterDateStr = ''
-  if (lastSync) {
-    afterDateStr = formatDateForGmail(lastSync)
-  } else {
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-    afterDateStr = formatDateForGmail(thirtyDaysAgo)
-  }
-
-  const fromClauses = searchSenders.map(s => `from:${s}`).join(' OR ')
-  const query = `${fromClauses} after:${afterDateStr}`
+  const query = buildSenderQuery(walletIndex.senders, integration?.last_sync || null)
   console.log(`📧 Gmail query: ${query}`)
 
-  const headers = { Authorization: `Bearer ${accessToken}` }
-  const listRes = await fetch(
-    `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=100`,
-    { headers }
-  )
-
-  if (!listRes.ok) {
-    const listErrText = await listRes.text()
-    throw new Error(`Gmail API messages query failed (${listRes.status}): ${listErrText}`)
+  // Loaded once and shown to the model as examples of how this user files
+  // things, so categorization drifts toward their habits over time.
+  const corrections = hasAnyProvider() ? await loadCorrections(supabase) : []
+  if (corrections.length > 0) {
+    console.log(`🧠 ${corrections.length} past correction(s) will guide categorization`)
   }
 
-  const listData = await listRes.json()
-  const messages = listData.messages || []
+  const { messages, truncated } = await listAllMessages(query, headers, fetch)
   stats.messagesFound = messages.length
+  stats.truncated = truncated
+
+  if (truncated) {
+    console.warn(
+      `⚠️  Hit the page limit with more messages waiting. Holding last_sync back so ` +
+        'the remainder is picked up on the next run.',
+    )
+  }
 
   if (messages.length === 0) {
-    const nowIso = new Date().toISOString()
-    if (integration) {
-      await supabase.from('integrations').update({ last_sync: nowIso }).eq('id', integration.id)
-    }
-    console.log('✅ Synced 0 new transactions (no messages found)')
+    console.log('✅ No messages matched.')
+    // Still record the heartbeat. Returning early meant a quiet day looked
+    // exactly like a dead sync, and on a fresh install -- where the
+    // integrations row is only created here -- Settings showed "Not connected"
+    // while the cron was running perfectly.
+    await advanceLastSync(supabase, integration, {
+      newestProcessed: null,
+      oldestFailed: null,
+      truncated,
+      loopFailed: false,
+    })
     printRunReport(startTime)
     return
   }
 
-  // ── Also build a fast lookup: wallet by domain or name ──
-  const walletByDomain = new Map()
-  for (const [sender, wallet] of senderMap.entries()) {
-    walletByDomain.set(getDomain(sender), wallet)
+  // Balances are collected here and written once at the end. Writing inside the
+  // loop meant the last message processed won, and Gmail returns newest first,
+  // so the wallet ended up holding the *oldest* balance in the batch.
+  const latestBalances = new Map()
+
+  // The cursor needs both ends of the batch.
+  //
+  // `newest` is where last_sync wants to land; `oldestFailed` is how far it has
+  // to be pulled back so a message that failed today gets another attempt
+  // tomorrow. Advancing to the *oldest* processed message -- which is what this
+  // used to do -- pinned last_sync at the first run's oldest message forever,
+  // because every subsequent run re-read the same window and computed the same
+  // minimum. The scan then grew until it tripped the page limit permanently.
+  let newestProcessed = null
+  let oldestFailed = null
+  let loopFailed = false
+
+  const markProcessed = (at) => {
+    if (at && (!newestProcessed || at > newestProcessed)) newestProcessed = at
+  }
+  const markFailed = (at) => {
+    loopFailed = true
+    if (at && (!oldestFailed || at < oldestFailed)) oldestFailed = at
   }
 
-  // Fallback wallet lookup by name/type
-  const gtWallet = (wallets || []).find(w => w.name.toLowerCase().includes('gt') || (w.alert_sender && w.alert_sender.toLowerCase().includes('gtbank')))
-  const opayWallet = (wallets || []).find(w => w.name.toLowerCase().includes('opay') || (w.alert_sender && w.alert_sender.toLowerCase().includes('opay')))
+  // ── Phase 1: fetch every message body ──
+  //
+  // Fetching and processing used to happen in one pass, in Gmail's newest-first
+  // order. A balance chain needs the opposite: each alert has to be compared
+  // against the one before it, so everything is fetched, sorted oldest-first,
+  // and only then processed.
+  const fetched = []
 
-  // Process messages
   for (const msg of messages) {
     try {
-      stats.messagesProcessed++
-
       const msgRes = await fetch(
         `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`,
-        { headers }
+        { headers },
       )
-      if (!msgRes.ok) continue
-      const msgData = await msgRes.json()
-
-      const body = extractEmailBody(msgData.payload) || stripHtml(msgData.snippet || '')
-      if (!body || body.length < 20) continue
-
-      const senderEmail = getSenderEmail(msgData.payload)
-      const senderDomain = getDomain(senderEmail)
-
-      // Find matching wallet for this sender
-      let matchedWallet = senderMap.get(senderEmail)
-      if (!matchedWallet) {
-        matchedWallet = walletByDomain.get(senderDomain)
-      }
-      if (!matchedWallet) {
-        // Fallback: try domain matching to known wallets
-        if (senderDomain.includes('gtbank')) matchedWallet = gtWallet
-        else if (senderDomain.includes('opay')) matchedWallet = opayWallet
-      }
-
-      const walletSource = matchedWallet?.name?.toLowerCase().replace(/\s+/g, '_') || 'email'
-
-      // Parse the email
-      const parsed = await parseEmail(senderDomain, body, walletSource)
-      if (!parsed || parsed.amount <= 0) {
-        stats.parseFailures++
+      if (!msgRes.ok) {
+        // No date to anchor on, so hold the cursor entirely rather than guess.
+        stats.errors.push(`Fetch failed for message ${msg.id} (${msgRes.status})`)
+        markFailed(null)
         continue
       }
-
-      // Assign wallet_id
-      if (matchedWallet) {
-        parsed.wallet_id = matchedWallet.id
-      }
-
-      // Generate synthetic ID if parser didn't extract one
-      if (!parsed.transaction_id) {
-        parsed.transaction_id = generateSyntheticId(
-          parsed.source,
-          parsed.amount,
-          parsed.transaction_date,
-          parsed.description
-        )
-      }
-
-      // Dedup check
-      const { data: existing } = await supabase
-        .from('transactions')
-        .select('id')
-        .eq('transaction_id', parsed.transaction_id)
-        .eq('source', parsed.source)
-        .maybeSingle()
-
-      if (existing) {
-        stats.duplicatesSkipped++
-        continue
-      }
-
-      // Insert transaction
-      const { error: insErr } = await supabase.from('transactions').insert(parsed)
-      if (insErr) {
-        stats.errors.push(`Insert failed (${parsed.transaction_id}): ${insErr.message}`)
-        continue
-      }
-
-      stats.newTransactions++
-
-      // Update wallet balance if available_balance provided
-      if (parsed.available_balance != null && parsed.wallet_id) {
-        await supabase.from('wallets').update({
-          balance: parsed.available_balance,
-          updated_at: new Date().toISOString()
-        }).eq('id', parsed.wallet_id)
-        stats.walletsUpdated.add(parsed.wallet_id)
-      }
-
-    } catch (msgErr) {
-      stats.errors.push(`Message ${msg.id}: ${msgErr.message}`)
+      fetched.push(await msgRes.json())
+    } catch (fetchErr) {
+      stats.errors.push(`Fetch failed for message ${msg.id}: ${fetchErr.message}`)
+      markFailed(null)
     }
   }
 
-  // Update last_sync ONLY after successful sync
-  const nowIso = new Date().toISOString()
-  if (integration) {
-    await supabase.from('integrations').update({ last_sync: nowIso, status: 'connected' }).eq('id', integration.id)
-  } else {
-    await supabase.from('integrations').insert({ service: 'gmail', status: 'connected', last_sync: nowIso })
+  const ordered = sortChronologically(fetched)
+
+  // Seeded from each wallet's stored balance, then advanced by every alert that
+  // states one -- including duplicates that are not inserted, so the re-scan
+  // overlap does not break the chain.
+  const chain = new BalanceChain(wallets)
+
+  // Transactions that were inserted, held for the categorization pass.
+  const pending = []
+  const willCategorize = hasAnyProvider()
+
+  // ── Phase 2: process in chronological order ──
+  for (const msgData of ordered) {
+    // Every path out of this block has to call markProcessed or markFailed.
+    // A `continue` that records neither used to let last_sync move past a
+    // message that was never handled, so it was never seen again.
+    let messageDate = null
+
+    try {
+      stats.messagesProcessed++
+      messageDate = getMessageDate(msgData)
+      const msgId = msgData.id
+
+      const body = extractEmailBody(msgData, decodeBase64)
+      if (!body || body.length < 20) {
+        // Nothing readable in it. Retrying will not help, so let the cursor pass.
+        stats.parseFailures++
+        markProcessed(messageDate)
+        continue
+      }
+
+      const senderEmail = getSenderEmail(msgData.payload)
+      const wallet = matchWallet(senderEmail, walletIndex)
+      if (!wallet) {
+        // Gmail matched the query but no wallet claims the address -- usually a
+        // bank sending from a second domain. Hold the cursor: adding the wallet
+        // in Settings should be enough to pick these up on the next run.
+        stats.unmatchedSenders.add(senderEmail || '(no From header)')
+        markFailed(messageDate)
+        continue
+      }
+
+      const source = walletSource(wallet)
+      const parsed = await parseEmail(
+        getDomain(senderEmail),
+        body,
+        source,
+        getParseStrategy(wallet),
+        chain,
+        wallet.id,
+      )
+
+      // Whatever happens to this row, the balance it reported advances the
+      // chain. A duplicate is not inserted but still moves the wallet forward,
+      // which is what makes the next alert's comparison correct.
+      if (parsed?.available_balance != null) chain.observe(wallet.id, parsed.available_balance)
+
+      if (!parsed) {
+        // A transient LLM outage looks exactly like this, so hold the cursor
+        // and try again next run rather than losing the transaction.
+        stats.parseFailures++
+        markFailed(messageDate)
+        continue
+      }
+
+      const check = validateParsedTransaction({ ...parsed, source, wallet_id: wallet.id })
+      if (!check.ok) {
+        // The parse succeeded and produced something unusable. That is
+        // deterministic, so retrying forever would wedge the cursor.
+        stats.validationRejects++
+        stats.warnings.push(`Rejected ${source} message ${msgId}: ${check.reason}`)
+        markProcessed(messageDate)
+        continue
+      }
+      for (const warning of check.warnings) stats.warnings.push(`${source}: ${warning}`)
+
+      const txn = check.value
+      if (!txn.transaction_id) {
+        txn.transaction_id = generateSyntheticId(
+          txn.source,
+          txn.amount,
+          txn.transaction_date,
+          txn.description,
+        )
+      }
+
+      // A confident *direction* is not a settled transaction. Categorization
+      // runs after this loop, so anything awaiting it goes in unreviewed and is
+      // auto-accepted later only if its category is settled too. Without this,
+      // a GTBank alert with an explicit DEBIT label would be marked reviewed
+      // while still uncategorized, and never surface.
+      if (willCategorize) txn.reviewed = false
+
+      const inserted = await insertTransaction(supabase, txn)
+      if (inserted === 'duplicate') {
+        stats.duplicatesSkipped++
+      } else if (inserted === 'inserted') {
+        stats.newTransactions++
+        recordBalance(latestBalances, txn)
+        // Categorized in batches after the loop rather than one call per email.
+        pending.push({ txn, wallet, directionConfidence: parsed.directionConfidence })
+      }
+
+      markProcessed(messageDate)
+    } catch (msgErr) {
+      stats.errors.push(`Message ${msgData?.id || 'unknown'}: ${msgErr.message}`)
+      markFailed(messageDate)
+    }
   }
+
+  await categorizeInserted(supabase, pending, corrections)
+
+  await applyBalances(supabase, latestBalances, wallets)
+  await advanceLastSync(supabase, integration, {
+    newestProcessed,
+    oldestFailed,
+    truncated,
+    loopFailed,
+  })
 
   printRunReport(startTime)
 }
 
+/**
+ * Insert one transaction idempotently.
+ *
+ * Two guards, because there are two ways the same transaction can arrive twice:
+ *
+ * 1. The unique index on (source, transaction_id) -- the database refuses the
+ *    second write outright, closing the race between a cron run and a manual
+ *    sync that a SELECT-then-INSERT left open.
+ * 2. A natural-key lookup for synthetic IDs. Those are derived from the
+ *    transaction's content, so any change to the derivation orphans the ones
+ *    already stored. Matching on content as well absorbs that.
+ */
+async function insertTransaction(supabase, txn) {
+  if (isSyntheticId(txn.transaction_id)) {
+    const { data: existing, error } = await supabase
+      .from('transactions')
+      .select('id')
+      .eq('source', txn.source)
+      .eq('transaction_date', txn.transaction_date)
+      .eq('amount', txn.amount)
+      .eq('description', txn.description)
+      .limit(1)
+
+    if (error) throw new Error(`Dedup lookup failed: ${error.message}`)
+    if (existing && existing.length > 0) return 'duplicate'
+  }
+
+  const { data, error } = await supabase
+    .from('transactions')
+    .upsert(txn, { onConflict: 'source,transaction_id', ignoreDuplicates: true })
+    .select('id')
+
+  if (error) throw new Error(`Insert failed (${txn.transaction_id}): ${error.message}`)
+
+  // ignoreDuplicates returns no row when the unique index rejected the write.
+  return data && data.length > 0 ? 'inserted' : 'duplicate'
+}
+
+/**
+ * Load the user's recent manual category corrections, to show the model as
+ * examples of how this person actually files things.
+ *
+ * Non-fatal: categorization without examples is still categorization, and a
+ * missing table (migration 005 not yet run) must not stop the sync.
+ */
+async function loadCorrections(supabase) {
+  const { data, error } = await supabase
+    .from('category_corrections')
+    .select('recipient, description_snippet, corrected_category')
+    .order('created_at', { ascending: false })
+    .limit(MAX_CORRECTION_EXAMPLES)
+
+  if (error) {
+    stats.warnings.push(`Could not load past corrections: ${error.message}`)
+    return []
+  }
+  return data || []
+}
+
+/**
+ * Categorize and explain everything that was inserted, in batches.
+ *
+ * Runs after the insert loop so it can group ten transactions per request
+ * rather than one per email. Each result is written back, and the deterministic
+ * overrides (savings inflow, bank charge, ATM) are applied on top of whatever
+ * the model said.
+ *
+ * A transaction whose category is settled and whose direction is settled is
+ * marked reviewed and never reaches the review queue. Everything else does,
+ * carrying the model's best guess and its reasoning so confirming it is one tap.
+ */
+async function categorizeInserted(supabase, pending, corrections) {
+  if (pending.length === 0) return
+
+  for (const batch of chunk(pending)) {
+    const items = batch.map(({ txn, wallet }) => ({
+      id: txn.transaction_id,
+      type: txn.type,
+      amount: txn.amount,
+      description: txn.description,
+      recipient: txn.recipient,
+      walletName: wallet?.name,
+    }))
+
+    let results
+    let provider = null
+    try {
+      const outcome = await categorizeBatch(items, corrections, (msg) => stats.warnings.push(msg))
+      results = outcome.results
+      provider = outcome.provider
+    } catch (err) {
+      // categorizeBatch is written not to throw, but a batch of ten must never
+      // be able to take the sync down even if that changes.
+      stats.warnings.push(`Categorization batch failed: ${err.message}`)
+      results = items.map((i) => ({ id: i.id, category: 'Uncategorized', explanation: null, confidence: 'LOW', known: false }))
+    }
+
+    if (provider) stats.categorizedBy[provider] += batch.length
+    else stats.categorizedBy.none += batch.length
+
+    const byId = new Map(results.map((r) => [String(r.id), r]))
+
+    for (const { txn, wallet, directionConfidence } of batch) {
+      const result = byId.get(String(txn.transaction_id))
+
+      const override = applyCategoryOverrides(
+        { ...txn, category: result?.category || 'Uncategorized' },
+        wallet,
+      )
+      if (override.reason) stats.categorizedBy.override++
+
+      const confidence = combineConfidence({
+        directionConfidence,
+        categoryConfidence: result?.confidence,
+        categoryKnown: result?.known,
+      })
+      // An override is a rule about the account, not a guess, so it settles the
+      // category half on its own.
+      const finalConfidence = override.reason && directionConfidence === 'HIGH' ? 'HIGH' : confidence
+      const reviewed = finalConfidence === 'HIGH'
+
+      if (reviewed) stats.autoAccepted++
+      else stats.needsReview++
+
+      const explanation = override.reason
+        ? `${result?.explanation || 'Categorized by rule'} (${override.reason})`
+        : result?.explanation || null
+
+      const { error } = await supabase
+        .from('transactions')
+        .update({
+          category: override.category,
+          explanation,
+          confidence: finalConfidence,
+          reviewed,
+        })
+        .eq('source', txn.source)
+        .eq('transaction_id', txn.transaction_id)
+
+      if (error) {
+        stats.errors.push(`Categorization write failed (${txn.transaction_id}): ${error.message}`)
+      }
+    }
+  }
+}
+
+function recordBalance(latestBalances, txn) {
+  if (txn.available_balance == null || !txn.wallet_id) return
+
+  const at = `${txn.transaction_date}T${txn.transaction_time}`
+  const current = latestBalances.get(txn.wallet_id)
+  if (!current || at > current.at) {
+    latestBalances.set(txn.wallet_id, { balance: txn.available_balance, at })
+  }
+}
+
+/**
+ * Write each wallet's balance once, from the newest alert that carried one.
+ *
+ * The comparison has to include the balance already stored, not just the newest
+ * within this batch. A delayed alert from 06:30 arriving in the 10am run seeds
+ * an empty map and would otherwise overwrite a balance already taken from the
+ * 07:59 alert, walking the wallet backwards in time.
+ *
+ * `balance_as_of` records which alert a balance came from. Where the column is
+ * absent the write is skipped rather than guessed at, since overwriting a newer
+ * balance with an older one is worse than leaving it alone.
+ */
+async function applyBalances(supabase, latestBalances, wallets) {
+  const byId = new Map((wallets || []).map((w) => [w.id, w]))
+  // Detected once from the fetched rows rather than guessed per write: if
+  // migration 001 has not run, balance_as_of does not exist and including it
+  // makes PostgREST reject every balance update.
+  const hasAsOfColumn = (wallets || []).some((w) => 'balance_as_of' in w)
+
+  if (!hasAsOfColumn && latestBalances.size > 0) {
+    stats.warnings.push(
+      'wallets.balance_as_of is missing (run migration 001). Writing balances without ' +
+        'staleness protection -- a delayed older alert can move a balance backwards.',
+    )
+  }
+
+  for (const [walletId, { balance, at }] of latestBalances) {
+    const stored = byId.get(walletId)?.balance_as_of
+    if (stored && stored >= at) {
+      stats.warnings.push(
+        `Wallet ${walletId}: kept stored balance from ${stored}, newer than this batch's ${at}`,
+      )
+      continue
+    }
+
+    const payload = { balance, updated_at: new Date().toISOString() }
+    if (hasAsOfColumn) payload.balance_as_of = at
+
+    const { error } = await supabase.from('wallets').update(payload).eq('id', walletId)
+
+    if (error) stats.errors.push(`Balance update failed for wallet ${walletId}: ${error.message}`)
+    else stats.walletsUpdated.add(walletId)
+  }
+}
+
+/**
+ * Move the Gmail watermark. The rule itself lives in src/lib/sync/cursor.js so
+ * it can be tested; this only reports and writes.
+ */
+async function advanceLastSync(supabase, integration, run) {
+  const { advance, cursor, reason } = nextCursor(run)
+
+  // last_checked is the heartbeat: when a sync last ran, unconditionally.
+  // Written even when the cursor is held back, because "did it run" and "how
+  // far has it read" are different questions -- Settings was answering the
+  // first with the second and reporting a healthy run as "3 days ago".
+  const payload = { status: 'connected', last_checked: new Date().toISOString() }
+
+  if (!advance) {
+    console.warn(`⚠️  Holding last_sync: ${reason}.`)
+  } else {
+    console.log(`🔖 last_sync → ${cursor} (${reason})`)
+    payload.last_sync = cursor
+  }
+
+  const { error } = integration
+    ? await supabase.from('integrations').update(payload).eq('id', integration.id)
+    : await supabase.from('integrations').insert({ service: 'gmail', ...payload })
+
+  if (error) stats.errors.push(`Failed to update last_sync: ${error.message}`)
+}
+
+// ───────────────────────────────────────────────────────────────
+// 6. Report
+// ───────────────────────────────────────────────────────────────
+
 function printRunReport(startTime) {
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
+
   console.log('\n════════════════════════════════════════')
   console.log('  📊 SYNC RUN REPORT')
   console.log('════════════════════════════════════════')
   console.log(`  Duration:            ${elapsed}s`)
-  console.log(`  Messages found:      ${stats.messagesFound}`)
+  console.log(`  Messages found:      ${stats.messagesFound}${stats.truncated ? ' (TRUNCATED)' : ''}`)
   console.log(`  Messages processed:  ${stats.messagesProcessed}`)
   console.log(`  New transactions:    ${stats.newTransactions}`)
   console.log(`  Duplicates skipped:  ${stats.duplicatesSkipped}`)
   console.log(`  Parse failures:      ${stats.parseFailures}`)
+  console.log(`  Validation rejects:  ${stats.validationRejects}`)
   console.log(`  Wallets updated:     ${stats.walletsUpdated.size}`)
-  console.log('  ── Parsing Provider Usage ──')
-  console.log(`    Rules-based:       ${stats.llmCalls.rulesBased}`)
-  console.log(`    Ollama LLM:        ${stats.llmCalls.ollama}`)
-  console.log(`    NVIDIA LLM:        ${stats.llmCalls.nvidia}`)
+  console.log(`  Auto-accepted:       ${stats.autoAccepted}`)
+  console.log(`  Needs review:        ${stats.needsReview}`)
+  console.log('  ── Parsed by ──')
+  console.log(`    Rules:             ${stats.parsedBy.rules}`)
+  console.log(`    Ollama:            ${stats.parsedBy.ollama}`)
+  console.log(`    NVIDIA:            ${stats.parsedBy.nvidia}`)
+  console.log('  ── Direction decided by ──')
+  console.log(`    Bank label:        ${stats.directionBy.label}`)
+  console.log(`    Balance movement:  ${stats.directionBy.balance}`)
+  console.log(`    No prior balance:  ${stats.directionBy.noPriorBalance}`)
+  console.log(`    Balance unchanged: ${stats.directionBy.flatBalance}`)
+  console.log(`    No balance stated: ${stats.directionBy.unresolved}`)
+  console.log('  ── Categorized by ──')
+  console.log(`    Ollama:            ${stats.categorizedBy.ollama}`)
+  console.log(`    NVIDIA:            ${stats.categorizedBy.nvidia}`)
+  console.log(`    Unavailable:       ${stats.categorizedBy.none}`)
+  console.log(`    Rule overrides:    ${stats.categorizedBy.override}`)
+
+  if (stats.unmatchedSenders.size > 0) {
+    console.log('  ── Senders with no wallet ──')
+    for (const sender of stats.unmatchedSenders) console.log(`    ❔ ${sender}`)
+    console.log('     Add these in Settings → Banks & Wallets to capture them.')
+  }
+
+  if (stats.warnings.length > 0) {
+    console.log('  ── Warnings ──')
+    for (const w of stats.warnings.slice(0, 20)) console.log(`    ⚠️  ${w}`)
+    if (stats.warnings.length > 20) console.log(`    … and ${stats.warnings.length - 20} more`)
+  }
+
   if (stats.errors.length > 0) {
     console.log('  ── Errors ──')
-    stats.errors.forEach(e => console.log(`    ❌ ${e}`))
+    for (const e of stats.errors.slice(0, 20)) console.log(`    ❌ ${e}`)
+    if (stats.errors.length > 20) console.log(`    … and ${stats.errors.length - 20} more`)
   }
+
   console.log('════════════════════════════════════════\n')
   console.log(`✅ Synced ${stats.newTransactions} new transactions`)
 }

@@ -1,0 +1,14 @@
+Dear Customer,
+
+This is to notify you of a DEBIT transaction on your account.
+
+Account Number      : ****5872
+Description         : TRF TO ADEOLA SAMUEL FROM ADELUGBA A
+Amount              : NGN 20,000.00
+Value Date          : 2026-07-29
+Time of Transaction : 8:02:23 PM
+Document Number     : 044884719406769l5872
+Available Balance   : NGN 50,000.70
+
+Thank you for banking with us.
+GTBank

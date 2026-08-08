@@ -73,7 +73,6 @@ export function timeAgo(timestamp) {
 export function getCategoryColor(category) {
   const colors = {
     'Feeding / Groceries': 'bg-orange-500',
-    'Food': 'bg-orange-500',
     'Transport': 'bg-blue-500',
     'Airtime & Data': 'bg-purple-500',
     'Electricity': 'bg-yellow-500',
@@ -94,6 +93,8 @@ export function getCategoryColor(category) {
     'Loan Repayment': 'bg-red-600',
     'Bank Charges': 'bg-gray-600',
     'Savings Transfer': 'bg-green-600',
+    'Savings': 'bg-green-600',
+    'Investment': 'bg-purple-600',
     'Clothing & Fashion': 'bg-fuchsia-500',
     'Entertainment': 'bg-sky-500',
     'Dining Out': 'bg-orange-400',

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { connectGmail, disconnectGmail, syncGmailEmails } from '../lib/gmailSync'
-import { timeAgo, formatNaira } from '../lib/formatters'
+import { getParseStrategy, sanitizeSlug } from '../lib/sync'
+import { timeAgo, formatNaira, formatDate } from '../lib/formatters'
 import { toast } from '../lib/toast'
 import { useAuth } from '../hooks/useAuth'
 
@@ -13,6 +14,18 @@ const WALLET_TYPES = [
   { value: 'investment', label: 'Investment', icon: '📈' },
 ]
 
+const PARSE_STRATEGIES = [
+  { value: 'auto', label: 'Auto' },
+  { value: 'rules', label: 'Rules' },
+  { value: 'llm', label: 'AI' },
+]
+
+const PARSE_STRATEGY_HELP = {
+  auto: 'Try pattern matching first, fall back to AI. Fine for most banks.',
+  rules: 'Pattern matching only. Fastest, for banks that clearly label DEBIT and CREDIT.',
+  llm: 'Always use AI. Needed where the same wording covers money in and money out (Opay, PiggyVest) — these are skipped by manual sync and picked up by the scheduled one.',
+}
+
 const PRESET_COLORS = [
   '#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6',
   '#ec4899', '#06b6d4', '#f97316', '#14b8a6', '#6366f1',
@@ -23,6 +36,7 @@ export default function Settings() {
 
   const [gmailStatus, setGmailStatus] = useState('disconnected')
   const [lastSync, setLastSync] = useState(null)
+  const [lastChecked, setLastChecked] = useState(null)
   const [isSyncing, setIsSyncing] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -31,6 +45,8 @@ export default function Settings() {
   const [wallets, setWallets] = useState([])
   const [threshold, setThreshold] = useState('10000')
   const [savingThreshold, setSavingThreshold] = useState(false)
+  const [budgetTarget, setBudgetTarget] = useState('85000')
+  const [savingBudgetTarget, setSavingBudgetTarget] = useState(false)
 
   // Account State
   const [userEmail, setUserEmail] = useState('')
@@ -46,6 +62,7 @@ export default function Settings() {
     account_last4: '',
     color: '#22c55e',
     is_active: true,
+    parse_strategy: 'auto',
   })
   const [savingWallet, setSavingWallet] = useState(false)
 
@@ -76,28 +93,31 @@ export default function Settings() {
       if (intData && (intData.status === 'connected' || intData.status === 'active')) {
         setGmailStatus('connected')
         setLastSync(intData.last_sync)
+        setLastChecked(intData.last_checked)
       } else {
         setGmailStatus('disconnected')
         setLastSync(null)
+        setLastChecked(null)
       }
 
       // 3. Fetch Wallets
       const { data: wData } = await supabase.from('wallets').select('*').order('created_at', { ascending: true })
       setWallets(wData || [])
 
-      // 4. Fetch Low Balance Threshold from user_settings table
-      const { data: setObj, error: setErr } = await supabase
+      // 4. Fetch both money settings in one query
+      const { data: settingRows, error: setErr } = await supabase
         .from('user_settings')
-        .select('*')
-        .eq('key', 'low_balance_threshold')
-        .maybeSingle()
+        .select('key, value')
+        .in('key', ['low_balance_threshold', 'monthly_budget_target'])
 
-      if (setErr && setErr.code !== 'PGRST116') {
+      if (setErr) {
         console.error('Error fetching settings:', setErr)
       }
 
-      if (setObj && setObj.value) {
-        setThreshold(setObj.value)
+      for (const row of settingRows || []) {
+        if (!row.value) continue
+        if (row.key === 'low_balance_threshold') setThreshold(row.value)
+        if (row.key === 'monthly_budget_target') setBudgetTarget(row.value)
       }
     } catch (err) {
       console.error('Error loading Settings data:', err)
@@ -133,6 +153,7 @@ export default function Settings() {
     if (success) {
       setGmailStatus('disconnected')
       setLastSync(null)
+      setLastChecked(null)
     }
   }
 
@@ -143,46 +164,55 @@ export default function Settings() {
     setIsSyncing(false)
   }
 
-  // ── Threshold Handler ──
+  // ── Settings Handlers ──
 
-  const handleSaveThreshold = async (e) => {
-    e.preventDefault()
-    const num = parseFloat(threshold)
+  const saveSetting = async (key, rawValue, label) => {
+    const num = parseFloat(rawValue)
     if (isNaN(num) || num < 0) {
-      toast.error('Please enter a valid threshold amount')
-      return
+      toast.error(`Please enter a valid ${label.toLowerCase()}`)
+      return false
     }
 
-    setSavingThreshold(true)
     try {
       const now = new Date().toISOString()
 
       const { data: existing } = await supabase
         .from('user_settings')
-        .select('*')
-        .eq('key', 'low_balance_threshold')
+        .select('id')
+        .eq('key', key)
         .maybeSingle()
 
-      if (existing) {
-        const { error } = await supabase
-          .from('user_settings')
-          .update({ value: String(num), updated_at: now })
-          .eq('id', existing.id)
-        if (error) throw error
-      } else {
-        const { error } = await supabase
-          .from('user_settings')
-          .insert({ key: 'low_balance_threshold', value: String(num), updated_at: now })
-        if (error) throw error
-      }
+      const { error } = existing
+        ? await supabase
+            .from('user_settings')
+            .update({ value: String(num), updated_at: now })
+            .eq('id', existing.id)
+        : await supabase
+            .from('user_settings')
+            .insert({ key, value: String(num), updated_at: now })
+      if (error) throw error
 
-      toast.success('Threshold saved ✓')
+      toast.success(`${label} saved ✓`)
+      return true
     } catch (err) {
-      console.error('Error saving threshold:', err)
-      toast.error('Failed to save threshold: ' + (err.message || 'Check connection'))
-    } finally {
-      setSavingThreshold(false)
+      console.error(`Error saving ${key}:`, err)
+      toast.error(`Failed to save ${label.toLowerCase()}: ` + (err.message || 'Check connection'))
+      return false
     }
+  }
+
+  const handleSaveThreshold = async (e) => {
+    e.preventDefault()
+    setSavingThreshold(true)
+    await saveSetting('low_balance_threshold', threshold, 'Threshold')
+    setSavingThreshold(false)
+  }
+
+  const handleSaveBudgetTarget = async (e) => {
+    e.preventDefault()
+    setSavingBudgetTarget(true)
+    await saveSetting('monthly_budget_target', budgetTarget, 'Budget target')
+    setSavingBudgetTarget(false)
   }
 
   // ── Wallet CRUD Handlers ──
@@ -197,6 +227,7 @@ export default function Settings() {
       account_last4: '',
       color: '#22c55e',
       is_active: true,
+      parse_strategy: 'auto',
     })
     setShowWalletModal(true)
   }
@@ -211,6 +242,9 @@ export default function Settings() {
       account_last4: wallet.account_last4 || '',
       color: wallet.color || '#22c55e',
       is_active: wallet.is_active !== false,
+      // Falls back to the inferred strategy, so a wallet saved before this
+      // column existed doesn't silently reset Opay to rules-based parsing.
+      parse_strategy: getParseStrategy(wallet),
     })
     setShowWalletModal(true)
   }
@@ -233,9 +267,12 @@ export default function Settings() {
         account_last4: walletForm.account_last4.trim() || null,
         color: walletForm.color,
         is_active: walletForm.is_active,
+        parse_strategy: walletForm.parse_strategy,
       }
 
       if (editingWallet) {
+        // source_slug is deliberately absent from edits: it is half of every
+        // transaction's dedup key, and a rename must never re-key history.
         const { error } = await supabase
           .from('wallets')
           .update(payload)
@@ -243,10 +280,19 @@ export default function Settings() {
         if (error) throw error
         toast.success('Wallet updated ✓')
       } else {
+        // Set once at creation and never rewritten. Leaving it null made
+        // walletSource() fall back to the display name -- reintroducing the
+        // rename-re-keys-the-ledger bug for every wallet added post-migration.
         const { error } = await supabase
           .from('wallets')
-          .insert(payload)
-        if (error) throw error
+          .insert({ ...payload, source_slug: sanitizeSlug(payload.name) })
+        if (error) {
+          if (error.code === '23505') {
+            toast.error(`A wallet with the identity "${sanitizeSlug(payload.name)}" already exists. Pick a more distinct name (e.g. "GTBank Savings").`)
+            return
+          }
+          throw error
+        }
         toast.success('Wallet added ✓')
       }
 
@@ -352,10 +398,26 @@ export default function Settings() {
                         </span>
                       )}
                     </div>
-                    {isConnected && lastSync && (
-                      <p className="text-xs text-muted mt-1">
-                        Last sync: {timeAgo(lastSync)}
-                      </p>
+                    {/* Two different facts, previously conflated. last_sync is
+                        a Gmail watermark -- the newest email read, deliberately
+                        pulled back to retry failures -- so rendering it as
+                        "Last sync" reported a perfectly healthy run as "21 days
+                        ago" whenever the newest bank email was three weeks old,
+                        and it can legitimately move backwards. */}
+                    {isConnected && (
+                      <div className="mt-1 space-y-0.5">
+                        {lastChecked && (
+                          <p className="text-xs text-muted">Checked {timeAgo(lastChecked)}</p>
+                        )}
+                        {lastSync && (
+                          <p className="text-[11px] text-muted/70">
+                            Caught up to {formatDate(String(lastSync).slice(0, 10))}
+                          </p>
+                        )}
+                        {!lastChecked && !lastSync && (
+                          <p className="text-xs text-muted">Not run yet</p>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -470,6 +532,14 @@ export default function Settings() {
                                   Inactive
                                 </span>
                               )}
+                              {w.alert_sender && getParseStrategy(w) === 'llm' && (
+                                <span
+                                  className="text-[9px] bg-accent/10 text-accent px-1.5 py-0.5 rounded-full uppercase font-bold"
+                                  title="Read by AI — skipped by manual sync, picked up by the scheduled one"
+                                >
+                                  AI
+                                </span>
+                              )}
                             </div>
                             {w.alert_sender && (
                               <p className="text-[10px] text-muted/60 font-mono truncate">{w.alert_sender}</p>
@@ -562,6 +632,38 @@ export default function Settings() {
                   className="px-6 py-3 bg-white/10 hover:bg-accent text-white hover:text-black font-bold text-sm rounded-xl transition-all min-h-[48px] disabled:opacity-50"
                 >
                   {savingThreshold ? 'Saving...' : 'Save Threshold'}
+                </button>
+              </div>
+            </form>
+
+            {/* Monthly Budget Target */}
+            <form onSubmit={handleSaveBudgetTarget} className="space-y-3 pt-3 border-t border-white/5">
+              <label className="block text-xs text-muted font-semibold">
+                Monthly Budget Target (₦)
+              </label>
+              <p className="text-[10px] text-muted/60">
+                Daily HQ's "% of budget" bar measures this month's spending against this number.
+              </p>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted font-bold">₦</span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    value={budgetTarget}
+                    onChange={(e) => setBudgetTarget(e.target.value)}
+                    placeholder="85000"
+                    required
+                    className="w-full pl-9 pr-4 py-3 bg-background border border-white/10 rounded-xl text-white font-bold text-sm placeholder-muted/40 focus:outline-none focus:border-accent min-h-[48px]"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={savingBudgetTarget}
+                  className="px-6 py-3 bg-white/10 hover:bg-accent text-white hover:text-black font-bold text-sm rounded-xl transition-all min-h-[48px] disabled:opacity-50"
+                >
+                  {savingBudgetTarget ? 'Saving...' : 'Save Target'}
                 </button>
               </div>
             </form>
@@ -680,6 +782,32 @@ export default function Settings() {
                   placeholder="alerts@bank.com"
                   className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm font-mono placeholder-muted/40 focus:outline-none focus:border-accent min-h-[48px]"
                 />
+              </div>
+
+              {/* Parse Strategy */}
+              <div>
+                <label className="block text-xs text-muted font-semibold mb-1">
+                  How to Read Alerts
+                </label>
+                <p className="text-[10px] text-muted/60 mb-1.5">
+                  {PARSE_STRATEGY_HELP[walletForm.parse_strategy]}
+                </p>
+                <div className="grid grid-cols-3 gap-2">
+                  {PARSE_STRATEGIES.map(s => (
+                    <button
+                      key={s.value}
+                      type="button"
+                      onClick={() => setWalletForm({ ...walletForm, parse_strategy: s.value })}
+                      className={`px-3 py-3 rounded-xl border text-xs font-semibold transition-all min-h-[48px] ${
+                        walletForm.parse_strategy === s.value
+                          ? 'border-accent bg-accent/10 text-accent'
+                          : 'border-white/10 bg-background text-muted hover:border-white/20'
+                      }`}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Account Last 4 */}
