@@ -258,7 +258,13 @@ export async function syncGmailEmails() {
       return 0
     }
 
-    const { data: wallets } = await supabase.from('wallets').select('*')
+    const { data: wallets, error: walletsError } = await supabase.from('wallets').select('*')
+    if (walletsError) {
+      // Dropping this error made a permissions or network failure report as
+      // "No wallet has an alert sender set yet" -- the wrong diagnosis.
+      toast.error('Could not load wallets: ' + walletsError.message)
+      return 0
+    }
     const walletIndex = buildWalletIndex(wallets)
 
     if (walletIndex.senders.length === 0) {

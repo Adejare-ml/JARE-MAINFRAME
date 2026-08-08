@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import WalletCard from '../components/ui/WalletCard'
 import CategoryBreakdown from '../components/ui/CategoryBreakdown'
+import ErrorState from '../components/ui/ErrorState'
+import { openQuickLog } from '../components/ui/QuickLog'
 import { formatNaira, timeAgo, formatDate } from '../lib/formatters'
 import { getCategoryIcon } from '../lib/constants'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
@@ -22,16 +24,11 @@ export default function Budget() {
   const [monthTransactions, setMonthTransactions] = useState([])
   const [recentTransactions, setRecentTransactions] = useState([])
   const [loading, setLoading] = useState(true)
-  const [setupBalances, setSetupBalances] = useState({
-    GTBank: '',
-    OPay: '',
-    Cash: ''
-  })
-  
-  const [quickLogMode, setQuickLogMode] = useState(null) // 'debit' or 'credit'
+  const [pageError, setPageError] = useState(null)
 
   const fetchWalletsAndData = useCallback(async () => {
     try {
+      setPageError(null)
       const [walletsRes, monthRes, recentRes] = await Promise.all([
         supabase.from('wallets').select('*').order('name'),
         // Totals are keyed on transaction_date -- the date the bank says the
@@ -59,6 +56,9 @@ export default function Budget() {
       setRecentTransactions(recentRes.data || [])
     } catch (error) {
       console.error('Error fetching data:', error)
+      // Without this, a network failure left wallets empty and the setup gate
+      // below replaced the whole page with a first-run wallet-creation screen.
+      setPageError(error.message || 'Failed to load')
     } finally {
       setLoading(false)
     }
@@ -71,20 +71,6 @@ export default function Budget() {
   useRealtimeRefresh(['wallets', 'transactions'], fetchWalletsAndData, {
     channelPrefix: 'budget',
   })
-
-  const handleActivate = async (name, type) => {
-    const balance = parseFloat(setupBalances[name]) || 0
-    try {
-      const { error } = await supabase
-        .from('wallets')
-        .insert([{ name, type, balance, currency: 'NGN' }])
-      if (error) throw error
-    } catch (error) {
-      console.error('Error activating wallet:', error)
-    }
-  }
-
-  const isWalletActivated = (name) => wallets.some((w) => w.name === name)
 
   if (loading) {
     return (
@@ -100,55 +86,37 @@ export default function Budget() {
     )
   }
 
-  // Setup Screen
-  const allActivated = isWalletActivated('GTBank') && isWalletActivated('OPay') && isWalletActivated('Cash')
-  if (wallets.length === 0 || !allActivated) {
+  if (pageError) {
     return (
-      <div className="p-4 md:p-8 max-w-2xl mx-auto space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-white mb-2">Set up your wallets</h1>
-          <p className="text-muted text-sm">Enter your starting balances to activate your standard wallets.</p>
-        </div>
+      <div className="p-4 md:p-8 max-w-2xl mx-auto">
+        <ErrorState message={pageError} onRetry={fetchWalletsAndData} />
+      </div>
+    )
+  }
 
-        <div className="space-y-4">
-          {[
-            { name: 'GTBank', type: 'bank', label: 'GTBank' },
-            { name: 'OPay', type: 'mobile', label: 'OPay' },
-            { name: 'Cash', type: 'cash', label: 'Cash on Hand' }
-          ].map((wallet) => {
-            const activated = isWalletActivated(wallet.name)
-            return (
-              <div key={wallet.name} className="bg-card border border-white/5 p-4 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-white font-medium">{wallet.label}</h3>
-                  <p className="text-xs text-muted capitalize">{wallet.type}</p>
-                </div>
-                
-                {activated ? (
-                  <div className="text-accent font-medium bg-accent/10 px-4 py-2 rounded-lg text-center flex items-center justify-center min-h-[48px]">
-                    Activated
-                  </div>
-                ) : (
-                  <div className="flex gap-2 w-full md:w-auto">
-                    <input
-                      type="number"
-                      placeholder="Opening balance"
-                      className="bg-background border border-white/10 rounded-lg px-3 py-2 text-white text-sm flex-1 md:w-32 focus:outline-none focus:border-accent min-h-[48px]"
-                      value={setupBalances[wallet.name]}
-                      onChange={(e) => setSetupBalances({ ...setupBalances, [wallet.name]: e.target.value })}
-                    />
-                    <button
-                      onClick={() => handleActivate(wallet.name, wallet.type)}
-                      className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors min-h-[48px] min-w-[48px]"
-                    >
-                      Activate
-                    </button>
-                  </div>
-                )}
-              </div>
-            )
-          })}
+  // Genuinely no wallets yet (and no error hiding them). The old gate required
+  // the literal names GTBank, OPay and Cash to all exist -- renaming one in
+  // Settings replaced this whole page with a setup screen forever, whose
+  // Activate button created wallets with no alert_sender and no parse_strategy,
+  // so they could never sync. Settings already has the complete add-wallet
+  // form; point there instead of maintaining a second, worse one.
+  if (wallets.length === 0) {
+    return (
+      <div className="p-4 md:p-8 max-w-2xl mx-auto space-y-6 text-center">
+        <span className="text-5xl block" aria-hidden="true">👛</span>
+        <div>
+          <h1 className="text-2xl font-bold text-white mb-2">No wallets yet</h1>
+          <p className="text-muted text-sm max-w-sm mx-auto">
+            Add your bank accounts, Opay and cash in Settings — including the alert sender
+            address so transactions sync automatically.
+          </p>
         </div>
+        <Link
+          to="/settings"
+          className="inline-block px-6 py-3 bg-accent text-black font-bold text-sm rounded-xl min-h-[48px] leading-6"
+        >
+          Set up wallets →
+        </Link>
       </div>
     )
   }
@@ -195,14 +163,14 @@ export default function Budget() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-3xl font-bold text-white tracking-tight">Budget 💰</h1>
         <div className="flex gap-2">
-          <button 
-            onClick={() => setQuickLogMode('debit')}
+          <button
+            onClick={() => openQuickLog('debit')}
             className="bg-card hover:bg-card/80 border border-white/10 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors min-h-[48px]"
           >
             + Log Transaction
           </button>
-          <button 
-            onClick={() => setQuickLogMode('credit')}
+          <button
+            onClick={() => openQuickLog('credit')}
             className="bg-accent/10 hover:bg-accent/20 text-accent border border-accent/20 px-4 py-2 rounded-xl text-sm font-medium transition-colors min-h-[48px]"
           >
             + Income
@@ -337,33 +305,6 @@ export default function Budget() {
         )}
       </div>
 
-      {/* QuickLog Modal Placeholder */}
-      {quickLogMode && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-card p-6 rounded-3xl w-full max-w-md border border-white/10 relative">
-            <button 
-              onClick={() => setQuickLogMode(null)}
-              className="absolute top-4 right-4 text-muted hover:text-white w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10"
-            >
-              ✕
-            </button>
-            <h2 className="text-xl font-bold text-white mb-4">
-              {quickLogMode === 'credit' ? 'Log Income' : 'Log Transaction'}
-            </h2>
-            <p className="text-muted text-sm mb-4">
-              QuickLog functionality will be integrated here.
-            </p>
-            <div className="flex justify-end">
-              <button 
-                onClick={() => setQuickLogMode(null)}
-                className="bg-accent text-black font-bold px-4 py-2 rounded-xl min-h-[48px]"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

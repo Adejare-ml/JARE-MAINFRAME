@@ -44,6 +44,8 @@ export default function Settings() {
   const [wallets, setWallets] = useState([])
   const [threshold, setThreshold] = useState('10000')
   const [savingThreshold, setSavingThreshold] = useState(false)
+  const [budgetTarget, setBudgetTarget] = useState('85000')
+  const [savingBudgetTarget, setSavingBudgetTarget] = useState(false)
 
   // Account State
   const [userEmail, setUserEmail] = useState('')
@@ -99,19 +101,20 @@ export default function Settings() {
       const { data: wData } = await supabase.from('wallets').select('*').order('created_at', { ascending: true })
       setWallets(wData || [])
 
-      // 4. Fetch Low Balance Threshold from user_settings table
-      const { data: setObj, error: setErr } = await supabase
+      // 4. Fetch both money settings in one query
+      const { data: settingRows, error: setErr } = await supabase
         .from('user_settings')
-        .select('*')
-        .eq('key', 'low_balance_threshold')
-        .maybeSingle()
+        .select('key, value')
+        .in('key', ['low_balance_threshold', 'monthly_budget_target'])
 
-      if (setErr && setErr.code !== 'PGRST116') {
+      if (setErr) {
         console.error('Error fetching settings:', setErr)
       }
 
-      if (setObj && setObj.value) {
-        setThreshold(setObj.value)
+      for (const row of settingRows || []) {
+        if (!row.value) continue
+        if (row.key === 'low_balance_threshold') setThreshold(row.value)
+        if (row.key === 'monthly_budget_target') setBudgetTarget(row.value)
       }
     } catch (err) {
       console.error('Error loading Settings data:', err)
@@ -157,46 +160,55 @@ export default function Settings() {
     setIsSyncing(false)
   }
 
-  // ── Threshold Handler ──
+  // ── Settings Handlers ──
 
-  const handleSaveThreshold = async (e) => {
-    e.preventDefault()
-    const num = parseFloat(threshold)
+  const saveSetting = async (key, rawValue, label) => {
+    const num = parseFloat(rawValue)
     if (isNaN(num) || num < 0) {
-      toast.error('Please enter a valid threshold amount')
-      return
+      toast.error(`Please enter a valid ${label.toLowerCase()}`)
+      return false
     }
 
-    setSavingThreshold(true)
     try {
       const now = new Date().toISOString()
 
       const { data: existing } = await supabase
         .from('user_settings')
-        .select('*')
-        .eq('key', 'low_balance_threshold')
+        .select('id')
+        .eq('key', key)
         .maybeSingle()
 
-      if (existing) {
-        const { error } = await supabase
-          .from('user_settings')
-          .update({ value: String(num), updated_at: now })
-          .eq('id', existing.id)
-        if (error) throw error
-      } else {
-        const { error } = await supabase
-          .from('user_settings')
-          .insert({ key: 'low_balance_threshold', value: String(num), updated_at: now })
-        if (error) throw error
-      }
+      const { error } = existing
+        ? await supabase
+            .from('user_settings')
+            .update({ value: String(num), updated_at: now })
+            .eq('id', existing.id)
+        : await supabase
+            .from('user_settings')
+            .insert({ key, value: String(num), updated_at: now })
+      if (error) throw error
 
-      toast.success('Threshold saved ✓')
+      toast.success(`${label} saved ✓`)
+      return true
     } catch (err) {
-      console.error('Error saving threshold:', err)
-      toast.error('Failed to save threshold: ' + (err.message || 'Check connection'))
-    } finally {
-      setSavingThreshold(false)
+      console.error(`Error saving ${key}:`, err)
+      toast.error(`Failed to save ${label.toLowerCase()}: ` + (err.message || 'Check connection'))
+      return false
     }
+  }
+
+  const handleSaveThreshold = async (e) => {
+    e.preventDefault()
+    setSavingThreshold(true)
+    await saveSetting('low_balance_threshold', threshold, 'Threshold')
+    setSavingThreshold(false)
+  }
+
+  const handleSaveBudgetTarget = async (e) => {
+    e.preventDefault()
+    setSavingBudgetTarget(true)
+    await saveSetting('monthly_budget_target', budgetTarget, 'Budget target')
+    setSavingBudgetTarget(false)
   }
 
   // ── Wallet CRUD Handlers ──
@@ -600,6 +612,38 @@ export default function Settings() {
                   className="px-6 py-3 bg-white/10 hover:bg-accent text-white hover:text-black font-bold text-sm rounded-xl transition-all min-h-[48px] disabled:opacity-50"
                 >
                   {savingThreshold ? 'Saving...' : 'Save Threshold'}
+                </button>
+              </div>
+            </form>
+
+            {/* Monthly Budget Target */}
+            <form onSubmit={handleSaveBudgetTarget} className="space-y-3 pt-3 border-t border-white/5">
+              <label className="block text-xs text-muted font-semibold">
+                Monthly Budget Target (₦)
+              </label>
+              <p className="text-[10px] text-muted/60">
+                Daily HQ's "% of budget" bar measures this month's spending against this number.
+              </p>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted font-bold">₦</span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    value={budgetTarget}
+                    onChange={(e) => setBudgetTarget(e.target.value)}
+                    placeholder="85000"
+                    required
+                    className="w-full pl-9 pr-4 py-3 bg-background border border-white/10 rounded-xl text-white font-bold text-sm placeholder-muted/40 focus:outline-none focus:border-accent min-h-[48px]"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={savingBudgetTarget}
+                  className="px-6 py-3 bg-white/10 hover:bg-accent text-white hover:text-black font-bold text-sm rounded-xl transition-all min-h-[48px] disabled:opacity-50"
+                >
+                  {savingBudgetTarget ? 'Saving...' : 'Save Target'}
                 </button>
               </div>
             </form>

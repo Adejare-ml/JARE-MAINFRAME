@@ -12,6 +12,16 @@ const STEPS = {
   CONFIRM: 5,
 };
 
+// Module-level opener, same pattern as lib/toast.js. Pages call
+// openQuickLog('debit'|'credit') instead of mounting their own copy -- the
+// component renders its own floating action button when closed, so a second
+// instance would put a second FAB on screen.
+let openListener = null;
+
+export function openQuickLog(type = 'debit') {
+  if (openListener) openListener(type);
+}
+
 export default function QuickLog() {
   const [isOpen, setIsOpen] = useState(false);
   const [step, setStep] = useState(STEPS.AMOUNT);
@@ -40,6 +50,16 @@ export default function QuickLog() {
       resetForm();
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    openListener = (openType) => {
+      setType(openType === 'credit' ? 'credit' : 'debit');
+      setIsOpen(true);
+    };
+    return () => {
+      openListener = null;
+    };
+  }, []);
 
   const fetchWallets = async () => {
     setIsLoadingWallets(true);

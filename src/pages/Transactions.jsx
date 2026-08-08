@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { formatNaira, formatDate, formatTime } from '../lib/formatters'
 import { CATEGORIES, getCategoryIcon } from '../lib/constants'
 import { toast } from '../lib/toast'
+import ErrorState from '../components/ui/ErrorState'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import {
   TRANSACTION_LIST_COLUMNS,
@@ -24,6 +25,7 @@ export default function Transactions() {
   const [expandedId, setExpandedId] = useState(null)
   const [hasMore, setHasMore] = useState(false)
   const [unreviewedCount, setUnreviewedCount] = useState(0)
+  const [pageError, setPageError] = useState(null)
   // How many rows are on screen, so a refetch can restore the same depth.
   // A ref rather than state: fetchData reads it without wanting to re-run.
   const loadedCountRef = useRef(0)
@@ -70,7 +72,9 @@ export default function Transactions() {
 
   const fetchData = useCallback(async () => {
     try {
-      const { data: wData } = await supabase.from('wallets').select('*')
+      setPageError(null)
+      const { data: wData, error: wError } = await supabase.from('wallets').select('*')
+      if (wError) throw wError
       const walletList = wData || []
       setWallets(walletList)
 
@@ -95,7 +99,9 @@ export default function Transactions() {
       setUnreviewedCount(countRes.count || 0)
     } catch (err) {
       console.error('Error fetching transactions:', err)
-      toast.error('Failed to load transactions')
+      // The empty-list state below says "No transactions found", which is a
+      // wrong answer when the truth is "could not ask".
+      setPageError(err.message || 'Failed to load')
     } finally {
       setLoading(false)
     }
@@ -247,7 +253,9 @@ export default function Transactions() {
       </div>
 
       {/* Transaction List */}
-      {filteredTransactions.length === 0 ? (
+      {pageError ? (
+        <ErrorState message={pageError} onRetry={fetchData} />
+      ) : filteredTransactions.length === 0 ? (
         <div className="bg-card rounded-3xl p-12 border border-white/5 text-center space-y-3">
           <span className="text-4xl">💳</span>
           <p className="text-base font-bold text-white">No transactions found</p>

@@ -1,13 +1,7 @@
 import { NavLink } from 'react-router-dom'
+import { bottomNavItems } from '../../lib/nav'
 
-const navItems = [
-  { path: '/', label: 'Daily HQ', icon: '🏠' },
-  { path: '/budget', label: 'Budget', icon: '💰' },
-  { path: '/goals', label: 'Goals', icon: '🎯' },
-  { path: '/projects', label: 'Projects', icon: '🛠️' },
-  { path: '/debts', label: 'Debts', icon: '🤝' },
-  { path: '/repairs', label: 'Repairs', icon: '🔧' },
-]
+const navItems = bottomNavItems()
 
 export default function BottomNav() {
   return (
