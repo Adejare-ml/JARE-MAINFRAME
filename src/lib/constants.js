@@ -47,7 +47,6 @@ export const CATEGORIES = {
 
 export const CATEGORY_ICONS = {
   'Feeding / Groceries': '🛒',
-  'Food': '🍲',
   'Transport': '🚗',
   'Airtime & Data': '📱',
   'Electricity': '⚡',

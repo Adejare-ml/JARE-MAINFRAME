@@ -35,8 +35,10 @@ export const TRANSACTION_LIST_COLUMNS = [
   'created_at',
 ].join(', ')
 
-/** Just enough to add up. Used for monthly totals, where nothing is rendered. */
-export const TRANSACTION_SUMMARY_COLUMNS = 'id, type, amount, wallet_id, transaction_date'
+/** Just enough to add up. `category` is here because the month totals must
+ *  exclude transfer categories (Savings Transfer, Cash Withdrawal, Cash
+ *  Received) -- without it, moving money to PiggyVest reads as spending it. */
+export const TRANSACTION_SUMMARY_COLUMNS = 'id, type, amount, category, wallet_id, transaction_date'
 
 export const PAGE_SIZE = 50
 
@@ -97,6 +99,12 @@ export function applyTransactionFilter(query, filter, wallets = []) {
   }
   if (filter === 'Uncategorized') {
     return query.eq('category', 'Uncategorized')
+  }
+
+  if (filter.startsWith('category:')) {
+    // Exact match; category names are validated against ALL_CATEGORIES on
+    // write, so no pattern escaping is needed.
+    return query.eq('category', filter.slice('category:'.length))
   }
 
   if (filter.startsWith('wallet:')) {

@@ -6,7 +6,7 @@ import { getCategoryIcon } from '../lib/constants'
 import { toast } from '../lib/toast'
 import CashReconciliation from '../components/CashReconciliation'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
-import { TRANSACTION_LIST_COLUMNS } from '../lib/queries'
+import { TRANSACTION_LIST_COLUMNS, toDateOnly } from '../lib/queries'
 
 export default function DailyHQ() {
   const [wallets, setWallets] = useState([])
@@ -17,7 +17,9 @@ export default function DailyHQ() {
   const [loading, setLoading] = useState(true)
   const [savingPriorities, setSavingPriorities] = useState(false)
 
-  const todayDate = new Date().toISOString().split('T')[0]
+  // Local date: the UTC form flips at 1am Lagos, which made this page load and
+  // save *yesterday's* priorities during that hour.
+  const todayDate = toDateOnly(new Date())
   const fullDateStr = new Date().toLocaleDateString('en-GB', {
     weekday: 'long',
     day: 'numeric',

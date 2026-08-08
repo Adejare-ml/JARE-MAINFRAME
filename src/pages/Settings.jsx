@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { connectGmail, disconnectGmail, syncGmailEmails } from '../lib/gmailSync'
-import { getParseStrategy } from '../lib/sync'
+import { getParseStrategy, sanitizeSlug } from '../lib/sync'
 import { timeAgo, formatNaira } from '../lib/formatters'
 import { toast } from '../lib/toast'
 import { useAuth } from '../hooks/useAuth'
@@ -255,6 +255,8 @@ export default function Settings() {
       }
 
       if (editingWallet) {
+        // source_slug is deliberately absent from edits: it is half of every
+        // transaction's dedup key, and a rename must never re-key history.
         const { error } = await supabase
           .from('wallets')
           .update(payload)
@@ -262,10 +264,19 @@ export default function Settings() {
         if (error) throw error
         toast.success('Wallet updated ✓')
       } else {
+        // Set once at creation and never rewritten. Leaving it null made
+        // walletSource() fall back to the display name -- reintroducing the
+        // rename-re-keys-the-ledger bug for every wallet added post-migration.
         const { error } = await supabase
           .from('wallets')
-          .insert(payload)
-        if (error) throw error
+          .insert({ ...payload, source_slug: sanitizeSlug(payload.name) })
+        if (error) {
+          if (error.code === '23505') {
+            toast.error(`A wallet with the identity "${sanitizeSlug(payload.name)}" already exists. Pick a more distinct name (e.g. "GTBank Savings").`)
+            return
+          }
+          throw error
+        }
         toast.success('Wallet added ✓')
       }
 

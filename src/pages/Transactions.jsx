@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { formatNaira, formatDate, formatTime } from '../lib/formatters'
 import { CATEGORIES, getCategoryIcon } from '../lib/constants'
@@ -16,7 +17,10 @@ export default function Transactions() {
   const [wallets, setWallets] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [filter, setFilter] = useState('All')
+  // Deep links from the Budget breakdown arrive as /transactions?category=Rent.
+  const [searchParams] = useSearchParams()
+  const initialCategory = searchParams.get('category')
+  const [filter, setFilter] = useState(initialCategory ? `category:${initialCategory}` : 'All')
   const [expandedId, setExpandedId] = useState(null)
   const [hasMore, setHasMore] = useState(false)
   const [unreviewedCount, setUnreviewedCount] = useState(0)
@@ -127,7 +131,15 @@ export default function Transactions() {
   // Wallet chips come from the wallets table, so a bank added in Settings is
   // immediately filterable. The old hardcoded GTBank/OPay/Cash list went stale
   // the moment Zenith, Polaris and PiggyVest were added.
-  const filterOptions = useMemo(() => buildFilterOptions(wallets), [wallets])
+  const filterOptions = useMemo(() => {
+    const options = buildFilterOptions(wallets)
+    // A category filter arrives by deep link, not from the standing chip row --
+    // give it a chip so the active filter is visible and dismissible.
+    if (filter.startsWith('category:')) {
+      options.splice(1, 0, { id: filter, label: filter.slice('category:'.length) })
+    }
+    return options
+  }, [wallets, filter])
 
   const getWalletName = (walletId, source) => {
     const found = wallets.find(w => w.id === walletId)

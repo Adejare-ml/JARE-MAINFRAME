@@ -73,7 +73,6 @@ export function timeAgo(timestamp) {
 export function getCategoryColor(category) {
   const colors = {
     'Feeding / Groceries': 'bg-orange-500',
-    'Food': 'bg-orange-500',
     'Transport': 'bg-blue-500',
     'Airtime & Data': 'bg-purple-500',
     'Electricity': 'bg-yellow-500',

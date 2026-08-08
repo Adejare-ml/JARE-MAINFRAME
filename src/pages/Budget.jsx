@@ -2,8 +2,11 @@ import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import WalletCard from '../components/ui/WalletCard'
+import CategoryBreakdown from '../components/ui/CategoryBreakdown'
 import { formatNaira, timeAgo, formatDate } from '../lib/formatters'
+import { getCategoryIcon } from '../lib/constants'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
+import { summarizeMonth, runway } from '../lib/summary'
 import {
   TRANSACTION_LIST_COLUMNS,
   TRANSACTION_SUMMARY_COLUMNS,
@@ -168,20 +171,19 @@ export default function Budget() {
     }
   })
 
-  // This Month summary — already scoped to the month by the query.
-  // Savings and investment wallets are excluded so moving money into PiggyVest
-  // doesn't read as spending.
+  // This Month summary — scoped to the month by the query, with transfer
+  // categories (Savings Transfer, Cash Withdrawal, Cash Received) excluded
+  // from income/spent and reported as movedAside. Excluding by wallet alone
+  // was not enough: a GTBank→PiggyVest transfer writes its debit leg on the
+  // liquid side, so saving money read as spending it, and ATM cash counted
+  // twice. The math lives in src/lib/summary.js with tests.
   const liquidWalletIds = new Set(liquidWallets.map(w => w.id))
+  const monthSummary = summarizeMonth(monthTransactions, liquidWalletIds)
 
-  const thisMonthIncome = monthTransactions
-    .filter(t => t.type === 'credit' && (!t.wallet_id || liquidWalletIds.has(t.wallet_id)))
-    .reduce((sum, t) => sum + (Number(t.amount) || 0), 0)
-
-  const thisMonthSpent = monthTransactions
-    .filter(t => t.type === 'debit' && (!t.wallet_id || liquidWalletIds.has(t.wallet_id)))
-    .reduce((sum, t) => sum + (Number(t.amount) || 0), 0)
-
+  const thisMonthIncome = monthSummary.income
+  const thisMonthSpent = monthSummary.spent
   const thisMonthRemaining = liquidBalance
+  const monthRunway = runway(liquidBalance, thisMonthSpent, new Date().getDate())
 
   const last5Transactions = recentTransactions
 
@@ -271,7 +273,29 @@ export default function Budget() {
             <p className="text-lg font-bold text-white">{formatNaira(thisMonthRemaining)}</p>
           </div>
         </div>
+
+        {(monthSummary.movedAside > 0 || monthRunway?.daysOfRunway != null) && (
+          <div className="flex flex-wrap gap-x-6 gap-y-1 mt-5 pt-4 border-t border-white/5">
+            {monthSummary.movedAside > 0 && (
+              <p className="text-xs text-muted">
+                Moved to savings / cash:{' '}
+                <span className="text-blue-400 font-semibold">{formatNaira(monthSummary.movedAside)}</span>
+              </p>
+            )}
+            {monthRunway?.daysOfRunway != null && (
+              <p className="text-xs text-muted">
+                At {formatNaira(monthRunway.dailyBurn)}/day, liquid lasts{' '}
+                <span className="text-white font-semibold">
+                  {monthRunway.capped ? '90+' : monthRunway.daysOfRunway} days
+                </span>
+              </p>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Category Breakdown */}
+      <CategoryBreakdown byCategory={monthSummary.byCategory} />
 
       {/* Last 5 Transactions */}
       <div>
@@ -297,11 +321,7 @@ export default function Budget() {
               >
                 <div className="flex items-center gap-4">
                   <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl bg-gray-500/20`}>
-                    <span className="opacity-80">
-                      {t.category === 'Food' ? '🍔' : 
-                       t.category === 'Transport' ? '🚗' : 
-                       t.category === 'Airtime & Data' ? '📱' : '📝'}
-                    </span>
+                    <span className="opacity-80">{getCategoryIcon(t.category)}</span>
                   </div>
                   <div>
                     <p className="text-white font-medium">{t.description || t.category}</p>
