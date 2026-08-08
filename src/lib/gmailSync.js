@@ -368,17 +368,33 @@ export async function syncGmailEmails() {
       const stored = walletIndex.byId?.get(walletId)?.balance_as_of
       if (stored && stored >= at) continue
 
-      await supabase
+      const { error: balanceError } = await supabase
         .from('wallets')
         .update({ balance, balance_as_of: at, updated_at: new Date().toISOString() })
         .eq('id', walletId)
+
+      // Discarding this meant that on a database where migration 001 had not
+      // run, balance_as_of did not exist, PostgREST rejected every update, and
+      // the user still saw "N new transactions synced" while no balance moved.
+      if (balanceError) {
+        console.error('Balance update failed:', balanceError)
+        toast.error('Transactions synced, but balances could not update: ' + balanceError.message)
+      }
     }
 
-    // last_sync is deliberately NOT written here. It belongs to the background
-    // sync, which is the only path that can handle every wallet.
+    // last_sync is deliberately NOT written here -- it belongs to the
+    // background sync, the only path that can handle every wallet. But
+    // last_checked is a plain heartbeat, and a manual sync is a check, so
+    // Settings can stop implying nothing has run.
+    await supabase
+      .from('integrations')
+      .update({ last_checked: new Date().toISOString() })
+      .eq('id', integration.id)
 
     if (truncated) {
-      toast.info(`Showing the last ${MANUAL_SYNC_DAYS} days only. The scheduled sync covers the rest.`)
+      // Not "showing 7 days only" -- truncated means the page cap was hit
+      // *inside* that window, so some messages in range were never listed.
+      toast.info('Too many emails to read in one go. The scheduled sync will pick up the rest.')
     }
 
     if (newTxnsCount > 0) {

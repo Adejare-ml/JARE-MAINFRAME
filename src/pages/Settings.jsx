@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { connectGmail, disconnectGmail, syncGmailEmails } from '../lib/gmailSync'
 import { getParseStrategy, sanitizeSlug } from '../lib/sync'
-import { timeAgo, formatNaira } from '../lib/formatters'
+import { timeAgo, formatNaira, formatDate } from '../lib/formatters'
 import { toast } from '../lib/toast'
 import { useAuth } from '../hooks/useAuth'
 
@@ -36,6 +36,7 @@ export default function Settings() {
 
   const [gmailStatus, setGmailStatus] = useState('disconnected')
   const [lastSync, setLastSync] = useState(null)
+  const [lastChecked, setLastChecked] = useState(null)
   const [isSyncing, setIsSyncing] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -92,9 +93,11 @@ export default function Settings() {
       if (intData && (intData.status === 'connected' || intData.status === 'active')) {
         setGmailStatus('connected')
         setLastSync(intData.last_sync)
+        setLastChecked(intData.last_checked)
       } else {
         setGmailStatus('disconnected')
         setLastSync(null)
+        setLastChecked(null)
       }
 
       // 3. Fetch Wallets
@@ -150,6 +153,7 @@ export default function Settings() {
     if (success) {
       setGmailStatus('disconnected')
       setLastSync(null)
+      setLastChecked(null)
     }
   }
 
@@ -394,10 +398,26 @@ export default function Settings() {
                         </span>
                       )}
                     </div>
-                    {isConnected && lastSync && (
-                      <p className="text-xs text-muted mt-1">
-                        Last sync: {timeAgo(lastSync)}
-                      </p>
+                    {/* Two different facts, previously conflated. last_sync is
+                        a Gmail watermark -- the newest email read, deliberately
+                        pulled back to retry failures -- so rendering it as
+                        "Last sync" reported a perfectly healthy run as "21 days
+                        ago" whenever the newest bank email was three weeks old,
+                        and it can legitimately move backwards. */}
+                    {isConnected && (
+                      <div className="mt-1 space-y-0.5">
+                        {lastChecked && (
+                          <p className="text-xs text-muted">Checked {timeAgo(lastChecked)}</p>
+                        )}
+                        {lastSync && (
+                          <p className="text-[11px] text-muted/70">
+                            Caught up to {formatDate(String(lastSync).slice(0, 10))}
+                          </p>
+                        )}
+                        {!lastChecked && !lastSync && (
+                          <p className="text-xs text-muted">Not run yet</p>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>

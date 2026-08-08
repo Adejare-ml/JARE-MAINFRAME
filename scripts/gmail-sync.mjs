@@ -234,6 +234,16 @@ async function run() {
 
   if (messages.length === 0) {
     console.log('✅ No messages matched.')
+    // Still record the heartbeat. Returning early meant a quiet day looked
+    // exactly like a dead sync, and on a fresh install -- where the
+    // integrations row is only created here -- Settings showed "Not connected"
+    // while the cron was running perfectly.
+    await advanceLastSync(supabase, integration, {
+      newestProcessed: null,
+      oldestFailed: null,
+      truncated,
+      loopFailed: false,
+    })
     printRunReport(startTime)
     return
   }
@@ -423,6 +433,17 @@ function recordBalance(latestBalances, txn) {
  */
 async function applyBalances(supabase, latestBalances, wallets) {
   const byId = new Map((wallets || []).map((w) => [w.id, w]))
+  // Detected once from the fetched rows rather than guessed per write: if
+  // migration 001 has not run, balance_as_of does not exist and including it
+  // makes PostgREST reject every balance update.
+  const hasAsOfColumn = (wallets || []).some((w) => 'balance_as_of' in w)
+
+  if (!hasAsOfColumn && latestBalances.size > 0) {
+    stats.warnings.push(
+      'wallets.balance_as_of is missing (run migration 001). Writing balances without ' +
+        'staleness protection -- a delayed older alert can move a balance backwards.',
+    )
+  }
 
   for (const [walletId, { balance, at }] of latestBalances) {
     const stored = byId.get(walletId)?.balance_as_of
@@ -433,10 +454,10 @@ async function applyBalances(supabase, latestBalances, wallets) {
       continue
     }
 
-    const { error } = await supabase
-      .from('wallets')
-      .update({ balance, balance_as_of: at, updated_at: new Date().toISOString() })
-      .eq('id', walletId)
+    const payload = { balance, updated_at: new Date().toISOString() }
+    if (hasAsOfColumn) payload.balance_as_of = at
+
+    const { error } = await supabase.from('wallets').update(payload).eq('id', walletId)
 
     if (error) stats.errors.push(`Balance update failed for wallet ${walletId}: ${error.message}`)
     else stats.walletsUpdated.add(walletId)
@@ -450,14 +471,18 @@ async function applyBalances(supabase, latestBalances, wallets) {
 async function advanceLastSync(supabase, integration, run) {
   const { advance, cursor, reason } = nextCursor(run)
 
+  // last_checked is the heartbeat: when a sync last ran, unconditionally.
+  // Written even when the cursor is held back, because "did it run" and "how
+  // far has it read" are different questions -- Settings was answering the
+  // first with the second and reporting a healthy run as "3 days ago".
+  const payload = { status: 'connected', last_checked: new Date().toISOString() }
+
   if (!advance) {
     console.warn(`⚠️  Holding last_sync: ${reason}.`)
-    return
+  } else {
+    console.log(`🔖 last_sync → ${cursor} (${reason})`)
+    payload.last_sync = cursor
   }
-
-  console.log(`🔖 last_sync → ${cursor} (${reason})`)
-
-  const payload = { last_sync: cursor, status: 'connected' }
 
   const { error } = integration
     ? await supabase.from('integrations').update(payload).eq('id', integration.id)

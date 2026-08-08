@@ -8,6 +8,7 @@ import CashReconciliation from '../components/CashReconciliation'
 import ErrorState from '../components/ui/ErrorState'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import { summarizeMonth } from '../lib/summary'
+import { upcomingDebts } from '../lib/debts'
 import {
   TRANSACTION_LIST_COLUMNS,
   TRANSACTION_SUMMARY_COLUMNS,
@@ -19,6 +20,7 @@ export default function DailyHQ() {
   const [wallets, setWallets] = useState([])
   const [transactions, setTransactions] = useState([])
   const [monthTransactions, setMonthTransactions] = useState([])
+  const [debts, setDebts] = useState([])
   const [priorities, setPriorities] = useState(['', '', ''])
   const [unreviewedCount, setUnreviewedCount] = useState(0)
   const [warnThreshold, setWarnThreshold] = useState(10000)
@@ -50,7 +52,7 @@ export default function DailyHQ() {
       // is checked: supabase-js returns errors rather than throwing, so the
       // old destructure-data-only version made the catch unreachable and a
       // total network failure rendered "Total: ₦0.00" and "All clear!".
-      const [walletsRes, recentRes, countRes, settingsRes, monthRes, goalsRes] =
+      const [walletsRes, recentRes, countRes, settingsRes, monthRes, goalsRes, debtsRes] =
         await Promise.all([
           supabase.from('wallets').select('*'),
           supabase
@@ -76,13 +78,22 @@ export default function DailyHQ() {
             .select('*')
             .eq('period', 'daily')
             .eq('target_date', todayDate)
+            .order('slot', { ascending: true, nullsFirst: false })
             .order('created_at', { ascending: true }),
+          supabase.from('debts').select('*').eq('settled', false),
         ])
 
       const firstError =
         walletsRes.error || recentRes.error || countRes.error ||
         settingsRes.error || monthRes.error || goalsRes.error
       if (firstError) throw firstError
+
+      // Debts are additive to this page, not load-bearing: if migration 004
+      // has not run yet the table is missing, and the rest of Daily HQ should
+      // still render rather than showing an error for a feature you may not
+      // use.
+      if (debtsRes.error) console.warn('Debts unavailable:', debtsRes.error.message)
+      setDebts(debtsRes.error ? [] : debtsRes.data || [])
 
       setWallets(walletsRes.data || [])
       setTransactions(recentRes.data || [])
@@ -96,13 +107,14 @@ export default function DailyHQ() {
         if (row.key === 'monthly_budget_target') setBudgetTarget(parsed)
       }
 
-      if (goalsRes.data && goalsRes.data.length > 0) {
-        const loaded = ['', '', '']
-        goalsRes.data.slice(0, 3).forEach((g, idx) => {
-          loaded[idx] = g.title || ''
-        })
-        setPriorities(loaded)
+      // Place each goal in its own slot rather than by array position, so a
+      // gap (slot 0 and 2 filled, 1 cleared) does not shuffle them up.
+      const loaded = ['', '', '']
+      for (const g of goalsRes.data || []) {
+        const slot = Number.isInteger(g.slot) ? g.slot : loaded.findIndex(v => v === '')
+        if (slot >= 0 && slot < 3) loaded[slot] = g.title || ''
       }
+      setPriorities(loaded)
     } catch (err) {
       console.error('Error fetching Daily HQ data:', err)
       setPageError(err.message || 'Failed to load')
@@ -124,30 +136,49 @@ export default function DailyHQ() {
     e.preventDefault()
     setSavingPriorities(true)
     try {
-      await supabase
-        .from('goals')
-        .delete()
-        .eq('period', 'daily')
-        .eq('target_date', todayDate)
+      // Upsert by slot rather than delete-then-insert. The old version wiped
+      // the day before writing it back, so a dropped connection between the
+      // two erased the priorities while the screen still showed them -- and it
+      // reset `completed` on every save, so a ticked box never survived an
+      // edit. Note `completed` is absent from the payload on purpose: upsert
+      // must not overwrite a box the user already ticked.
+      const filled = priorities
+        .map((title, slot) => ({ title: title.trim(), slot }))
+        .filter(p => p.title !== '')
 
-      const goalsToInsert = priorities
-        .filter(p => p.trim() !== '')
-        .map(p => ({
-          title: p.trim(),
-          period: 'daily',
-          target_date: todayDate,
-          completed: false,
-        }))
+      if (filled.length > 0) {
+        const { error } = await supabase.from('goals').upsert(
+          filled.map(p => ({
+            title: p.title,
+            slot: p.slot,
+            period: 'daily',
+            target_date: todayDate,
+          })),
+          { onConflict: 'period,target_date,slot' },
+        )
+        if (error) throw error
+      }
 
-      if (goalsToInsert.length > 0) {
-        const { error } = await supabase.from('goals').insert(goalsToInsert)
+      // Only slots the user actually cleared are removed.
+      const clearedSlots = priorities
+        .map((title, slot) => (title.trim() === '' ? slot : null))
+        .filter(slot => slot !== null)
+
+      if (clearedSlots.length > 0) {
+        const { error } = await supabase
+          .from('goals')
+          .delete()
+          .eq('period', 'daily')
+          .eq('target_date', todayDate)
+          .in('slot', clearedSlots)
         if (error) throw error
       }
 
       toast.success('Priorities saved ✓')
+      fetchDailyData()
     } catch (err) {
       console.error('Error saving priorities:', err)
-      toast.error('Failed to save priorities')
+      toast.error('Failed to save priorities: ' + (err.message || 'check connection'))
     } finally {
       setSavingPriorities(false)
     }
@@ -194,6 +225,8 @@ export default function DailyHQ() {
 
   // Check Low Balance Alerts against dynamic threshold (liquid wallets only)
   const lowWallets = liquidWallets.filter(w => Number(w.balance || 0) < warnThreshold)
+
+  const dueDebts = upcomingDebts(debts, 7)
 
   // Monthly Spending Progress. The old version summed the 3-row "recent"
   // query -- the headline card was three transactions divided by a hardcoded
@@ -308,12 +341,39 @@ export default function DailyHQ() {
           <span>⚠️</span> Needs Attention
         </h2>
 
-        {unreviewedCount === 0 && lowWallets.length === 0 ? (
+        {unreviewedCount === 0 && lowWallets.length === 0 && dueDebts.length === 0 ? (
           <div className="flex items-center gap-2 text-accent text-sm font-medium pt-1">
             <span>✅</span> All clear! No items require review.
           </div>
         ) : (
           <div className="space-y-2">
+            {/* Payments and payouts inside the week, plus anything overdue --
+                a missed contribution should not vanish just because its date
+                has passed. */}
+            {dueDebts.map(({ debt, days, kind }) => (
+              <Link
+                key={`${debt.id}-${kind}`}
+                to="/debts"
+                className={`flex items-center justify-between p-3 rounded-2xl text-xs font-semibold transition-all min-h-[48px] ${
+                  kind === 'payout'
+                    ? 'bg-blue-500/10 border border-blue-500/20 text-blue-300 hover:bg-blue-500/20'
+                    : days < 0
+                      ? 'bg-red-500/10 border border-red-500/20 text-red-300 hover:bg-red-500/20'
+                      : 'bg-orange-500/10 border border-orange-500/20 text-orange-300 hover:bg-orange-500/20'
+                }`}
+              >
+                <span>
+                  • {kind === 'payout' ? 'Ajo payout from' : 'Payment for'} {debt.counterparty}
+                  {days < 0
+                    ? ` — ${Math.abs(days)} day${Math.abs(days) === 1 ? '' : 's'} overdue`
+                    : days === 0
+                      ? ' — today'
+                      : ` — in ${days} day${days === 1 ? '' : 's'}`}
+                </span>
+                <span className="font-bold">View →</span>
+              </Link>
+            ))}
+
             {unreviewedCount > 0 && (
               <Link
                 to="/transactions"
