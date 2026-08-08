@@ -1,15 +1,25 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { formatNaira, formatDate, formatTime } from '../lib/formatters'
 import { CATEGORIES, getCategoryIcon } from '../lib/constants'
 import { toast } from '../lib/toast'
+import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
+import {
+  TRANSACTION_LIST_COLUMNS,
+  PAGE_SIZE,
+  applyTransactionFilter,
+  buildFilterOptions,
+} from '../lib/queries'
 
 export default function Transactions() {
   const [transactions, setTransactions] = useState([])
   const [wallets, setWallets] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [filter, setFilter] = useState('All')
   const [expandedId, setExpandedId] = useState(null)
+  const [hasMore, setHasMore] = useState(false)
+  const [unreviewedCount, setUnreviewedCount] = useState(0)
 
   // Edit state for expanded row
   const [editCategory, setEditCategory] = useState('')
@@ -17,54 +27,90 @@ export default function Transactions() {
   const [editWantNeed, setEditWantNeed] = useState(null)
   const [updating, setUpdating] = useState(false)
 
-  const fetchData = async () => {
-    try {
-      const { data: wData } = await supabase.from('wallets').select('*')
-      setWallets(wData || [])
-
-      const { data: tData, error } = await supabase
+  /**
+   * Fetch one page of transactions.
+   *
+   * Filtering runs in Postgres rather than over the fetched array. With
+   * pagination, a client-side filter would only ever search the rows already
+   * loaded, so "Uncategorized" would show whatever happened to be in the most
+   * recent 50 rather than the actual answer.
+   */
+  const fetchPage = useCallback(
+    async (pageIndex, currentWallets) => {
+      const from = pageIndex * PAGE_SIZE
+      let query = supabase
         .from('transactions')
-        .select('*')
+        .select(TRANSACTION_LIST_COLUMNS)
         .order('transaction_date', { ascending: false })
         .order('created_at', { ascending: false })
+        // One extra row, purely to know whether a "Load more" button belongs
+        // on screen without paying for a separate count query.
+        .range(from, from + PAGE_SIZE)
 
+      query = applyTransactionFilter(query, filter, currentWallets)
+
+      const { data, error } = await query
       if (error) throw error
-      setTransactions(tData || [])
+
+      const rows = data || []
+      return { rows: rows.slice(0, PAGE_SIZE), hasMore: rows.length > PAGE_SIZE }
+    },
+    [filter],
+  )
+
+  const fetchData = useCallback(async () => {
+    try {
+      const { data: wData } = await supabase.from('wallets').select('*')
+      const walletList = wData || []
+      setWallets(walletList)
+
+      const [page, countRes] = await Promise.all([
+        fetchPage(0, walletList),
+        // Counted across the whole table, not the loaded page -- a head query
+        // returns the number without transferring any rows.
+        supabase
+          .from('transactions')
+          .select('id', { count: 'exact', head: true })
+          .or('reviewed.eq.false,category.eq.Uncategorized'),
+      ])
+
+      setTransactions(page.rows)
+      setHasMore(page.hasMore)
+      setUnreviewedCount(countRes.count || 0)
     } catch (err) {
       console.error('Error fetching transactions:', err)
       toast.error('Failed to load transactions')
     } finally {
       setLoading(false)
     }
-  }
+  }, [fetchPage])
 
   useEffect(() => {
+    setLoading(true)
     fetchData()
+  }, [fetchData])
 
-    const txnSub = supabase
-      .channel('realtime:transactions_page')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => {
-        fetchData()
-      })
-      .subscribe()
+  useRealtimeRefresh(['transactions'], fetchData, { channelPrefix: 'transactions_page' })
 
-    return () => {
-      supabase.removeChannel(txnSub)
+  const handleLoadMore = async () => {
+    setLoadingMore(true)
+    try {
+      const nextPage = Math.floor(transactions.length / PAGE_SIZE)
+      const page = await fetchPage(nextPage, wallets)
+      setTransactions(prev => [...prev, ...page.rows])
+      setHasMore(page.hasMore)
+    } catch (err) {
+      console.error('Error loading more transactions:', err)
+      toast.error('Failed to load more')
+    } finally {
+      setLoadingMore(false)
     }
-  }, [])
+  }
 
-  const filterOptions = [
-    'All',
-    'Review',
-    'This Week',
-    'This Month',
-    'GTBank',
-    'OPay',
-    'Cash',
-    'Needs',
-    'Wants',
-    'Uncategorized',
-  ]
+  // Wallet chips come from the wallets table, so a bank added in Settings is
+  // immediately filterable. The old hardcoded GTBank/OPay/Cash list went stale
+  // the moment Zenith, Polaris and PiggyVest were added.
+  const filterOptions = useMemo(() => buildFilterOptions(wallets), [wallets])
 
   const getWalletName = (walletId, source) => {
     const found = wallets.find(w => w.id === walletId)
@@ -74,36 +120,7 @@ export default function Transactions() {
     return 'Manual'
   }
 
-  const now = new Date()
-  const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-  const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-
-  const filteredTransactions = transactions.filter(t => {
-    const tDate = new Date(t.transaction_date || t.created_at)
-    
-    if (filter === 'All') return true
-    if (filter === 'Review') return t.reviewed === false || t.category === 'Uncategorized'
-    if (filter === 'This Week') return tDate >= oneWeekAgo
-    if (filter === 'This Month') return tDate >= firstDayOfMonth
-    if (filter === 'GTBank') {
-      const wName = getWalletName(t.wallet_id, t.source).toLowerCase()
-      return wName.includes('gt') || t.source === 'gtbank'
-    }
-    if (filter === 'OPay') {
-      const wName = getWalletName(t.wallet_id, t.source).toLowerCase()
-      return wName.includes('opay') || t.source === 'opay'
-    }
-    if (filter === 'Cash') {
-      const wName = getWalletName(t.wallet_id, t.source).toLowerCase()
-      return wName.includes('cash')
-    }
-    if (filter === 'Needs') return t.want_or_need === 'need'
-    if (filter === 'Wants') return t.want_or_need === 'want'
-    if (filter === 'Uncategorized') return t.category === 'Uncategorized'
-    return true
-  })
-
-  const unreviewedCount = transactions.filter(t => t.reviewed === false || t.category === 'Uncategorized').length
+  const filteredTransactions = transactions
 
   const handleRowClick = (txn) => {
     if (expandedId === txn.id) {
@@ -165,7 +182,7 @@ export default function Transactions() {
           <h1 className="text-2xl md:text-3xl font-bold text-white flex items-center gap-3">
             <span>Transactions</span>
             <span className="text-xs bg-white/10 px-3 py-1 rounded-full text-muted font-normal">
-              {filteredTransactions.length}
+              {filteredTransactions.length}{hasMore ? '+' : ''}
             </span>
           </h1>
           <p className="text-muted text-sm mt-0.5">Filter, review, and categorize transactions</p>
@@ -175,19 +192,19 @@ export default function Transactions() {
       {/* Filter Chips Horizontal Scroll */}
       <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
         {filterOptions.map((opt) => {
-          const isActive = filter === opt
-          const isReview = opt === 'Review'
+          const isActive = filter === opt.id
+          const isReview = opt.id === 'Review'
           return (
             <button
-              key={opt}
-              onClick={() => setFilter(opt)}
+              key={opt.id}
+              onClick={() => setFilter(opt.id)}
               className={`px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 min-h-[48px] ${
                 isActive
                   ? 'bg-accent text-black font-bold shadow-md shadow-accent/20'
                   : 'bg-card text-muted hover:text-white border border-white/5'
               }`}
             >
-              <span>{opt}</span>
+              <span>{opt.label}</span>
               {isReview && unreviewedCount > 0 && (
                 <span className={`px-1.5 py-0.5 text-[10px] rounded-full font-extrabold ${
                   isActive ? 'bg-black text-accent' : 'bg-orange-500 text-black'
@@ -347,6 +364,16 @@ export default function Transactions() {
             )
           })}
         </div>
+      )}
+
+      {hasMore && (
+        <button
+          onClick={handleLoadMore}
+          disabled={loadingMore}
+          className="w-full py-3.5 bg-card border border-white/5 text-muted hover:text-white text-sm font-semibold rounded-2xl transition-all min-h-[48px] disabled:opacity-50"
+        >
+          {loadingMore ? 'Loading…' : `Load ${PAGE_SIZE} more`}
+        </button>
       )}
     </div>
   )

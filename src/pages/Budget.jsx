@@ -1,12 +1,23 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import WalletCard from '../components/ui/WalletCard'
-import { formatNaira, timeAgo, getCategoryColor, formatDate } from '../lib/formatters'
+import { formatNaira, timeAgo, formatDate } from '../lib/formatters'
+import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
+import {
+  TRANSACTION_LIST_COLUMNS,
+  TRANSACTION_SUMMARY_COLUMNS,
+  startOfMonth,
+} from '../lib/queries'
 
 export default function Budget() {
   const [wallets, setWallets] = useState([])
-  const [transactions, setTransactions] = useState([])
+  // Two scoped queries rather than one unbounded fetch: this page only ever
+  // shows the current month's totals and the five most recent rows, so pulling
+  // the whole table (with email bodies attached) was paying for the entire
+  // ledger to render eight numbers.
+  const [monthTransactions, setMonthTransactions] = useState([])
+  const [recentTransactions, setRecentTransactions] = useState([])
   const [loading, setLoading] = useState(true)
   const [setupBalances, setSetupBalances] = useState({
     GTBank: '',
@@ -16,52 +27,47 @@ export default function Budget() {
   
   const [quickLogMode, setQuickLogMode] = useState(null) // 'debit' or 'credit'
 
-  const fetchWalletsAndData = async () => {
+  const fetchWalletsAndData = useCallback(async () => {
     try {
-      const { data: wData, error: wError } = await supabase
-        .from('wallets')
-        .select('*')
-        .order('name')
-      if (wError) throw wError
-      setWallets(wData || [])
+      const [walletsRes, monthRes, recentRes] = await Promise.all([
+        supabase.from('wallets').select('*').order('name'),
+        // Totals are keyed on transaction_date -- the date the bank says the
+        // money moved -- not created_at, which is when the sync happened. A
+        // backfill inserts last month's transactions today, and keying on
+        // created_at counted every one of them against this month.
+        supabase
+          .from('transactions')
+          .select(TRANSACTION_SUMMARY_COLUMNS)
+          .gte('transaction_date', startOfMonth()),
+        supabase
+          .from('transactions')
+          .select(TRANSACTION_LIST_COLUMNS)
+          .order('transaction_date', { ascending: false })
+          .order('created_at', { ascending: false })
+          .limit(5),
+      ])
 
-      // Fetch transactions for recent and monthly summaries
-      const { data: tData, error: tError } = await supabase
-        .from('transactions')
-        .select('*')
-        .order('created_at', { ascending: false })
-      if (tError) throw tError
-      setTransactions(tData || [])
+      if (walletsRes.error) throw walletsRes.error
+      if (monthRes.error) throw monthRes.error
+      if (recentRes.error) throw recentRes.error
 
+      setWallets(walletsRes.data || [])
+      setMonthTransactions(monthRes.data || [])
+      setRecentTransactions(recentRes.data || [])
     } catch (error) {
       console.error('Error fetching data:', error)
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     fetchWalletsAndData()
+  }, [fetchWalletsAndData])
 
-    const walletSub = supabase
-      .channel('realtime:wallets')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'wallets' }, () => {
-        fetchWalletsAndData()
-      })
-      .subscribe()
-
-    const txnSub = supabase
-      .channel('realtime:transactions')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => {
-        fetchWalletsAndData()
-      })
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(walletSub)
-      supabase.removeChannel(txnSub)
-    }
-  }, [])
+  useRealtimeRefresh(['wallets', 'transactions'], fetchWalletsAndData, {
+    channelPrefix: 'budget',
+  })
 
   const handleActivate = async (name, type) => {
     const balance = parseFloat(setupBalances[name]) || 0
@@ -162,27 +168,22 @@ export default function Budget() {
     }
   })
 
-  // This Month summary — exclude savings/investment from income/spent
-  const now = new Date()
-  const currentMonthTransactions = transactions.filter(t => {
-    const tDate = new Date(t.created_at)
-    return tDate.getMonth() === now.getMonth() && tDate.getFullYear() === now.getFullYear()
-  })
-
-  // Only count transactions from liquid wallets in income/spent
+  // This Month summary — already scoped to the month by the query.
+  // Savings and investment wallets are excluded so moving money into PiggyVest
+  // doesn't read as spending.
   const liquidWalletIds = new Set(liquidWallets.map(w => w.id))
 
-  const thisMonthIncome = currentMonthTransactions
+  const thisMonthIncome = monthTransactions
     .filter(t => t.type === 'credit' && (!t.wallet_id || liquidWalletIds.has(t.wallet_id)))
     .reduce((sum, t) => sum + (Number(t.amount) || 0), 0)
 
-  const thisMonthSpent = currentMonthTransactions
+  const thisMonthSpent = monthTransactions
     .filter(t => t.type === 'debit' && (!t.wallet_id || liquidWalletIds.has(t.wallet_id)))
     .reduce((sum, t) => sum + (Number(t.amount) || 0), 0)
 
   const thisMonthRemaining = liquidBalance
 
-  const last5Transactions = transactions.slice(0, 5)
+  const last5Transactions = recentTransactions
 
   const hasSavingsOrInvestments = savingsWallets.length > 0 || investmentWallets.length > 0
 
@@ -304,7 +305,7 @@ export default function Budget() {
                   </div>
                   <div>
                     <p className="text-white font-medium">{t.description || t.category}</p>
-                    <p className="text-xs text-muted">{formatDate(t.created_at)}</p>
+                    <p className="text-xs text-muted">{formatDate(t.transaction_date)}</p>
                   </div>
                 </div>
                 <div className={`font-bold ${t.type === 'credit' ? 'text-accent' : 'text-white'}`}>

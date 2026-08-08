@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { formatNaira, formatDate } from '../lib/formatters'
 import { getCategoryIcon } from '../lib/constants'
 import { toast } from '../lib/toast'
 import CashReconciliation from '../components/CashReconciliation'
+import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
+import { TRANSACTION_LIST_COLUMNS } from '../lib/queries'
 
 export default function DailyHQ() {
   const [wallets, setWallets] = useState([])
@@ -26,7 +28,7 @@ export default function DailyHQ() {
   const currentHour = new Date().getHours()
   const greeting = currentHour < 12 ? 'Good morning' : currentHour < 17 ? 'Good afternoon' : 'Good evening'
 
-  const fetchDailyData = async () => {
+  const fetchDailyData = useCallback(async () => {
     try {
       // 1. Fetch Wallets
       const { data: wData } = await supabase.from('wallets').select('*')
@@ -35,7 +37,7 @@ export default function DailyHQ() {
       // 2. Fetch Recent Transactions (last 3)
       const { data: tData } = await supabase
         .from('transactions')
-        .select('*')
+        .select(TRANSACTION_LIST_COLUMNS)
         .order('transaction_date', { ascending: false })
         .order('created_at', { ascending: false })
         .limit(3)
@@ -83,31 +85,16 @@ export default function DailyHQ() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [todayDate])
 
   useEffect(() => {
     fetchDailyData()
+  }, [fetchDailyData])
 
-    // Realtime listener
-    const walletSub = supabase
-      .channel('realtime:hq_wallets')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'wallets' }, () => {
-        fetchDailyData()
-      })
-      .subscribe()
-
-    const txnSub = supabase
-      .channel('realtime:hq_txns')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => {
-        fetchDailyData()
-      })
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(walletSub)
-      supabase.removeChannel(txnSub)
-    }
-  }, [])
+  // This page runs five queries per refresh, so an undebounced subscription
+  // meant a sync inserting 40 rows fired 200 round trips to render the same
+  // three transactions.
+  useRealtimeRefresh(['wallets', 'transactions'], fetchDailyData, { channelPrefix: 'hq' })
 
   const handleSavePriorities = async (e) => {
     e.preventDefault()

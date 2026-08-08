@@ -47,9 +47,10 @@ export default function CashReconciliation({ onReconciled }) {
       if (!wallet) return;
 
       // Check for manual transactions logged today
+      // Existence check only -- no need to pull the row, let alone its email body.
       const { data: transactions, error: txError } = await supabase
         .from('transactions')
-        .select('*')
+        .select('id')
         .eq('wallet_id', wallet.id)
         .eq('transaction_date', todayDate)
         .eq('source', 'manual')
