@@ -36,6 +36,29 @@ export {
 export { nextCursor } from './cursor.js'
 
 export {
+  directionFromBalance,
+  hasReliableDirection,
+  BalanceChain,
+  sortChronologically,
+} from './direction.js'
+
+export {
+  applyCategoryOverrides,
+  coerceCategory,
+  combineConfidence,
+} from './categorize.js'
+
+export {
+  CATEGORIZE_SYSTEM_PROMPT,
+  BATCH_SIZE,
+  BATCH_MAX_TOKENS,
+  MAX_CORRECTION_EXAMPLES,
+  buildBatchPrompt,
+  parseBatchResponse,
+  chunk,
+} from './batchPrompt.js'
+
+export {
   validateParsedTransaction,
   extractJsonObject,
   isValidDate,

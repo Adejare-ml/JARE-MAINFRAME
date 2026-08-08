@@ -94,6 +94,9 @@ export function validateParsedTransaction(txn) {
   const description = String(txn.description || '').replace(/\s+/g, ' ').trim().slice(0, 500)
   const recipient = txn.recipient ? String(txn.recipient).replace(/\s+/g, ' ').trim().slice(0, 200) : null
   const rawEmail = txn.raw_email ? String(txn.raw_email).slice(0, RAW_EMAIL_MAX_CHARS) : null
+  const explanation = txn.explanation
+    ? String(txn.explanation).replace(/\s+/g, ' ').trim().slice(0, 300)
+    : null
 
   return {
     ok: true,
@@ -106,12 +109,17 @@ export function validateParsedTransaction(txn) {
       category,
       description,
       recipient,
+      explanation,
       available_balance,
       transaction_date,
       transaction_time,
       transaction_id: txn.transaction_id || null,
       confidence,
-      reviewed: false,
+      // HIGH means both direction and category are settled, so the row is
+      // accepted without a human ever seeing it. Anything less lands in the
+      // review queue, which is the whole point: only the genuinely unsure ones
+      // are worth a tap.
+      reviewed: confidence === 'HIGH',
       raw_email: rawEmail,
       ...(txn.wallet_id ? { wallet_id: txn.wallet_id } : {}),
     },

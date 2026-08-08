@@ -93,6 +93,8 @@ export function getCategoryColor(category) {
     'Loan Repayment': 'bg-red-600',
     'Bank Charges': 'bg-gray-600',
     'Savings Transfer': 'bg-green-600',
+    'Savings': 'bg-green-600',
+    'Investment': 'bg-purple-600',
     'Clothing & Fashion': 'bg-fuchsia-500',
     'Entertainment': 'bg-sky-500',
     'Dining Out': 'bg-orange-400',

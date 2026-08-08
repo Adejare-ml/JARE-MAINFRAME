@@ -24,6 +24,7 @@ export const TRANSACTION_LIST_COLUMNS = [
   'description',
   'recipient',
   'note',
+  'explanation',
   'want_or_need',
   'wallet_id',
   'transaction_date',
@@ -41,6 +42,24 @@ export const TRANSACTION_LIST_COLUMNS = [
 export const TRANSACTION_SUMMARY_COLUMNS = 'id, type, amount, category, wallet_id, transaction_date'
 
 export const PAGE_SIZE = 50
+
+/**
+ * What "needs my attention" means, in one place.
+ *
+ * This predicate used to be written out at four separate call sites, which is
+ * three chances for them to disagree. It also used to include
+ * `category.eq.Uncategorized`; that clause is now redundant and actively
+ * harmful — the sync marks a row reviewed only when both its direction and its
+ * category are settled, so an Uncategorized row is always unreviewed anyway,
+ * while a row you deliberately reviewed and left as Uncategorized would be
+ * dragged back into the queue forever.
+ */
+export const NEEDS_REVIEW_FILTER = { column: 'reviewed', value: false }
+
+/** True for a row the review queue should show. Mirrors the query predicate. */
+export function needsReview(txn) {
+  return txn?.reviewed === false
+}
 
 /**
  * Format a Date as the YYYY-MM-DD that `transaction_date` stores.
@@ -83,7 +102,7 @@ export function daysAgo(days, date = new Date()) {
  */
 export function applyTransactionFilter(query, filter, wallets = []) {
   if (filter === 'Review') {
-    return query.or('reviewed.eq.false,category.eq.Uncategorized')
+    return query.eq(NEEDS_REVIEW_FILTER.column, NEEDS_REVIEW_FILTER.value)
   }
   if (filter === 'This Week') {
     return query.gte('transaction_date', daysAgo(7))

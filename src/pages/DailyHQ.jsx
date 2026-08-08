@@ -14,6 +14,7 @@ import {
   TRANSACTION_SUMMARY_COLUMNS,
   startOfMonth,
   toDateOnly,
+  NEEDS_REVIEW_FILTER,
 } from '../lib/queries'
 
 export default function DailyHQ() {
@@ -64,7 +65,7 @@ export default function DailyHQ() {
           supabase
             .from('transactions')
             .select('id', { count: 'exact', head: true })
-            .or('reviewed.eq.false,category.eq.Uncategorized'),
+            .eq(NEEDS_REVIEW_FILTER.column, NEEDS_REVIEW_FILTER.value),
           supabase
             .from('user_settings')
             .select('key, value')

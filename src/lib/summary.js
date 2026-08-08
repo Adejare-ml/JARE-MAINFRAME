@@ -17,8 +17,24 @@ import { ALL_CATEGORIES } from './constants'
 /**
  * Money changing pockets, not changing hands. Excluded from income and
  * spending totals and reported separately as `movedAside`.
+ *
+ * Both legs of each transfer are here on purpose. A GTBank→PiggyVest move is a
+ * debit leg ("Savings Transfer") and a credit leg ("Savings"); an ATM run is
+ * "Cash Withdrawal" and "Cash Received". Only the debit side is counted into
+ * movedAside, so listing both excludes the credit from income without doubling
+ * the total.
+ *
+ * Adding a transfer-shaped category to constants.js without adding it here
+ * makes it count as ordinary income or spending. The test suite asserts every
+ * entry below is a real category, which catches the reverse mistake.
  */
-export const TRANSFER_CATEGORIES = ['Savings Transfer', 'Cash Withdrawal', 'Cash Received']
+export const TRANSFER_CATEGORIES = [
+  'Savings Transfer',
+  'Savings',
+  'Investment',
+  'Cash Withdrawal',
+  'Cash Received',
+]
 
 /**
  * Summarise a month of transactions.

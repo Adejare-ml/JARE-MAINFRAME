@@ -7,6 +7,7 @@ import {
   daysAgo,
   applyTransactionFilter,
   buildFilterOptions,
+  needsReview,
 } from '../src/lib/queries.js'
 
 /** Minimal stand-in for a Supabase query builder that records what was called. */
@@ -84,10 +85,20 @@ describe('applyTransactionFilter', () => {
     expect(q.calls).toHaveLength(0)
   })
 
-  it('matches the review queue on either signal', () => {
+  // Now that the sync marks a row reviewed only when direction AND category are
+  // both settled, `reviewed` is the whole signal. The old version also matched
+  // category = Uncategorized, which would drag a row you deliberately reviewed
+  // and left uncategorized back into the queue forever.
+  it('matches the review queue on the reviewed flag alone', () => {
     const q = fakeQuery()
     applyTransactionFilter(q, 'Review', wallets)
-    expect(q.calls[0]).toEqual({ method: 'or', args: ['reviewed.eq.false,category.eq.Uncategorized'] })
+    expect(q.calls[0]).toEqual({ method: 'eq', args: ['reviewed', false] })
+  })
+
+  it('keeps the client-side predicate in step with the query', () => {
+    expect(needsReview({ reviewed: false, category: 'Transport' })).toBe(true)
+    expect(needsReview({ reviewed: true, category: 'Uncategorized' })).toBe(false)
+    expect(needsReview({ reviewed: true, category: 'Transport' })).toBe(false)
   })
 
   // Filtering must happen in Postgres: with pagination, filtering the fetched

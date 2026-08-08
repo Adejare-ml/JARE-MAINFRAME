@@ -8,8 +8,13 @@ export function parseGTBankEmail(emailBody) {
     return null;
   }
 
-  const isDebit = emailBody.includes('DEBIT transaction');
+  // GTBank states the direction outright. Record whether we actually saw a
+  // label or fell through to the default, because the sync trusts a stated
+  // direction and re-derives a guessed one from balance movement.
+  const isDebit = /DEBIT transaction/i.test(emailBody);
+  const isCredit = /CREDIT transaction/i.test(emailBody);
   const type = isDebit ? 'debit' : 'credit';
+  const direction_source = isDebit || isCredit ? 'label' : 'guess';
 
   // Every field below matches with [ \t]* after the colon rather than \s*.
   // GTBank leaves fields blank on some alerts -- charge and stamp-duty emails
@@ -96,6 +101,7 @@ export function parseGTBankEmail(emailBody) {
 
   return {
     type,
+    direction_source,
     amount,
     currency: 'NGN',
     source: 'gtbank',

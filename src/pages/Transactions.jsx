@@ -11,6 +11,8 @@ import {
   PAGE_SIZE,
   applyTransactionFilter,
   buildFilterOptions,
+  NEEDS_REVIEW_FILTER,
+  needsReview,
 } from '../lib/queries'
 
 export default function Transactions() {
@@ -90,7 +92,7 @@ export default function Transactions() {
         supabase
           .from('transactions')
           .select('id', { count: 'exact', head: true })
-          .or('reviewed.eq.false,category.eq.Uncategorized'),
+          .eq(NEEDS_REVIEW_FILTER.column, NEEDS_REVIEW_FILTER.value),
       ])
 
       setTransactions(page.rows)
@@ -162,8 +164,13 @@ export default function Transactions() {
       setExpandedId(null)
     } else {
       setExpandedId(txn.id)
+      // Pre-filled with the model's suggestion, so accepting it is one tap and
+      // only a disagreement costs a change.
       setEditCategory(txn.category || 'Uncategorized')
-      setEditNote(txn.note || txn.description || '')
+      // Seeded from the note alone. It used to fall back to `description`,
+      // which combined with the write below meant opening a row and saving it
+      // unchanged copied the bank's narration into the note.
+      setEditNote(txn.note || '')
       setEditWantNeed(txn.want_or_need || null)
     }
   }
@@ -171,12 +178,19 @@ export default function Transactions() {
   const handleSaveChanges = async (txnId) => {
     setUpdating(true)
     try {
+      const original = transactions.find(t => t.id === txnId)
+      const categoryChanged = original && original.category !== editCategory
+
       const { error } = await supabase
         .from('transactions')
         .update({
           category: editCategory,
           note: editNote.trim() || null,
-          description: editNote.trim() || editCategory,
+          // `description` is deliberately not written. It holds the bank's own
+          // narration, and the previous version overwrote it with the note --
+          // or, when the note was empty, with the category name. That destroyed
+          // the only durable record of what the bank actually said, which is
+          // also the text a correction keys on.
           want_or_need: editWantNeed,
           reviewed: true,
         })
@@ -184,12 +198,26 @@ export default function Transactions() {
 
       if (error) throw error
 
+      // Remember the disagreement so future categorization matches this habit.
+      // Best-effort: failing to record a preference must not fail the edit the
+      // user actually asked for.
+      if (categoryChanged) {
+        const { error: correctionError } = await supabase.from('category_corrections').insert({
+          recipient: original.recipient || null,
+          description_snippet: (original.description || '').slice(0, 120) || null,
+          corrected_category: editCategory,
+        })
+        if (correctionError) {
+          console.warn('Could not record category correction:', correctionError.message)
+        }
+      }
+
       toast.success('Transaction updated ✓')
       setExpandedId(null)
       fetchData()
     } catch (err) {
       console.error('Error updating transaction:', err)
-      toast.error('Failed to update transaction')
+      toast.error('Failed to update: ' + (err.message || 'check connection'))
     } finally {
       setUpdating(false)
     }
@@ -268,7 +296,7 @@ export default function Transactions() {
             const isCredit = t.type === 'credit'
             const icon = getCategoryIcon(t.category)
             const walletName = getWalletName(t.wallet_id, t.source)
-            const isUnreviewed = t.reviewed === false || t.category === 'Uncategorized'
+            const isUnreviewed = needsReview(t)
 
             return (
               <div
@@ -310,6 +338,14 @@ export default function Transactions() {
                       <p className="text-xs text-muted mt-0.5">
                         {walletName} · {formatDate(t.transaction_date)} {t.transaction_time ? `at ${formatTime(t.transaction_time)}` : ''}
                       </p>
+                      {/* The model's reasoning, shown on unreviewed rows only.
+                          On a settled row it is noise; here it is the whole
+                          point -- it turns reviewing into confirming. */}
+                      {isUnreviewed && t.explanation && (
+                        <p className="text-[11px] text-muted/70 italic mt-1 line-clamp-2">
+                          {t.explanation}
+                        </p>
+                      )}
                     </div>
                   </div>
 

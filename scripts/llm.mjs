@@ -11,6 +11,12 @@
 
 import { ALL_CATEGORIES } from '../src/lib/constants.js'
 import { extractJsonObject } from '../src/lib/sync/normalize.js'
+import {
+  CATEGORIZE_SYSTEM_PROMPT,
+  BATCH_MAX_TOKENS,
+  buildBatchPrompt,
+  parseBatchResponse,
+} from '../src/lib/sync/batchPrompt.js'
 
 /**
  * Read an env var, treating blank as absent.
@@ -102,7 +108,7 @@ async function withTimeout(fn) {
  * Ollama Cloud. Uses the native /api/chat endpoint with format:"json", which
  * constrains decoding to valid JSON rather than merely asking for it.
  */
-async function callOllama(userPrompt) {
+async function callOllama(userPrompt, systemPrompt = SYSTEM_PROMPT, maxTokens = MAX_TOKENS) {
   const res = await withTimeout((signal) =>
     fetch(`${OLLAMA_BASE_URL.replace(/\/$/, '')}/api/chat`, {
       method: 'POST',
@@ -115,9 +121,9 @@ async function callOllama(userPrompt) {
         stream: false,
         format: 'json',
         think: false,
-        options: { temperature: 0, num_predict: MAX_TOKENS },
+        options: { temperature: 0, num_predict: maxTokens },
         messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
         ],
       }),
@@ -137,7 +143,7 @@ async function callOllama(userPrompt) {
  * NVIDIA NIM, OpenAI-compatible. Reasoning is switched off: a thinking model
  * spends the token budget narrating and can push the JSON past the limit.
  */
-async function callNvidia(userPrompt) {
+async function callNvidia(userPrompt, systemPrompt = SYSTEM_PROMPT, maxTokens = MAX_TOKENS) {
   const res = await withTimeout((signal) =>
     fetch(`${NVIDIA_BASE_URL.replace(/\/$/, '')}/chat/completions`, {
       method: 'POST',
@@ -148,11 +154,11 @@ async function callNvidia(userPrompt) {
       body: JSON.stringify({
         model: NVIDIA_MODEL,
         messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
         ],
         temperature: 0,
-        max_tokens: MAX_TOKENS,
+        max_tokens: maxTokens,
         response_format: { type: 'json_object' },
         // Ignored by non-reasoning models; suppresses the <think> block on
         // those that support it. extractJsonObject copes either way.
@@ -210,4 +216,56 @@ export async function extractTransaction(emailBody, warn = console.warn) {
   }
 
   return null
+}
+
+/**
+ * Categorize a batch of transactions and explain each one.
+ *
+ * Separate from extractTransaction on purpose. Extraction is expensive and
+ * per-email, and is only needed when the rules parsers cannot read a bank's
+ * format at all. Categorization is needed for *every* transaction, so it is
+ * batched: ten per request turns a hundred-email sync from a hundred calls into
+ * ten, which matters on a free tier and on a 30-second timeout.
+ *
+ * Never throws. A failed batch returns Uncategorized/LOW for every item in it,
+ * which sends them to the review queue instead of failing the sync.
+ *
+ * @param {Array<{id: string, type: string, amount: number, description?: string, recipient?: string, walletName?: string}>} items
+ * @param {Array} [corrections] - recent manual corrections, used as examples
+ * @param {(msg: string) => void} [warn]
+ * @returns {Promise<{results: Array, provider: string|null}>}
+ */
+export async function categorizeBatch(items, corrections = [], warn = console.warn) {
+  if (!items || items.length === 0) return { results: [], provider: null }
+
+  const userPrompt = buildBatchPrompt(items, corrections)
+
+  const providers = [
+    { name: 'ollama', enabled: LLM_CONFIG.ollama.configured, call: callOllama },
+    { name: 'nvidia', enabled: LLM_CONFIG.nvidia.configured, call: callNvidia },
+  ]
+
+  for (const provider of providers) {
+    if (!provider.enabled) continue
+
+    try {
+      const content = await provider.call(userPrompt, CATEGORIZE_SYSTEM_PROMPT, BATCH_MAX_TOKENS)
+      const parsed = extractJsonObject(content)
+
+      if (!parsed) {
+        warn(`   ${provider.name}: no JSON object in categorization response`)
+        continue
+      }
+
+      // parseBatchResponse guarantees one result per requested id, so a
+      // half-answered batch still yields a usable array.
+      return { results: parseBatchResponse(parsed, items), provider: provider.name }
+    } catch (err) {
+      const reason = err.name === 'AbortError' ? `timed out after ${REQUEST_TIMEOUT_MS}ms` : err.message
+      warn(`   ${provider.name} categorization failed: ${reason}`)
+    }
+  }
+
+  // Both providers unavailable: everything goes to review rather than nowhere.
+  return { results: parseBatchResponse(null, items), provider: null }
 }

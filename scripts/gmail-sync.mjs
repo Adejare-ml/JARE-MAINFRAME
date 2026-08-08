@@ -27,8 +27,16 @@ import {
   walletSource,
   getParseStrategy,
   nextCursor,
+  directionFromBalance,
+  hasReliableDirection,
+  BalanceChain,
+  sortChronologically,
+  applyCategoryOverrides,
+  combineConfidence,
+  chunk,
+  MAX_CORRECTION_EXAMPLES,
 } from '../src/lib/sync/index.js'
-import { extractTransaction, hasAnyProvider, LLM_CONFIG } from './llm.mjs'
+import { extractTransaction, categorizeBatch, hasAnyProvider, LLM_CONFIG } from './llm.mjs'
 
 // ───────────────────────────────────────────────────────────────
 // 1. Credentials
@@ -72,6 +80,11 @@ const stats = {
   validationRejects: 0,
   unmatchedSenders: new Set(),
   parsedBy: { rules: 0, ollama: 0, nvidia: 0 },
+  // How each transaction's debit/credit was decided.
+  directionBy: { label: 0, balance: 0, noPriorBalance: 0, flatBalance: 0, unresolved: 0 },
+  categorizedBy: { ollama: 0, nvidia: 0, none: 0, override: 0 },
+  autoAccepted: 0,
+  needsReview: 0,
   walletsUpdated: new Set(),
   truncated: false,
   warnings: [],
@@ -125,40 +138,85 @@ function tryRules(senderDomain, body) {
 }
 
 /**
- * Parse an email, honouring the wallet's parse strategy.
+ * Parse an email and settle its direction.
  *
- * The strategy matters: routing an Opay alert through the rules parser produces
- * a confidently wrong direction, because Opay uses the word "transfer" for
- * money in and money out alike. Those wallets are marked 'llm' and never touch
- * the rules.
+ * Direction is resolved in order of how much the answer can be trusted:
+ *
+ *   1. An explicit DEBIT/CREDIT label the parser read (GTBank, Zenith, Polaris).
+ *   2. Balance movement -- the balance this alert states, against the balance
+ *      before it. Subtraction, not inference, so it outranks the model.
+ *   3. The LLM, for the cases arithmetic cannot reach: the first alert ever
+ *      seen for a wallet, and a balance that did not move.
+ *
+ * Rules run for every wallet now, including ones marked 'llm'. An Opay alert
+ * yields a perfectly good amount, date, reference and balance -- only its
+ * *direction* was ever untrustworthy, and step 2 supplies that. The strategy
+ * still governs whether the expensive per-email LLM extraction may run.
+ *
+ * @returns {Promise<object|null>} parsed transaction, or null
  */
-async function parseEmail(senderDomain, body, source, strategy) {
-  if (strategy !== 'llm') {
-    const parsed = tryRules(senderDomain, body)
-    if (parsed) {
-      stats.parsedBy.rules++
-      return { ...parsed, source }
+async function parseEmail(senderDomain, body, source, strategy, chain, walletId) {
+  const priorBalance = chain.priorFor(walletId)
+  let parsed = tryRules(senderDomain, body)
+
+  if (parsed) {
+    stats.parsedBy.rules++
+    parsed = { ...parsed, source }
+  } else if (strategy === 'rules' || !hasAnyProvider()) {
+    // Rules could not read this format and we are not allowed to (or cannot)
+    // ask the model.
+    return null
+  } else {
+    const llm = await extractTransaction(body, (msg) => stats.warnings.push(msg))
+    if (!llm) return null
+
+    stats.parsedBy[llm.provider]++
+    parsed = {
+      ...llm.data,
+      source,
+      currency: 'NGN',
+      // Inference, not a stated label -- so balance movement below still gets
+      // first refusal on the direction.
+      direction_source: 'llm',
+      confidence: 'MEDIUM',
+      raw_email: body,
     }
-    if (strategy === 'rules') return null
   }
 
-  if (!hasAnyProvider()) return null
+  // Tracked separately from `confidence`, which describes the category. A
+  // GTBank alert can state DEBIT unambiguously while its category is a guess;
+  // those are two different questions and conflating them meant every such
+  // transaction landed in the review queue.
+  let directionConfidence
 
-  const llm = await extractTransaction(body, (msg) => stats.warnings.push(msg))
-  if (!llm) return null
+  if (hasReliableDirection(parsed)) {
+    stats.directionBy.label++
+    directionConfidence = 'HIGH'
+  } else {
+    const fromBalance = directionFromBalance(parsed.available_balance, priorBalance)
 
-  stats.parsedBy[llm.provider]++
-
-  return {
-    ...llm.data,
-    source,
-    currency: 'NGN',
-    // The model reasoned about direction rather than pattern-matching a
-    // keyword, but nothing here has been eyeballed yet.
-    confidence: 'MEDIUM',
-    reviewed: false,
-    raw_email: body,
+    if (fromBalance) {
+      stats.directionBy.balance++
+      parsed = { ...parsed, type: fromBalance.type }
+      directionConfidence = 'HIGH'
+    } else if (parsed.available_balance == null) {
+      // No balance stated, so arithmetic cannot help. The model's inference is
+      // the best available; a keyword guess is not.
+      stats.directionBy.unresolved++
+      directionConfidence = parsed.direction_source === 'llm' ? 'MEDIUM' : 'LOW'
+    } else if (priorBalance == null) {
+      // First alert for this wallet: nothing to compare against yet. The next
+      // one will have this alert's balance to work from.
+      stats.directionBy.noPriorBalance++
+      directionConfidence = parsed.direction_source === 'llm' ? 'MEDIUM' : 'LOW'
+    } else {
+      // Balance did not move -- a reversal, or two alerts for one event.
+      stats.directionBy.flatBalance++
+      directionConfidence = parsed.direction_source === 'llm' ? 'MEDIUM' : 'LOW'
+    }
   }
+
+  return { ...parsed, directionConfidence }
 }
 
 // ───────────────────────────────────────────────────────────────
@@ -221,6 +279,13 @@ async function run() {
   const query = buildSenderQuery(walletIndex.senders, integration?.last_sync || null)
   console.log(`📧 Gmail query: ${query}`)
 
+  // Loaded once and shown to the model as examples of how this user files
+  // things, so categorization drifts toward their habits over time.
+  const corrections = hasAnyProvider() ? await loadCorrections(supabase) : []
+  if (corrections.length > 0) {
+    console.log(`🧠 ${corrections.length} past correction(s) will guide categorization`)
+  }
+
   const { messages, truncated } = await listAllMessages(query, headers, fetch)
   stats.messagesFound = messages.length
   stats.truncated = truncated
@@ -273,15 +338,16 @@ async function run() {
     if (at && (!oldestFailed || at < oldestFailed)) oldestFailed = at
   }
 
+  // ── Phase 1: fetch every message body ──
+  //
+  // Fetching and processing used to happen in one pass, in Gmail's newest-first
+  // order. A balance chain needs the opposite: each alert has to be compared
+  // against the one before it, so everything is fetched, sorted oldest-first,
+  // and only then processed.
+  const fetched = []
+
   for (const msg of messages) {
-    // Every path out of this block has to call markProcessed or markFailed.
-    // A `continue` that records neither used to let last_sync move past a
-    // message that was never handled, so it was never seen again.
-    let messageDate = null
-
     try {
-      stats.messagesProcessed++
-
       const msgRes = await fetch(
         `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`,
         { headers },
@@ -292,8 +358,35 @@ async function run() {
         markFailed(null)
         continue
       }
-      const msgData = await msgRes.json()
+      fetched.push(await msgRes.json())
+    } catch (fetchErr) {
+      stats.errors.push(`Fetch failed for message ${msg.id}: ${fetchErr.message}`)
+      markFailed(null)
+    }
+  }
+
+  const ordered = sortChronologically(fetched)
+
+  // Seeded from each wallet's stored balance, then advanced by every alert that
+  // states one -- including duplicates that are not inserted, so the re-scan
+  // overlap does not break the chain.
+  const chain = new BalanceChain(wallets)
+
+  // Transactions that were inserted, held for the categorization pass.
+  const pending = []
+  const willCategorize = hasAnyProvider()
+
+  // ── Phase 2: process in chronological order ──
+  for (const msgData of ordered) {
+    // Every path out of this block has to call markProcessed or markFailed.
+    // A `continue` that records neither used to let last_sync move past a
+    // message that was never handled, so it was never seen again.
+    let messageDate = null
+
+    try {
+      stats.messagesProcessed++
       messageDate = getMessageDate(msgData)
+      const msgId = msgData.id
 
       const body = extractEmailBody(msgData, decodeBase64)
       if (!body || body.length < 20) {
@@ -315,7 +408,20 @@ async function run() {
       }
 
       const source = walletSource(wallet)
-      const parsed = await parseEmail(getDomain(senderEmail), body, source, getParseStrategy(wallet))
+      const parsed = await parseEmail(
+        getDomain(senderEmail),
+        body,
+        source,
+        getParseStrategy(wallet),
+        chain,
+        wallet.id,
+      )
+
+      // Whatever happens to this row, the balance it reported advances the
+      // chain. A duplicate is not inserted but still moves the wallet forward,
+      // which is what makes the next alert's comparison correct.
+      if (parsed?.available_balance != null) chain.observe(wallet.id, parsed.available_balance)
+
       if (!parsed) {
         // A transient LLM outage looks exactly like this, so hold the cursor
         // and try again next run rather than losing the transaction.
@@ -329,7 +435,7 @@ async function run() {
         // The parse succeeded and produced something unusable. That is
         // deterministic, so retrying forever would wedge the cursor.
         stats.validationRejects++
-        stats.warnings.push(`Rejected ${source} message ${msg.id}: ${check.reason}`)
+        stats.warnings.push(`Rejected ${source} message ${msgId}: ${check.reason}`)
         markProcessed(messageDate)
         continue
       }
@@ -345,20 +451,31 @@ async function run() {
         )
       }
 
+      // A confident *direction* is not a settled transaction. Categorization
+      // runs after this loop, so anything awaiting it goes in unreviewed and is
+      // auto-accepted later only if its category is settled too. Without this,
+      // a GTBank alert with an explicit DEBIT label would be marked reviewed
+      // while still uncategorized, and never surface.
+      if (willCategorize) txn.reviewed = false
+
       const inserted = await insertTransaction(supabase, txn)
       if (inserted === 'duplicate') {
         stats.duplicatesSkipped++
       } else if (inserted === 'inserted') {
         stats.newTransactions++
         recordBalance(latestBalances, txn)
+        // Categorized in batches after the loop rather than one call per email.
+        pending.push({ txn, wallet, directionConfidence: parsed.directionConfidence })
       }
 
       markProcessed(messageDate)
     } catch (msgErr) {
-      stats.errors.push(`Message ${msg.id}: ${msgErr.message}`)
+      stats.errors.push(`Message ${msgData?.id || 'unknown'}: ${msgErr.message}`)
       markFailed(messageDate)
     }
   }
+
+  await categorizeInserted(supabase, pending, corrections)
 
   await applyBalances(supabase, latestBalances, wallets)
   await advanceLastSync(supabase, integration, {
@@ -407,6 +524,114 @@ async function insertTransaction(supabase, txn) {
 
   // ignoreDuplicates returns no row when the unique index rejected the write.
   return data && data.length > 0 ? 'inserted' : 'duplicate'
+}
+
+/**
+ * Load the user's recent manual category corrections, to show the model as
+ * examples of how this person actually files things.
+ *
+ * Non-fatal: categorization without examples is still categorization, and a
+ * missing table (migration 005 not yet run) must not stop the sync.
+ */
+async function loadCorrections(supabase) {
+  const { data, error } = await supabase
+    .from('category_corrections')
+    .select('recipient, description_snippet, corrected_category')
+    .order('created_at', { ascending: false })
+    .limit(MAX_CORRECTION_EXAMPLES)
+
+  if (error) {
+    stats.warnings.push(`Could not load past corrections: ${error.message}`)
+    return []
+  }
+  return data || []
+}
+
+/**
+ * Categorize and explain everything that was inserted, in batches.
+ *
+ * Runs after the insert loop so it can group ten transactions per request
+ * rather than one per email. Each result is written back, and the deterministic
+ * overrides (savings inflow, bank charge, ATM) are applied on top of whatever
+ * the model said.
+ *
+ * A transaction whose category is settled and whose direction is settled is
+ * marked reviewed and never reaches the review queue. Everything else does,
+ * carrying the model's best guess and its reasoning so confirming it is one tap.
+ */
+async function categorizeInserted(supabase, pending, corrections) {
+  if (pending.length === 0) return
+
+  for (const batch of chunk(pending)) {
+    const items = batch.map(({ txn, wallet }) => ({
+      id: txn.transaction_id,
+      type: txn.type,
+      amount: txn.amount,
+      description: txn.description,
+      recipient: txn.recipient,
+      walletName: wallet?.name,
+    }))
+
+    let results
+    let provider = null
+    try {
+      const outcome = await categorizeBatch(items, corrections, (msg) => stats.warnings.push(msg))
+      results = outcome.results
+      provider = outcome.provider
+    } catch (err) {
+      // categorizeBatch is written not to throw, but a batch of ten must never
+      // be able to take the sync down even if that changes.
+      stats.warnings.push(`Categorization batch failed: ${err.message}`)
+      results = items.map((i) => ({ id: i.id, category: 'Uncategorized', explanation: null, confidence: 'LOW', known: false }))
+    }
+
+    if (provider) stats.categorizedBy[provider] += batch.length
+    else stats.categorizedBy.none += batch.length
+
+    const byId = new Map(results.map((r) => [String(r.id), r]))
+
+    for (const { txn, wallet, directionConfidence } of batch) {
+      const result = byId.get(String(txn.transaction_id))
+
+      const override = applyCategoryOverrides(
+        { ...txn, category: result?.category || 'Uncategorized' },
+        wallet,
+      )
+      if (override.reason) stats.categorizedBy.override++
+
+      const confidence = combineConfidence({
+        directionConfidence,
+        categoryConfidence: result?.confidence,
+        categoryKnown: result?.known,
+      })
+      // An override is a rule about the account, not a guess, so it settles the
+      // category half on its own.
+      const finalConfidence = override.reason && directionConfidence === 'HIGH' ? 'HIGH' : confidence
+      const reviewed = finalConfidence === 'HIGH'
+
+      if (reviewed) stats.autoAccepted++
+      else stats.needsReview++
+
+      const explanation = override.reason
+        ? `${result?.explanation || 'Categorized by rule'} (${override.reason})`
+        : result?.explanation || null
+
+      const { error } = await supabase
+        .from('transactions')
+        .update({
+          category: override.category,
+          explanation,
+          confidence: finalConfidence,
+          reviewed,
+        })
+        .eq('source', txn.source)
+        .eq('transaction_id', txn.transaction_id)
+
+      if (error) {
+        stats.errors.push(`Categorization write failed (${txn.transaction_id}): ${error.message}`)
+      }
+    }
+  }
 }
 
 function recordBalance(latestBalances, txn) {
@@ -509,10 +734,23 @@ function printRunReport(startTime) {
   console.log(`  Parse failures:      ${stats.parseFailures}`)
   console.log(`  Validation rejects:  ${stats.validationRejects}`)
   console.log(`  Wallets updated:     ${stats.walletsUpdated.size}`)
+  console.log(`  Auto-accepted:       ${stats.autoAccepted}`)
+  console.log(`  Needs review:        ${stats.needsReview}`)
   console.log('  ── Parsed by ──')
   console.log(`    Rules:             ${stats.parsedBy.rules}`)
   console.log(`    Ollama:            ${stats.parsedBy.ollama}`)
   console.log(`    NVIDIA:            ${stats.parsedBy.nvidia}`)
+  console.log('  ── Direction decided by ──')
+  console.log(`    Bank label:        ${stats.directionBy.label}`)
+  console.log(`    Balance movement:  ${stats.directionBy.balance}`)
+  console.log(`    No prior balance:  ${stats.directionBy.noPriorBalance}`)
+  console.log(`    Balance unchanged: ${stats.directionBy.flatBalance}`)
+  console.log(`    No balance stated: ${stats.directionBy.unresolved}`)
+  console.log('  ── Categorized by ──')
+  console.log(`    Ollama:            ${stats.categorizedBy.ollama}`)
+  console.log(`    NVIDIA:            ${stats.categorizedBy.nvidia}`)
+  console.log(`    Unavailable:       ${stats.categorizedBy.none}`)
+  console.log(`    Rule overrides:    ${stats.categorizedBy.override}`)
 
   if (stats.unmatchedSenders.size > 0) {
     console.log('  ── Senders with no wallet ──')

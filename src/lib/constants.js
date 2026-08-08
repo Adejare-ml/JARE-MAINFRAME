@@ -25,10 +25,16 @@ export const CATEGORIES = {
     'Church / Mosque',
     'Ajo / Esusu',
   ],
+  // Everything in this group except Loan Repayment and Bank Charges is money
+  // moving between your own pockets rather than being earned or spent. Anything
+  // added here that is a transfer must also go in TRANSFER_CATEGORIES
+  // (src/lib/summary.js) or it starts counting as income or spending.
   'Financial': [
     'Loan Repayment',
     'Bank Charges',
     'Savings Transfer',
+    'Savings',
+    'Investment',
     'Cash Withdrawal',
     'Cash Received',
   ],
@@ -67,6 +73,8 @@ export const CATEGORY_ICONS = {
   'Loan Repayment': '💳',
   'Bank Charges': '🏦',
   'Savings Transfer': '🐖',
+  'Savings': '🐖',
+  'Investment': '📈',
   'Cash Withdrawal': '🏧',
   'Cash Received': '💵',
   'Clothing & Fashion': '👕',

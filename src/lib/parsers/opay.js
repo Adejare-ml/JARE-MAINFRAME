@@ -91,6 +91,9 @@ export function parseOpayEmail(emailBody) {
 
   return {
     type,
+    // Always a guess: Opay words money in and money out identically. The sync
+    // replaces this with balance movement wherever a prior balance exists.
+    direction_source: 'guess',
     amount,
     currency: 'NGN',
     source: 'opay',
