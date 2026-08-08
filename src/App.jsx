@@ -1,17 +1,24 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
 import { useSchemaCheck } from './hooks/useSchemaCheck'
 import ErrorBoundary from './components/ErrorBoundary'
 import Layout from './components/layout/Layout'
+import PageSkeleton from './components/ui/PageSkeleton'
+// Login is the only page a logged-out visitor can reach, so it is the only one
+// worth having in the first chunk. Everything else was statically imported,
+// which meant typing an email address cost you the 800-line Settings page and
+// the whole Debts module first.
 import Login from './pages/Login'
-import DailyHQ from './pages/DailyHQ'
-import Budget from './pages/Budget'
-import Transactions from './pages/Transactions'
-import Settings from './pages/Settings'
-import Goals from './pages/Goals'
-import Projects from './pages/Projects'
-import Debts from './pages/Debts'
-import Repairs from './pages/Repairs'
+
+const DailyHQ = lazy(() => import('./pages/DailyHQ'))
+const Budget = lazy(() => import('./pages/Budget'))
+const Transactions = lazy(() => import('./pages/Transactions'))
+const Settings = lazy(() => import('./pages/Settings'))
+const Goals = lazy(() => import('./pages/Goals'))
+const Projects = lazy(() => import('./pages/Projects'))
+const Debts = lazy(() => import('./pages/Debts'))
+const Repairs = lazy(() => import('./pages/Repairs'))
 
 function App() {
   const { session, loading, signIn, signOut } = useAuth()
@@ -37,6 +44,10 @@ function App() {
   return (
     <Layout onSignOut={signOut} pendingMigrations={pending}>
       <ErrorBoundary>
+        {/* Inside the boundary, so a chunk that fails to download on a bad
+            connection surfaces as the app's error state rather than a blank
+            screen. */}
+        <Suspense fallback={<PageSkeleton />}>
         <Routes>
         <Route path="/" element={<DailyHQ />} />
         <Route path="/budget" element={<Budget />} />
@@ -48,6 +59,7 @@ function App() {
         <Route path="/repairs" element={<Repairs />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+        </Suspense>
       </ErrorBoundary>
     </Layout>
   )

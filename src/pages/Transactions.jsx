@@ -475,7 +475,7 @@ export default function Transactions() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search description, recipient, note or amount…"
-          className="w-full pl-11 pr-4 py-3 bg-card border border-white/10 rounded-2xl text-white text-sm placeholder-muted focus:outline-none focus:border-accent min-h-[48px]"
+          className="w-full pl-11 pr-4 py-3 bg-card border border-white/10 rounded-2xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
         />
         <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted text-sm pointer-events-none">
           🔍
@@ -594,7 +594,7 @@ export default function Transactions() {
                           On a settled row it is noise; here it is the whole
                           point -- it turns reviewing into confirming. */}
                       {isUnreviewed && t.explanation && (
-                        <p className="text-[11px] text-muted/70 italic mt-1 line-clamp-2">
+                        <p className="text-[11px] text-muted-dim italic mt-1 line-clamp-2">
                           {t.explanation}
                         </p>
                       )}
@@ -714,7 +714,7 @@ export default function Transactions() {
                         value={editNote}
                         onChange={(e) => setEditNote(e.target.value)}
                         placeholder="Add a note..."
-                        className="w-full px-4 py-3 bg-card border border-white/10 rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:border-accent min-h-[48px]"
+                        className="w-full px-4 py-3 bg-card border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
                       />
                     </div>
 

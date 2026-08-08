@@ -43,7 +43,7 @@ export default function Login({ onLogin }) {
               onChange={(e) => setEmail(e.target.value)}
               required
               autoComplete="email"
-              className="w-full px-4 py-3 bg-card border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-all duration-200 min-h-[48px]"
+              className="w-full px-4 py-3 bg-card border border-white/10 rounded-xl text-white placeholder-hint focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-all duration-200 min-h-[48px]"
               placeholder="your@email.com"
             />
           </div>
@@ -59,7 +59,7 @@ export default function Login({ onLogin }) {
               onChange={(e) => setPassword(e.target.value)}
               required
               autoComplete="current-password"
-              className="w-full px-4 py-3 bg-card border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-all duration-200 min-h-[48px]"
+              className="w-full px-4 py-3 bg-card border border-white/10 rounded-xl text-white placeholder-hint focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-all duration-200 min-h-[48px]"
               placeholder="••••••••"
             />
           </div>
@@ -89,7 +89,7 @@ export default function Login({ onLogin }) {
           </button>
         </form>
 
-        <p className="text-center text-xs text-muted/50 mt-8">
+        <p className="text-center text-xs text-muted-dim mt-8">
           Personal Life Operating System
         </p>
       </div>

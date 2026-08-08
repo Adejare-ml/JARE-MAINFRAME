@@ -51,7 +51,7 @@ export default function Repairs() {
         <div className="flex flex-col items-center justify-center py-12 text-muted">
           <span className="text-5xl mb-4">🔧</span>
           <p className="text-lg font-medium text-white mb-1">No repairs tracked</p>
-          <p className="text-sm text-muted/60">Add items that need fixing or maintenance</p>
+          <p className="text-sm text-muted-dim">Add items that need fixing or maintenance</p>
         </div>
       </section>
 

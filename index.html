@@ -7,9 +7,12 @@
     <meta name="description" content="Jare Mainframe — Personal Life Operating System" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <!-- Inter is self-hosted via @fontsource (see src/index.css). The Google
+         Fonts <link> that was here was render-blocking, and it chained a
+         second cross-origin fetch for the font files before anything painted:
+         two extra connections to a host that is not Cloudflare, on metered
+         mobile data, on the screen opened every morning. -->
     <title>Jare Mainframe</title>
   </head>
   <body>

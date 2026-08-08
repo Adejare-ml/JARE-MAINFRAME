@@ -306,7 +306,7 @@ export default function DailyHQ() {
             >
               <p className="text-[11px] text-muted flex items-center gap-1">
                 <span>{typeIcons[w.type] || '💰'}</span> {w.name}
-                {w.account_last4 && <span className="text-muted/40 font-mono">••{w.account_last4}</span>}
+                {w.account_last4 && <span className="text-muted-dim font-mono">••{w.account_last4}</span>}
               </p>
               <p className="text-sm font-bold text-white mt-1">
                 {formatNaira(w.balance)}
@@ -421,7 +421,7 @@ export default function DailyHQ() {
                 value={priorities[index]}
                 onChange={(e) => handlePriorityChange(index, e.target.value)}
                 placeholder={`Priority #${index + 1}...`}
-                className="flex-1 px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-muted/40 focus:outline-none focus:border-accent min-h-[48px]"
+                className="flex-1 px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
               />
             </div>
           ))}

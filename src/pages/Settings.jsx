@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { connectGmail, disconnectGmail, syncGmailEmails } from '../lib/gmailSync'
 import { getParseStrategy, sanitizeSlug } from '../lib/sync'
@@ -6,6 +6,7 @@ import { timeAgo, formatNaira, formatDate } from '../lib/formatters'
 import { toast } from '../lib/toast'
 import { useAuth } from '../hooks/useAuth'
 import ErrorState from '../components/ui/ErrorState'
+import { useDismissable } from '../hooks/useDismissable'
 
 const WALLET_TYPES = [
   { value: 'bank', label: 'Bank', icon: '🏦' },
@@ -61,6 +62,9 @@ export default function Settings() {
 
   // Add/Edit Wallet Modal
   const [showWalletModal, setShowWalletModal] = useState(false)
+  // Centred rather than a bottom sheet, so it keeps its own layout and shares
+  // only the behaviour: back gesture, Escape, scroll lock, focus in and out.
+  const walletModalRef = useRef(null)
   const [editingWallet, setEditingWallet] = useState(null)
   const [walletForm, setWalletForm] = useState({
     name: '',
@@ -145,6 +149,8 @@ export default function Settings() {
   useEffect(() => {
     loadData()
   }, [])
+
+  useDismissable(showWalletModal, () => setShowWalletModal(false), walletModalRef)
 
   // ── Gmail Handlers ──
 
@@ -428,7 +434,7 @@ export default function Settings() {
                           <p className="text-xs text-muted">Checked {timeAgo(lastChecked)}</p>
                         )}
                         {lastSync && (
-                          <p className="text-[11px] text-muted/70">
+                          <p className="text-[11px] text-muted-dim">
                             Caught up to {formatDate(String(lastSync).slice(0, 10))}
                           </p>
                         )}
@@ -480,12 +486,12 @@ export default function Settings() {
               {/* Auto-synced Senders (dynamic from wallets) */}
               <div className="pt-3 border-t border-white/5">
                 <p className="text-xs text-muted font-semibold mb-2">Auto-synced senders:</p>
-                <ul className="text-xs text-muted/80 space-y-1 font-mono pl-2">
+                <ul className="text-xs text-muted-dim space-y-1 font-mono pl-2">
                   {allSenders.map((s, i) => (
                     <li key={i} className="flex items-center gap-2">
                       <span className="text-accent">•</span>
                       <span>{s.sender}</span>
-                      <span className="text-muted/50 text-[10px] font-sans">({s.name})</span>
+                      <span className="text-muted-dim text-[10px] font-sans">({s.name})</span>
                     </li>
                   ))}
                 </ul>
@@ -514,7 +520,7 @@ export default function Settings() {
               {wallets.length === 0 ? (
                 <div className="text-center py-8">
                   <p className="text-muted text-sm">No wallets configured yet.</p>
-                  <p className="text-muted/50 text-xs mt-1">Add your bank accounts, mobile wallets, and cash wallets.</p>
+                  <p className="text-muted-dim text-xs mt-1">Add your bank accounts, mobile wallets, and cash wallets.</p>
                 </div>
               ) : (
                 wallets.map(w => {
@@ -560,7 +566,7 @@ export default function Settings() {
                               )}
                             </div>
                             {w.alert_sender && (
-                              <p className="text-[10px] text-muted/60 font-mono truncate">{w.alert_sender}</p>
+                              <p className="text-[10px] text-muted-dim font-mono truncate">{w.alert_sender}</p>
                             )}
                           </div>
                         </div>
@@ -626,7 +632,7 @@ export default function Settings() {
               <label className="block text-xs text-muted font-semibold">
                 Low Balance Warning Threshold (₦)
               </label>
-              <p className="text-[11px] text-muted/70">
+              <p className="text-[11px] text-muted-dim">
                 Wallets below this amount trigger warnings on Daily HQ
               </p>
 
@@ -640,7 +646,7 @@ export default function Settings() {
                     onChange={(e) => setThreshold(e.target.value)}
                     placeholder="10000"
                     required
-                    className="w-full pl-9 pr-4 py-3 bg-background border border-white/10 rounded-xl text-white font-bold text-sm placeholder-muted/40 focus:outline-none focus:border-accent min-h-[48px]"
+                    className="w-full pl-9 pr-4 py-3 bg-background border border-white/10 rounded-xl text-white font-bold text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
                   />
                 </div>
 
@@ -659,7 +665,7 @@ export default function Settings() {
               <label className="block text-xs text-muted font-semibold">
                 Monthly Budget Target (₦)
               </label>
-              <p className="text-[10px] text-muted/60">
+              <p className="text-[10px] text-muted-dim">
                 Daily HQ's "% of budget" bar measures this month's spending against this number.
               </p>
               <div className="flex gap-2">
@@ -672,7 +678,7 @@ export default function Settings() {
                     onChange={(e) => setBudgetTarget(e.target.value)}
                     placeholder="85000"
                     required
-                    className="w-full pl-9 pr-4 py-3 bg-background border border-white/10 rounded-xl text-white font-bold text-sm placeholder-muted/40 focus:outline-none focus:border-accent min-h-[48px]"
+                    className="w-full pl-9 pr-4 py-3 bg-background border border-white/10 rounded-xl text-white font-bold text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
                   />
                 </div>
 
@@ -718,7 +724,14 @@ export default function Settings() {
       {/* ════════════════════════════════════════ */}
       {showWalletModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-card p-6 rounded-3xl w-full max-w-md border border-white/10 relative max-h-[90vh] overflow-y-auto">
+          <div
+            ref={walletModalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={editingWallet ? 'Edit wallet' : 'Add new wallet'}
+            tabIndex={-1}
+            className="bg-card p-6 rounded-3xl w-full max-w-md border border-white/10 relative max-h-[90vh] overflow-y-auto focus:outline-none"
+          >
             <button
               onClick={() => setShowWalletModal(false)}
               className="absolute top-4 right-4 text-muted hover:text-white w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10"
@@ -740,7 +753,7 @@ export default function Settings() {
                   onChange={(e) => setWalletForm({ ...walletForm, name: e.target.value })}
                   placeholder="e.g. GTBank, PiggyVest"
                   required
-                  className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-muted/40 focus:outline-none focus:border-accent min-h-[48px]"
+                  className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
                 />
               </div>
 
@@ -780,7 +793,7 @@ export default function Settings() {
                     value={walletForm.balance}
                     onChange={(e) => setWalletForm({ ...walletForm, balance: e.target.value })}
                     placeholder="0.00"
-                    className="w-full pl-9 pr-4 py-3 bg-background border border-white/10 rounded-xl text-white font-bold text-sm placeholder-muted/40 focus:outline-none focus:border-accent min-h-[48px]"
+                    className="w-full pl-9 pr-4 py-3 bg-background border border-white/10 rounded-xl text-white font-bold text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
                   />
                 </div>
               </div>
@@ -790,7 +803,7 @@ export default function Settings() {
                 <label className="block text-xs text-muted font-semibold mb-1">
                   Alert Email Sender
                 </label>
-                <p className="text-[10px] text-muted/60 mb-1.5">
+                <p className="text-[10px] text-muted-dim mb-1.5">
                   The From address of transaction notification emails (e.g. GeNS@gtbank.com)
                 </p>
                 <input
@@ -798,7 +811,7 @@ export default function Settings() {
                   value={walletForm.alert_sender}
                   onChange={(e) => setWalletForm({ ...walletForm, alert_sender: e.target.value })}
                   placeholder="alerts@bank.com"
-                  className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm font-mono placeholder-muted/40 focus:outline-none focus:border-accent min-h-[48px]"
+                  className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm font-mono placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
                 />
               </div>
 
@@ -807,7 +820,7 @@ export default function Settings() {
                 <label className="block text-xs text-muted font-semibold mb-1">
                   How to Read Alerts
                 </label>
-                <p className="text-[10px] text-muted/60 mb-1.5">
+                <p className="text-[10px] text-muted-dim mb-1.5">
                   {PARSE_STRATEGY_HELP[walletForm.parse_strategy]}
                 </p>
                 <div className="grid grid-cols-3 gap-2">
@@ -837,7 +850,7 @@ export default function Settings() {
                   value={walletForm.account_last4}
                   onChange={(e) => setWalletForm({ ...walletForm, account_last4: e.target.value.replace(/\D/g, '').slice(0, 4) })}
                   placeholder="1234"
-                  className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm font-mono placeholder-muted/40 focus:outline-none focus:border-accent min-h-[48px]"
+                  className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm font-mono placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
                 />
               </div>
 

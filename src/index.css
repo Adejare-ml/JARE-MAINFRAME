@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+/* Inter, self-hosted and bundled rather than fetched from fonts.googleapis.com.
+ * Only the five weights the app actually uses, latin only. @fontsource ships
+ * font-display: swap, so text paints in the system stack immediately and
+ * reflows once the file lands instead of holding the first paint hostage. */
+@import "@fontsource/inter/latin-400.css";
+@import "@fontsource/inter/latin-500.css";
+@import "@fontsource/inter/latin-600.css";
+@import "@fontsource/inter/latin-700.css";
+@import "@fontsource/inter/latin-800.css";
+
 /* ═══════════════════════════════════════════
    JARE MAINFRAME — Design System
    ═══════════════════════════════════════════ */
@@ -11,6 +21,22 @@
   --color-muted: #a0a0a0;
   --color-accent: #22c55e;
   --color-border: rgba(255, 255, 255, 0.05);
+
+  /* Two solid tokens for text that should read as secondary.
+   *
+   * The opacity variants they replace were not legible. `text-muted/60`
+   * composites to #666 on the background -- 3.3:1, under the 4.5:1 floor --
+   * and `placeholder-muted/40` on a card lands at 2.1:1, which on a mid-range
+   * phone in Abuja daylight is not dim, it is absent. QuickLog's amount
+   * placeholder was at /30, around 1.7:1.
+   *
+   * Solid rather than alpha because alpha's real contrast depends on whatever
+   * is behind it, so the same class was legible on one surface and invisible
+   * on another. These are measured against --color-card, the darker of the two
+   * backgrounds they sit on.
+   */
+  --color-muted-dim: #8a8a8a;  /* 5.0:1 on card, 5.6:1 on background */
+  --color-hint: #828282;       /* 4.5:1 on card -- placeholders only */
 }
 
 /* ═══════════════════════════════════════════
@@ -38,6 +64,31 @@ body {
 /* Safe area padding for mobile bottom nav */
 .safe-area-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* ═══════════════════════════════════════════
+   Focus
+   ═══════════════════════════════════════════ */
+
+/* Nearly every interactive element in the app carries `focus:outline-none`,
+ * and nothing put a ring back. That is fine with a thumb and impossible with a
+ * keyboard: tabbing through Settings moved an invisible cursor.
+ *
+ * :focus-visible rather than :focus, so the ring appears for keyboard and
+ * assistive navigation and not around every button a thumb has just pressed --
+ * which is the reason `outline-none` was reached for in the first place.
+ *
+ * Unlayered on purpose. Tailwind's utilities live in the `utilities` cascade
+ * layer, and unlayered rules beat layered ones regardless of specificity, so
+ * this wins over `focus:outline-none` without an !important anywhere. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 /* ═══════════════════════════════════════════

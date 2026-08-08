@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { toast } from '../lib/toast'
 import { formatNaira, formatDate } from '../lib/formatters'
 import ErrorState from '../components/ui/ErrorState'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
+import { useDismissable } from '../hooks/useDismissable'
 import {
   DIRECTIONS,
   KINDS,
@@ -36,6 +37,10 @@ export default function Debts() {
   const [tab, setTab] = useState('all')
 
   const [showModal, setShowModal] = useState(false)
+  // The form keeps its own layout -- it is centred on desktop and a sheet on
+  // mobile, which the shared <Sheet> does not do -- but shares the behaviour:
+  // back gesture, Escape, scroll lock, focus in and out.
+  const formRef = useRef(null)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
@@ -65,6 +70,7 @@ export default function Debts() {
   }, [fetchDebts])
 
   useRealtimeRefresh(['debts'], fetchDebts, { channelPrefix: 'debts' })
+  useDismissable(showModal, () => setShowModal(false), formRef)
 
   const totals = useMemo(() => debtTotals(debts), [debts])
 
@@ -421,8 +427,13 @@ export default function Debts() {
       {showModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
           <form
+            ref={formRef}
             onSubmit={handleSave}
-            className="bg-card w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl border border-white/10 p-6 space-y-4 max-h-[90vh] overflow-y-auto"
+            role="dialog"
+            aria-modal="true"
+            aria-label={editing ? 'Edit debt' : 'New debt'}
+            tabIndex={-1}
+            className="bg-card w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl border border-white/10 p-6 space-y-4 max-h-[90vh] overflow-y-auto focus:outline-none"
           >
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-white">{editing ? 'Edit' : 'New'}</h2>
@@ -489,7 +500,7 @@ export default function Debts() {
                 onChange={(e) => setForm({ ...form, counterparty: e.target.value })}
                 placeholder={rotating ? 'Office ajo' : 'Name'}
                 required
-                className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:border-accent min-h-[48px]"
+                className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
               />
             </div>
 
@@ -505,7 +516,7 @@ export default function Debts() {
                       value={form.cycle_size}
                       onChange={(e) => setForm({ ...form, cycle_size: e.target.value })}
                       placeholder="12"
-                      className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:border-accent min-h-[48px]"
+                      className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
                     />
                   </div>
                   <div>
@@ -517,7 +528,7 @@ export default function Debts() {
                       value={form.cycle_position}
                       onChange={(e) => setForm({ ...form, cycle_position: e.target.value })}
                       placeholder="4"
-                      className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:border-accent min-h-[48px]"
+                      className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
                     />
                   </div>
                 </div>
@@ -530,7 +541,7 @@ export default function Debts() {
                     value={form.contribution}
                     onChange={(e) => setForm({ ...form, contribution: e.target.value })}
                     placeholder="20000"
-                    className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:border-accent min-h-[48px]"
+                    className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
                   />
                 </div>
 
@@ -554,7 +565,7 @@ export default function Debts() {
                     value={form.principal}
                     onChange={(e) => setForm({ ...form, principal: e.target.value })}
                     placeholder="50000"
-                    className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:border-accent min-h-[48px]"
+                    className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
                   />
                 </div>
                 <div>
@@ -565,7 +576,7 @@ export default function Debts() {
                     value={form.amount_paid}
                     onChange={(e) => setForm({ ...form, amount_paid: e.target.value })}
                     placeholder="0"
-                    className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:border-accent min-h-[48px]"
+                    className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
                   />
                 </div>
               </div>
@@ -589,7 +600,7 @@ export default function Debts() {
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
                 placeholder="Optional"
-                className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:border-accent min-h-[48px]"
+                className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
               />
             </div>
 
