@@ -25,6 +25,7 @@ import { hasColumn } from './schema.js'
  */
 const GATED_LIST_COLUMNS = {
   explanation: 'transactions.explanation',
+  voided: 'transactions.voided',
 }
 
 const BASE_LIST_COLUMNS = [
@@ -49,7 +50,15 @@ const BASE_LIST_COLUMNS = [
   'created_at',
 ]
 
-const BASE_SUMMARY_COLUMNS = ['id', 'type', 'amount', 'category', 'wallet_id', 'transaction_date']
+const BASE_SUMMARY_COLUMNS = [
+  'id',
+  'type',
+  'amount',
+  'category',
+  'wallet_id',
+  'transaction_date',
+  'voided',
+]
 
 /** Drop any column the database does not have yet. */
 function available(columns) {
@@ -109,6 +118,29 @@ export const NEEDS_REVIEW_FILTER = { column: 'reviewed', value: false }
 /** True for a row the review queue should show. Mirrors the query predicate. */
 export function needsReview(txn) {
   return txn?.reviewed === false
+}
+
+/**
+ * Hide voided transactions.
+ *
+ * Must be applied to every query that lists or totals transactions. A voided
+ * row that leaks into one place and not another is worse than no void feature
+ * at all: the ledger and the summary would disagree and there would be no way
+ * to tell which was lying.
+ *
+ * `summarizeMonth` skips voided rows a second time, on the data rather than in
+ * the query, so a call site that forgets this cannot corrupt the month totals.
+ *
+ * @param {object} query - a supabase query builder on `transactions`
+ * @returns {object}
+ */
+export function excludeVoided(query) {
+  // Before migration 006 there is nothing to exclude, and filtering on a column
+  // that does not exist is a 42703 that takes the page down -- which is the
+  // failure this whole capability check exists to prevent, and one this feature
+  // would otherwise have caused a second time.
+  if (!hasColumn('transactions.voided')) return query
+  return query.eq('voided', false)
 }
 
 /**
