@@ -60,13 +60,20 @@ export function validateCorrection(fields) {
  * undefined_function, which surfaces when the schema cache is warm but the
  * function was dropped.
  *
+ * The message pattern names `function` deliberately. A bare /does not exist/
+ * also matches `column transactions.explanation does not exist` -- the error
+ * that took production down -- and a missing column routed into the
+ * missing-function fallback would take a recovery path built for a different
+ * problem, then fail again on the way out. Use isMissingColumnError in
+ * src/lib/schema.js for that case.
+ *
  * @param {{code?: string, message?: string}} error
  * @returns {boolean}
  */
 export function isMissingFunctionError(error) {
   if (!error) return false
   if (error.code === 'PGRST202' || error.code === '42883') return true
-  return /could not find the function|does not exist/i.test(error.message || '')
+  return /could not find the function|function .* does not exist/i.test(error.message || '')
 }
 
 /**

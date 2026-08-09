@@ -119,3 +119,26 @@ describe('balance arithmetic', () => {
     expect(balanceDelta({ type: 'debit', amount: 20000 }, { type: 'credit', amount: 20000 })).toBe(40000)
   })
 })
+
+describe('isMissingFunctionError vs a missing column', () => {
+  it('does not claim the production outage error was a missing function', () => {
+    // Regression. The old /does not exist/i fallback matched this, which would
+    // have routed a missing column into the RPC fallback -- a recovery path
+    // built for a different problem, that then fails again on the way out.
+    expect(
+      isMissingFunctionError({
+        code: '42703',
+        message: 'column transactions.explanation does not exist',
+      }),
+    ).toBe(false)
+    expect(
+      isMissingFunctionError({ code: 'PGRST204', message: "Could not find the 'voided' column" }),
+    ).toBe(false)
+  })
+
+  it('still recognises a genuinely missing function by message alone', () => {
+    expect(
+      isMissingFunctionError({ message: 'function public.correct_transaction(...) does not exist' }),
+    ).toBe(true)
+  })
+})

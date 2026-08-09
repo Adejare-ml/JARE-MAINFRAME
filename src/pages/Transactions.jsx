@@ -16,6 +16,7 @@ import {
   excludeVoided,
 } from '../lib/queries'
 import { validateCorrection, isMissingFunctionError } from '../lib/corrections'
+import { hasColumn } from '../lib/schema'
 
 export default function Transactions() {
   const [transactions, setTransactions] = useState([])
@@ -323,23 +324,33 @@ export default function Transactions() {
     if (!isMissingFunctionError(error)) throw error
 
     console.warn('correct_transaction is missing -- run migration 007. Falling back.')
+
+    const patch = {
+      type: fields.type,
+      amount: fields.amount,
+      transaction_date: fields.date,
+      category: fields.category,
+      note: (fields.note || '').trim() || null,
+      // `description` is deliberately not written. It holds the bank's own
+      // narration, and an earlier version overwrote it with the note -- or,
+      // when the note was empty, with the category name. That destroyed the
+      // only durable record of what the bank actually said, which is also
+      // the text a correction keys on.
+      want_or_need: fields.wantOrNeed ?? null,
+      reviewed: true,
+    }
+
+    // A fallback that needs its own migration is not a fallback. This path runs
+    // when 007 has not been applied, and someone in that position has very
+    // likely not applied 006 either -- writing `voided` would fail the rescue
+    // for the same class of reason it was rescuing from. The rest of the
+    // correction still lands; only the void does not, and the button that asks
+    // for it is hidden when the column is absent.
+    if (hasColumn('transactions.voided')) patch.voided = fields.voided
+
     const { error: updateError } = await supabase
       .from('transactions')
-      .update({
-        type: fields.type,
-        amount: fields.amount,
-        transaction_date: fields.date,
-        category: fields.category,
-        note: (fields.note || '').trim() || null,
-        // `description` is deliberately not written. It holds the bank's own
-        // narration, and an earlier version overwrote it with the note -- or,
-        // when the note was empty, with the category name. That destroyed the
-        // only durable record of what the bank actually said, which is also
-        // the text a correction keys on.
-        want_or_need: fields.wantOrNeed ?? null,
-        voided: fields.voided,
-        reviewed: true,
-      })
+      .update(patch)
       .eq('id', txnId)
     if (updateError) throw updateError
   }
@@ -761,7 +772,13 @@ export default function Transactions() {
                     {/* Void, behind a second tap. Not a delete: the unique
                         index on (source, transaction_id) is what stops the sync
                         re-importing an email, so a hard-deleted synced row
-                        would return on the next run. */}
+                        would return on the next run.
+
+                        Hidden entirely until migration 006 has run. Offering a
+                        button that cannot work, and reporting a Postgres error
+                        when it is pressed, is worse than not offering it -- the
+                        banner already explains what to run. */}
+                    {hasColumn('transactions.voided') && (
                     <div className="pt-1">
                       {confirmVoidId === t.id ? (
                         <div className="space-y-2">
@@ -794,6 +811,7 @@ export default function Transactions() {
                         </button>
                       )}
                     </div>
+                    )}
 
                   </div>
                 )}
