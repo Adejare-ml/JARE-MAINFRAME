@@ -1,7 +1,19 @@
 -- ============================================================================
 -- 004_debts.sql
 --
--- Run after 003. Idempotent; safe to re-run.
+-- Run after 003. Idempotent; safe to re-run, including against a `debts` table
+-- that already exists in the wrong shape.
+--
+-- That last clause was not true until it had to be. `create table if not
+-- exists` skips silently when something by that name is already there, so a
+-- half-built `debts` left over from an earlier attempt sailed past creation and
+-- then failed on the first constraint referencing a column it never had --
+-- `column "kind" does not exist`, forever, on every re-run. Because the
+-- migration runner applies this directory in order, that single error also
+-- stopped 005, 006 and 007 from ever reaching the database, which is how the
+-- app came to be querying a column that did not exist.
+--
+-- So the shape is healed before it is constrained.
 --
 -- Money owed in both directions, with ajo and esusu as first-class kinds
 -- rather than an afterthought.
@@ -21,8 +33,12 @@ create table if not exists debts (
   -- backfill plus a policy rewrite; adding it now is one line.
   user_id        uuid default auth.uid(),
 
-  direction      text not null check (direction in ('owed_to_me', 'i_owe')),
-  kind           text not null default 'loan' check (kind in ('loan', 'ajo', 'esusu')),
+  -- The value checks for `direction` and `kind` live below as named
+  -- constraints rather than inline, so there is exactly one definition of each
+  -- and it applies whether this table is being created here or healed from an
+  -- older shape.
+  direction      text not null,
+  kind           text not null default 'loan',
   counterparty   text not null,
 
   -- Loans: the sum owed and how much has been settled so far.
@@ -43,6 +59,62 @@ create table if not exists debts (
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now()
 );
+
+
+-- ---------------------------------------------------------------------------
+-- Heal the shape before constraining it
+--
+-- No-ops on a table this file just created. On one that predates it, these are
+-- what make every statement below possible at all. `add column ... not null
+-- default X` is safe on a populated table -- Postgres records the default
+-- rather than rewriting every row -- so this is non-destructive either way.
+-- ---------------------------------------------------------------------------
+
+alter table debts add column if not exists user_id        uuid    default auth.uid();
+alter table debts add column if not exists kind           text    not null default 'loan';
+alter table debts add column if not exists principal      numeric not null default 0;
+alter table debts add column if not exists amount_paid    numeric not null default 0;
+alter table debts add column if not exists cycle_size     integer;
+alter table debts add column if not exists cycle_position integer;
+alter table debts add column if not exists contribution   numeric;
+alter table debts add column if not exists due_date       date;
+alter table debts add column if not exists payout_date    date;
+alter table debts add column if not exists settled        boolean not null default false;
+alter table debts add column if not exists notes          text;
+alter table debts add column if not exists created_at     timestamptz not null default now();
+alter table debts add column if not exists updated_at     timestamptz not null default now();
+
+-- These two are NOT NULL with no sensible default: there is no neutral
+-- direction and no neutral counterparty. Added nullable, then tightened only
+-- once the existing rows are known to satisfy it -- so a populated legacy table
+-- degrades to a warning rather than aborting the run and, with it, every later
+-- migration in the directory.
+alter table debts add column if not exists direction    text;
+alter table debts add column if not exists counterparty text;
+
+do $$
+begin
+  if exists (select 1 from debts where direction is null or counterparty is null) then
+    raise warning 'debts has rows with a null direction or counterparty, so those columns stay nullable. Fill them in and re-run this migration.';
+  else
+    alter table debts alter column direction    set not null;
+    alter table debts alter column counterparty set not null;
+  end if;
+end
+$$;
+
+
+-- ---------------------------------------------------------------------------
+-- Constraints
+-- ---------------------------------------------------------------------------
+
+alter table debts drop constraint if exists debts_direction_valid;
+alter table debts add  constraint debts_direction_valid
+  check (direction in ('owed_to_me', 'i_owe'));
+
+alter table debts drop constraint if exists debts_kind_valid;
+alter table debts add  constraint debts_kind_valid
+  check (kind in ('loan', 'ajo', 'esusu'));
 
 -- A rotating cycle only makes sense with a size, and the position must sit
 -- inside it. Loans have neither.
