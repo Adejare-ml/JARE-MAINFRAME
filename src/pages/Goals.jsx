@@ -5,7 +5,7 @@ import { toast } from '../lib/toast'
 import { formatDate } from '../lib/formatters'
 import ErrorState from '../components/ui/ErrorState'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
-import { toDateOnly, daysAgo } from '../lib/queries'
+import { toDateOnly, daysAgo, orderGoalsBySlot } from '../lib/queries'
 
 /**
  * Your daily priorities, read back.
@@ -29,14 +29,14 @@ export default function Goals() {
   const fetchGoals = useCallback(async () => {
     try {
       setPageError(null)
-      const { data, error } = await supabase
-        .from('goals')
-        .select('*')
-        .eq('period', 'daily')
-        .gte('target_date', daysAgo(HISTORY_DAYS))
-        .order('target_date', { ascending: false })
-        .order('slot', { ascending: true, nullsFirst: false })
-        .order('created_at', { ascending: true })
+      const { data, error } = await orderGoalsBySlot(
+        supabase
+          .from('goals')
+          .select('*')
+          .eq('period', 'daily')
+          .gte('target_date', daysAgo(HISTORY_DAYS))
+          .order('target_date', { ascending: false }),
+      )
 
       if (error) throw error
       setGoals(data || [])

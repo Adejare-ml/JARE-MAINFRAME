@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { hasColumn } from './schema'
 import { parseGTBankEmail } from './parsers/gtbank'
 import { parseOpayEmail } from './parsers/opay'
 import { toast } from './toast'
@@ -230,9 +231,17 @@ async function insertTransaction(txn) {
     if (existing && existing.length > 0) return 'duplicate'
   }
 
+  // Reads are not the only thing a missing column breaks: writing `explanation`
+  // to a database without it fails every insert, so a manual sync would import
+  // nothing and say so in a Postgres dialect. Drop the field rather than the
+  // transaction -- the row itself is what matters, and the explanation can be
+  // backfilled by the scheduled sync once the migration is run.
+  const payload = { ...txn }
+  if (!hasColumn('transactions.explanation')) delete payload.explanation
+
   const { data, error } = await supabase
     .from('transactions')
-    .upsert(txn, { onConflict: 'source,transaction_id', ignoreDuplicates: true })
+    .upsert(payload, { onConflict: 'source,transaction_id', ignoreDuplicates: true })
     .select('id')
 
   if (error) throw new Error(error.message)

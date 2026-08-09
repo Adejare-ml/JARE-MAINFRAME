@@ -86,6 +86,50 @@ Two guards keep the ledger clean:
    identical in Node and the browser, or the same email is inserted forever.
    `tests/dedup.test.js` guards that.
 
+## When something stops working
+
+### Migrations and the deploy gap
+
+Cloudflare deploys the frontend the moment a commit lands on `main`. Migrations
+in `supabase/migrations/` are run by hand afterwards, so there is always a window
+where the app expects a column the database does not have yet.
+
+The app handles this rather than dying: `src/lib/schema.js` probes for
+migration-added columns at startup, drops the missing ones from its queries, and
+shows a banner naming the file to run. **If you see that banner, run the file it
+names in the Supabase SQL editor.** It went in after a version of this gap took
+every transaction page down for days.
+
+To check what is missing without opening the app:
+
+```sql
+select
+  exists (select 1 from information_schema.columns
+           where table_name='transactions' and column_name='explanation') as has_005,
+  exists (select 1 from information_schema.columns
+           where table_name='goals' and column_name='slot')               as has_003;
+```
+
+Adding a migration-gated column to a shared select list means adding it to
+`GATED_COLUMNS` in `src/lib/schema.js` in the same change. Forgetting is the bug.
+
+### The scheduled sync stopped importing
+
+A failed run now opens a **`sync-failure`** issue rather than failing silently.
+The most common cause is `invalid_grant` — the Google refresh token expired or
+was revoked. Regenerate it:
+
+```bash
+GOOGLE_CLIENT_ID="..." GOOGLE_CLIENT_SECRET="..." node scripts/get-refresh-token.mjs
+```
+
+and paste the result into the `GOOGLE_REFRESH_TOKEN` repository secret.
+
+If this recurs roughly weekly, the cause is the OAuth consent screen: Google
+expires refresh tokens issued by an app in **Testing** publishing status after 7
+days. Set the app to **In production** in the Google Cloud console and they stop
+expiring.
+
 ## Environment
 
 See `.env.example`. In short: `VITE_`-prefixed variables are compiled into the

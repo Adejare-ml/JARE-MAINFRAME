@@ -3,10 +3,15 @@ import Sidebar from './Sidebar'
 import BottomNav from './BottomNav'
 import QuickLog from '../ui/QuickLog'
 import ToastContainer from '../ui/ToastContainer'
+import SchemaBanner from '../ui/SchemaBanner'
 
-export default function Layout({ children, onSignOut }) {
+export default function Layout({ children, onSignOut, pendingMigrations = [] }) {
   return (
     <div className="min-h-screen bg-background text-foreground">
+      {/* Above everything, including the nav: it explains why fields are
+          missing from every page below it. */}
+      <SchemaBanner pending={pendingMigrations} />
+
       {/* Desktop Sidebar */}
       <Sidebar onSignOut={onSignOut} />
 

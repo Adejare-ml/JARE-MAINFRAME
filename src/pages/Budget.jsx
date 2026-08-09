@@ -10,8 +10,8 @@ import { getCategoryIcon } from '../lib/constants'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import { summarizeMonth, runway } from '../lib/summary'
 import {
-  TRANSACTION_LIST_COLUMNS,
-  TRANSACTION_SUMMARY_COLUMNS,
+  transactionListColumns,
+  transactionSummaryColumns,
   startOfMonth,
 } from '../lib/queries'
 
@@ -37,11 +37,11 @@ export default function Budget() {
         // created_at counted every one of them against this month.
         supabase
           .from('transactions')
-          .select(TRANSACTION_SUMMARY_COLUMNS)
+          .select(transactionSummaryColumns())
           .gte('transaction_date', startOfMonth()),
         supabase
           .from('transactions')
-          .select(TRANSACTION_LIST_COLUMNS)
+          .select(transactionListColumns())
           .order('transaction_date', { ascending: false })
           .order('created_at', { ascending: false })
           .limit(5),

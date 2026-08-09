@@ -5,6 +5,7 @@ import { getParseStrategy, sanitizeSlug } from '../lib/sync'
 import { timeAgo, formatNaira, formatDate } from '../lib/formatters'
 import { toast } from '../lib/toast'
 import { useAuth } from '../hooks/useAuth'
+import ErrorState from '../components/ui/ErrorState'
 
 const WALLET_TYPES = [
   { value: 'bank', label: 'Bank', icon: '🏦' },
@@ -40,6 +41,13 @@ export default function Settings() {
   const [isSyncing, setIsSyncing] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  // Every other page has had this since Track A; Settings did not, and swallowed
+  // its errors instead. A backend failure rendered "no wallets, Gmail
+  // disconnected, no thresholds" -- the exact opposite of the truth, on the very
+  // page Budget's setup gate sends you to when it thinks you have no wallets.
+  // Following that invitation creates duplicate wallets, duplicate source_slug
+  // values, and a sync that no longer knows which row to update.
+  const [pageError, setPageError] = useState(null)
 
   // Wallets & Threshold State
   const [wallets, setWallets] = useState([])
@@ -72,6 +80,7 @@ export default function Settings() {
   const loadData = async () => {
     try {
       setIsLoading(true)
+      setPageError(null)
 
       // 1. Fetch User Email
       const { data: { user } } = await supabase.auth.getUser()
@@ -86,9 +95,10 @@ export default function Settings() {
         .eq('service', 'gmail')
         .maybeSingle()
 
-      if (intErr && intErr.code !== 'PGRST116') {
-        console.error('Error loading integration:', intErr)
-      }
+      // PGRST116 is "no rows", which just means Gmail was never connected.
+      // Anything else is a real failure and must not be reported as
+      // "disconnected" -- see the note on pageError below.
+      if (intErr && intErr.code !== 'PGRST116') throw intErr
 
       if (intData && (intData.status === 'connected' || intData.status === 'active')) {
         setGmailStatus('connected')
@@ -101,7 +111,14 @@ export default function Settings() {
       }
 
       // 3. Fetch Wallets
-      const { data: wData } = await supabase.from('wallets').select('*').order('created_at', { ascending: true })
+      // The error was previously not destructured at all, so a failed query
+      // rendered as an empty wallet list -- the single most dangerous lie this
+      // page could tell.
+      const { data: wData, error: wErr } = await supabase
+        .from('wallets')
+        .select('*')
+        .order('created_at', { ascending: true })
+      if (wErr) throw wErr
       setWallets(wData || [])
 
       // 4. Fetch both money settings in one query
@@ -110,9 +127,7 @@ export default function Settings() {
         .select('key, value')
         .in('key', ['low_balance_threshold', 'monthly_budget_target'])
 
-      if (setErr) {
-        console.error('Error fetching settings:', setErr)
-      }
+      if (setErr) throw setErr
 
       for (const row of settingRows || []) {
         if (!row.value) continue
@@ -121,6 +136,7 @@ export default function Settings() {
       }
     } catch (err) {
       console.error('Error loading Settings data:', err)
+      setPageError(err.message || 'Failed to load')
     } finally {
       setIsLoading(false)
     }
@@ -369,6 +385,8 @@ export default function Settings() {
           <div className="h-40 bg-card rounded-3xl border border-white/5" />
           <div className="h-28 bg-card rounded-3xl border border-white/5" />
         </div>
+      ) : pageError ? (
+        <ErrorState message={pageError} onRetry={loadData} />
       ) : (
         <div className="space-y-6">
 

@@ -110,7 +110,26 @@ async function getAccessToken() {
   })
 
   if (!res.ok) {
-    throw new Error(`Failed to refresh Google token (${res.status}): ${await res.text()}`)
+    const body = await res.text()
+
+    // invalid_grant means the refresh token is dead, not that anything is
+    // wrong with this run. Say what to do about it: the raw Google payload
+    // tells you the token expired and nothing else, which is how this sat
+    // broken through several scheduled runs.
+    if (body.includes('invalid_grant')) {
+      throw new Error(
+        'Google refresh token is expired or revoked.\n' +
+          '  Fix: run this locally, then paste the result into the ' +
+          'GOOGLE_REFRESH_TOKEN repository secret:\n' +
+          '    GOOGLE_CLIENT_ID="..." GOOGLE_CLIENT_SECRET="..." node scripts/get-refresh-token.mjs\n' +
+          '  If this keeps happening every ~7 days, the OAuth consent screen for this ' +
+          'Google Cloud project is still in "Testing" publishing status -- Google ' +
+          'expires those refresh tokens weekly. Setting it to "In production" stops it.\n' +
+          `  Google said: ${body}`,
+      )
+    }
+
+    throw new Error(`Failed to refresh Google token (${res.status}): ${body}`)
   }
 
   return (await res.json()).access_token
