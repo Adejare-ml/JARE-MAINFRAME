@@ -105,6 +105,47 @@ $$;
 
 
 -- ---------------------------------------------------------------------------
+-- Refuse clearly, rather than obscurely
+--
+-- Adding missing columns fixes a table that has too few. It cannot fix one that
+-- has too many *required* ones: a leftover NOT NULL column with no default --
+-- `person`, say -- rejects every insert this app makes, including the check at
+-- the bottom of this file. Without this guard that surfaces as a 23502 raised
+-- from inside a DO block, naming a column nobody has heard of, on a migration
+-- that appears to be about something else entirely.
+--
+-- Relaxing a NOT NULL that another schema owns is not this migration's call to
+-- make, so it says what it found and what to do about it instead.
+-- ---------------------------------------------------------------------------
+
+do $$
+declare
+  foreign_required text;
+begin
+  select string_agg(column_name, ', ' order by ordinal_position)
+    into foreign_required
+    from information_schema.columns
+   where table_schema  = 'public'
+     and table_name    = 'debts'
+     and is_nullable   = 'NO'
+     and column_default is null
+     and column_name not in (
+       'id', 'user_id', 'direction', 'kind', 'counterparty',
+       'principal', 'amount_paid', 'cycle_size', 'cycle_position',
+       'contribution', 'due_date', 'payout_date', 'settled',
+       'notes', 'created_at', 'updated_at');
+
+  if foreign_required is not null then
+    raise exception
+      'public.debts has required column(s) this migration does not manage: %', foreign_required
+      using hint =
+        'An older debts table is in the way. Check `select count(*) from public.debts;` -- if it holds nothing you need, `drop table public.debts cascade;` and re-run. If it does hold data, make those columns nullable or give them defaults first.';
+  end if;
+end
+$$;
+
+
+-- ---------------------------------------------------------------------------
 -- Constraints
 -- ---------------------------------------------------------------------------
 
