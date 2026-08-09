@@ -25,8 +25,14 @@ jobs:
       - name: Probe both providers
         run: node scripts/test-llm.mjs "${{ inputs.fixture }}"
         env:
-          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
-          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          # The secrets are named OLLAMA_KEY / NVIDIA_KEY in this repository.
+          # The `||` accepts either spelling, because a secret that does not
+          # exist resolves to an empty string with no error -- which is how
+          # these read as unset for weeks while a perfectly good key sat in
+          # settings, and how categorization silently degraded to
+          # Uncategorized/LOW on every run without anything saying so.
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_KEY || secrets.OLLAMA_API_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_KEY || secrets.NVIDIA_API_KEY }}
           # Same optional overrides as the sync workflow, so a model swapped
           # there is swapped here too.
           OLLAMA_BASE_URL: ${{ vars.OLLAMA_BASE_URL }}
