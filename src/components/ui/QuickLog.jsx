@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { toast } from '../../lib/toast';
 import { CATEGORIES, getCategoryIcon } from '../../lib/constants';
 import { toDateOnly } from '../../lib/queries';
+import Sheet from './Sheet';
 
 const STEPS = {
   AMOUNT: 1,
@@ -182,7 +183,7 @@ export default function QuickLog() {
             autoFocus
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
-            className="bg-transparent border-none outline-none w-full text-center placeholder-muted/30 focus:ring-0"
+            className="bg-transparent border-none outline-none w-full text-center placeholder-hint focus:ring-0"
             placeholder="0"
           />
         </div>
@@ -213,7 +214,7 @@ export default function QuickLog() {
       <div className="flex-1 overflow-y-auto pr-1 pb-16 space-y-4 max-h-[50vh]">
         {Object.entries(CATEGORIES || {}).map(([section, cats]) => (
           <div key={section} className="space-y-2">
-            <h4 className="text-[11px] font-bold text-muted/70 uppercase tracking-widest">{section}</h4>
+            <h4 className="text-[11px] font-bold text-muted-dim uppercase tracking-widest">{section}</h4>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {cats.map(cat => {
                 const icon = getCategoryIcon(cat);
@@ -315,7 +316,7 @@ export default function QuickLog() {
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="what was this for?"
-            className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-muted/40 focus:outline-none focus:border-accent min-h-[48px]"
+            className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
           />
         </div>
 
@@ -406,15 +407,8 @@ export default function QuickLog() {
   );
 
   return (
-    <>
-      <div 
-        className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 animate-fade-in"
-        onClick={() => setIsOpen(false)}
-      />
-      
-      <div className="fixed bottom-0 left-0 right-0 z-50 flex justify-center">
-        <div className="w-full max-w-lg bg-card border border-white/10 rounded-t-3xl shadow-2xl overflow-hidden flex flex-col animate-slide-up max-h-[90vh]">
-          
+    <Sheet isOpen={isOpen} onClose={() => setIsOpen(false)} title="Log a transaction">
+      <>
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-card">
             {step > STEPS.AMOUNT ? (
@@ -453,8 +447,7 @@ export default function QuickLog() {
             {step === STEPS.DETAILS && renderDetails()}
             {step === STEPS.CONFIRM && renderConfirm()}
           </div>
-        </div>
-      </div>
-    </>
+      </>
+    </Sheet>
   );
 }

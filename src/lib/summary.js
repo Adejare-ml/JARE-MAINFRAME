@@ -52,6 +52,11 @@ export function summarizeMonth(transactions, liquidWalletIds) {
   const byCategory = new Map()
 
   for (const t of transactions || []) {
+    // Belt and braces: the queries filter voided rows too, but a totals
+    // function that trusts its caller is one forgotten filter away from
+    // reporting money that was explicitly struck off.
+    if (t.voided) continue
+
     const amount = Number(t.amount) || 0
     if (amount <= 0) continue
     if (t.wallet_id && liquidWalletIds && !liquidWalletIds.has(t.wallet_id)) continue

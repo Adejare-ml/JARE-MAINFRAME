@@ -35,7 +35,7 @@ export default function Projects() {
         <div className="flex flex-col items-center justify-center py-12 text-muted">
           <span className="text-5xl mb-4">🛠️</span>
           <p className="text-lg font-medium text-white mb-1">No projects yet</p>
-          <p className="text-sm text-muted/60">Create your first project to start tracking</p>
+          <p className="text-sm text-muted-dim">Create your first project to start tracking</p>
         </div>
       </section>
 

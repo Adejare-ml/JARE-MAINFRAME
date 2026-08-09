@@ -8,7 +8,12 @@ import {
   pendingMigrations,
   probeSchema,
 } from '../src/lib/schema.js'
-import { transactionListColumns, transactionSummaryColumns } from '../src/lib/queries.js'
+import {
+  transactionListColumns,
+  transactionSummaryColumns,
+  excludeVoided,
+  GATED_LIST_COLUMNS,
+} from '../src/lib/queries.js'
 
 beforeEach(() => resetSchemaCapabilities())
 
@@ -115,6 +120,57 @@ describe('the registry stays honest', () => {
       expect(key).toMatch(/^\w+\.\w+$/)
       expect(file).toMatch(/^\d{3}_[\w]+\.sql$/)
     }
+  })
+
+  // The guard that matters. queries.js decides which columns to drop;
+  // schema.js decides which ones the startup probe asks about. A column in the
+  // first and not the second is silently inert -- never probed, hasColumn
+  // always true, so the query goes out naming a column that may not exist and
+  // the page dies exactly as it did before. This drifted once, with `voided`,
+  // and was caught by reading rather than by a failing test.
+  it('probes every column the query builder is willing to drop', () => {
+    for (const key of Object.values(GATED_LIST_COLUMNS)) {
+      expect(Object.keys(GATED_COLUMNS)).toContain(key)
+    }
+  })
+})
+
+describe('excludeVoided respects the probe', () => {
+  function fakeQuery() {
+    const calls = []
+    const builder = new Proxy({}, {
+      get: (_t, prop) => (prop === 'calls' ? calls : (...args) => {
+        calls.push({ method: prop, args })
+        return builder
+      }),
+    })
+    return builder
+  }
+
+  it('filters on voided when migration 006 has run', () => {
+    const q = fakeQuery()
+    excludeVoided(q)
+    expect(q.calls).toEqual([{ method: 'eq', args: ['voided', false] }])
+  })
+
+  it('is a no-op when the column is missing', () => {
+    // Otherwise every list and total on three pages 42703s -- the same failure
+    // as the original outage, arriving through migration 006 instead of 005.
+    setSchemaCapabilities(['transactions.voided'])
+    const q = fakeQuery()
+    expect(excludeVoided(q)).toBe(q)
+    expect(q.calls).toEqual([])
+  })
+
+  it('drops voided from the summary list when it is missing', () => {
+    setSchemaCapabilities(['transactions.voided'])
+    expect(transactionSummaryColumns()).not.toContain('voided')
+    expect(transactionSummaryColumns()).toContain('amount')
+  })
+
+  it('names 006 in the banner when voided is missing', () => {
+    setSchemaCapabilities(['transactions.voided'])
+    expect(pendingMigrations()).toEqual(['006_transaction_void.sql'])
   })
 })
 

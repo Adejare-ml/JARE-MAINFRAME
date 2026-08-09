@@ -146,3 +146,26 @@ describe('runway', () => {
     expect(runway(-5000, 3000, 10).daysOfRunway).toBe(0)
   })
 })
+
+describe('voided transactions', () => {
+  // Belt and braces. The queries filter voided rows too, but a totals function
+  // that trusts its caller is one forgotten filter away from reporting money
+  // the user explicitly struck off -- and the ledger and the summary would
+  // then disagree with nothing to say which was lying.
+  it('leaves voided rows out of income, spending and the breakdown', () => {
+    const txns = [
+      { type: 'debit', amount: 5000, category: 'Food & Dining' },
+      { type: 'debit', amount: 50000, category: 'Food & Dining', voided: true },
+      { type: 'credit', amount: 200000, category: 'Salary', voided: true },
+    ]
+    const s = summarizeMonth(txns, null)
+    expect(s.spent).toBe(5000)
+    expect(s.income).toBe(0)
+    expect(s.byCategory).toEqual([{ category: 'Food & Dining', total: 5000 }])
+  })
+
+  it('leaves voided transfers out of movedAside', () => {
+    const txns = [{ type: 'debit', amount: 30000, category: 'Savings Transfer', voided: true }]
+    expect(summarizeMonth(txns, null).movedAside).toBe(0)
+  })
+})
