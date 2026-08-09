@@ -37,16 +37,21 @@ function env(name, fallback = '') {
   return typeof raw === 'string' && raw.trim() !== '' ? raw.trim() : fallback
 }
 
-// Defaults are the models chosen during design. They have never been called
-// successfully, so treat them as unverified until `node scripts/test-llm.mjs`
-// passes -- if either ID is wrong, override it with a repository variable
-// rather than editing this file.
+// Both defaults are overridable by repository variable, so a model that is
+// renamed or retired needs no code change. Change them here only when the
+// default itself has gone stale -- which is why NVIDIA's moved: the verify job
+// on 9 Aug 2026 got `410 Gone -- deepseek-ai/deepseek-v4-flash has reached its
+// end of life on 2026-08-07`, two days after the fact, having never once been
+// called successfully before that.
+//
+// Ollama's default is verified: gemma4:31b-cloud answered in 1.3s with correct
+// direction, amount and clean JSON on the Opay fixture.
 const OLLAMA_API_KEY = env('OLLAMA_API_KEY')
 const NVIDIA_API_KEY = env('NVIDIA_API_KEY')
 const OLLAMA_BASE_URL = env('OLLAMA_BASE_URL', 'https://ollama.com')
 const OLLAMA_MODEL = env('OLLAMA_MODEL', 'gemma4:31b-cloud')
 const NVIDIA_BASE_URL = env('NVIDIA_BASE_URL', 'https://integrate.api.nvidia.com/v1')
-const NVIDIA_MODEL = env('NVIDIA_MODEL', 'deepseek-ai/deepseek-v4-flash')
+const NVIDIA_MODEL = env('NVIDIA_MODEL', 'openai/gpt-oss-120b')
 
 /** Extraction is a short, mechanical job -- a long budget only buys a model
  *  room to ramble past the JSON. */
