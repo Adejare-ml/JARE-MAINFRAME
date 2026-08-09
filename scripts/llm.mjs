@@ -60,9 +60,10 @@ const MAX_TOKENS = 500
 /**
  * NVIDIA gets a larger ceiling than Ollama.
  *
- * DeepSeek V4 Flash reasons by default, and while we ask it not to (see
- * NVIDIA_THINKING_OFF), max_tokens is a hard stop rather than a hint: a model
- * that reasons anyway spends the budget narrating and gets cut off mid-JSON.
+ * The fallback model reasons by default, and while we ask for the least of it
+ * (see NVIDIA_REASONING_EFFORT), max_tokens is a hard stop rather than a hint:
+ * a model that reasons anyway spends the budget narrating and gets cut off
+ * mid-JSON.
  * The cost is charged on output actually produced, not on the cap, so a
  * generous ceiling is close to free and buys a truncated answer the room to
  * still land.
@@ -71,18 +72,35 @@ const NVIDIA_MAX_TOKENS = 1500
 const NVIDIA_BATCH_MAX_TOKENS = 2500
 
 /**
- * Switching off DeepSeek's reasoning on NVIDIA NIM.
+ * Keeping the NVIDIA model from thinking the request to death.
  *
- * NIM drives this through `chat_template_kwargs` rather than the OpenAI-standard
- * `reasoning_effort`, and it uses two keys in tandem. Sending only `thinking`
- * leaves `enable_thinking` at its default -- which is on -- so the model reasons
- * regardless, burns the output budget before emitting any JSON, and the response
- * arrives truncated. That reads downstream as "no JSON object in response" and
- * quietly downgrades a whole batch to Uncategorized.
+ * The previous version of this sent `chat_template_kwargs: {enable_thinking,
+ * thinking}`, which is how NIM drove DeepSeek V4 Flash. That model was retired
+ * on 2026-08-07, and its replacement, openai/gpt-oss-120b, takes the
+ * OpenAI-standard `reasoning_effort` as a top-level parameter instead -- so the
+ * old keys were inert here and the model reasoned freely.
+ *
+ * Evidence rather than inference: the first probe against gpt-oss returned
+ * `timed out after 30000ms` -- no status code, no partial body, nothing to
+ * parse. Not the truncation the DeepSeek fix anticipated, because the response
+ * never arrived at all. Ollama answered the same prompt in 1.5s.
+ *
+ * 'low' because extraction is mechanical. There is nothing in a bank alert
+ * worth deliberating over, and every reasoning token is one the JSON does not
+ * get -- and, at 120B, several hundred milliseconds nobody is waiting for.
  */
-const NVIDIA_THINKING_OFF = { enable_thinking: false, thinking: false }
+const NVIDIA_REASONING_EFFORT = 'low'
 
-const REQUEST_TIMEOUT_MS = 30000
+/**
+ * 60s rather than 30s.
+ *
+ * gemma4:31b-cloud answers in ~1.5s, so this ceiling never binds for the
+ * primary. It exists for the fallback: a 120B model on a shared endpoint is
+ * legitimately slower than a 31B one, and 30s turned out to be inside the range
+ * where a real answer and a hung request look identical. Raising it costs a
+ * four-hourly cron job nothing and removes that ambiguity.
+ */
+const REQUEST_TIMEOUT_MS = 60000
 /** Enough for any alert; keeps a pathological email from blowing the context. */
 const MAX_BODY_CHARS = 3000
 
@@ -194,9 +212,9 @@ async function callNvidia(userPrompt, systemPrompt = SYSTEM_PROMPT, maxTokens = 
         temperature: 0,
         max_tokens: budget,
         response_format: { type: 'json_object' },
-        // Ignored by non-reasoning models. Both keys are required together on
-        // reasoning ones -- see NVIDIA_THINKING_OFF.
-        chat_template_kwargs: NVIDIA_THINKING_OFF,
+        // Top-level and OpenAI-standard, which is what gpt-oss reads. Ignored
+        // by models that do not reason. See NVIDIA_REASONING_EFFORT.
+        reasoning_effort: NVIDIA_REASONING_EFFORT,
       }),
       signal,
     }),
