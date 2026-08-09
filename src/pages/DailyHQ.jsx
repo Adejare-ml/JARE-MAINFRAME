@@ -10,8 +10,9 @@ import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import { summarizeMonth } from '../lib/summary'
 import { upcomingDebts } from '../lib/debts'
 import {
-  TRANSACTION_LIST_COLUMNS,
-  TRANSACTION_SUMMARY_COLUMNS,
+  transactionListColumns,
+  orderGoalsBySlot,
+  transactionSummaryColumns,
   startOfMonth,
   toDateOnly,
   NEEDS_REVIEW_FILTER,
@@ -58,7 +59,7 @@ export default function DailyHQ() {
           supabase.from('wallets').select('*'),
           supabase
             .from('transactions')
-            .select(TRANSACTION_LIST_COLUMNS)
+            .select(transactionListColumns())
             .order('transaction_date', { ascending: false })
             .order('created_at', { ascending: false })
             .limit(3),
@@ -72,15 +73,15 @@ export default function DailyHQ() {
             .in('key', ['low_balance_threshold', 'monthly_budget_target']),
           supabase
             .from('transactions')
-            .select(TRANSACTION_SUMMARY_COLUMNS)
+            .select(transactionSummaryColumns())
             .gte('transaction_date', startOfMonth()),
-          supabase
-            .from('goals')
-            .select('*')
-            .eq('period', 'daily')
-            .eq('target_date', todayDate)
-            .order('slot', { ascending: true, nullsFirst: false })
-            .order('created_at', { ascending: true }),
+          orderGoalsBySlot(
+            supabase
+              .from('goals')
+              .select('*')
+              .eq('period', 'daily')
+              .eq('target_date', todayDate),
+          ),
           supabase.from('debts').select('*').eq('settled', false),
         ])
 

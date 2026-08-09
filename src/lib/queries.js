@@ -1,9 +1,10 @@
 import { walletSource } from './sync/wallets.js'
+import { hasColumn } from './schema.js'
 
 /**
  * Shared Supabase query helpers for transactions.
  *
- * Two things every list query here gets right, which `select('*')` did not:
+ * Three things every list query here gets right, which `select('*')` did not:
  *
  * 1. `raw_email` is never selected. It holds bank email bodies, and pulling it
  *    into a list view means every page load drags kilobytes per row over a
@@ -11,10 +12,22 @@ import { walletSource } from './sync/wallets.js'
  * 2. Rows are bounded and filtered in Postgres, not in the browser. Fetching
  *    the whole table and calling `.filter()` on it is invisible at 13 rows and
  *    painful at 5,000.
+ * 3. Columns that arrive with a migration are dropped from the list when the
+ *    database has not caught up. This is not hypothetical tidiness: naming one
+ *    such column unconditionally is what took Daily HQ, Budget and the Ledger
+ *    down together. See src/lib/schema.js.
  */
 
-/** Everything a list or summary view needs. Deliberately excludes raw_email. */
-export const TRANSACTION_LIST_COLUMNS = [
+/**
+ * Columns a list view wants but only gets after a migration has been run.
+ * Every entry must also appear in GATED_COLUMNS in schema.js, which is what
+ * maps it to the file the user has to run.
+ */
+const GATED_LIST_COLUMNS = {
+  explanation: 'transactions.explanation',
+}
+
+const BASE_LIST_COLUMNS = [
   'id',
   'type',
   'amount',
@@ -34,12 +47,49 @@ export const TRANSACTION_LIST_COLUMNS = [
   'confidence',
   'reviewed',
   'created_at',
-].join(', ')
+]
+
+const BASE_SUMMARY_COLUMNS = ['id', 'type', 'amount', 'category', 'wallet_id', 'transaction_date']
+
+/** Drop any column the database does not have yet. */
+function available(columns) {
+  return columns.filter((c) => !GATED_LIST_COLUMNS[c] || hasColumn(GATED_LIST_COLUMNS[c])).join(', ')
+}
+
+/**
+ * Order a goals query by slot, but only if `slot` exists.
+ *
+ * Same trap as the transaction column list, in a different shape: ordering by a
+ * column the database does not have is a 42703 that takes the whole page down.
+ * Without 003 the goals still load, just in creation order -- which is what the
+ * app did before slots existed.
+ *
+ * @param {object} query - a supabase query builder on `goals`
+ */
+export function orderGoalsBySlot(query) {
+  const ordered = hasColumn('goals.slot')
+    ? query.order('slot', { ascending: true, nullsFirst: false })
+    : query
+  return ordered.order('created_at', { ascending: true })
+}
+
+/**
+ * Everything a list or summary view needs. Deliberately excludes raw_email.
+ *
+ * A function rather than a constant because the answer depends on the live
+ * schema, which is not known until the probe runs. Call it at query time, not
+ * at module scope.
+ */
+export function transactionListColumns() {
+  return available(BASE_LIST_COLUMNS)
+}
 
 /** Just enough to add up. `category` is here because the month totals must
  *  exclude transfer categories (Savings Transfer, Cash Withdrawal, Cash
  *  Received) -- without it, moving money to PiggyVest reads as spending it. */
-export const TRANSACTION_SUMMARY_COLUMNS = 'id, type, amount, category, wallet_id, transaction_date'
+export function transactionSummaryColumns() {
+  return available(BASE_SUMMARY_COLUMNS)
+}
 
 export const PAGE_SIZE = 50
 

@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
-  TRANSACTION_LIST_COLUMNS,
-  TRANSACTION_SUMMARY_COLUMNS,
+  transactionListColumns,
+  transactionSummaryColumns,
+  orderGoalsBySlot,
   toDateOnly,
   startOfMonth,
   daysAgo,
@@ -9,6 +10,7 @@ import {
   buildFilterOptions,
   needsReview,
 } from '../src/lib/queries.js'
+import { setSchemaCapabilities, resetSchemaCapabilities } from '../src/lib/schema.js'
 
 /** Minimal stand-in for a Supabase query builder that records what was called. */
 function fakeQuery() {
@@ -32,20 +34,20 @@ describe('column lists', () => {
   // raw_email holds full bank email bodies. Selecting it into a list view means
   // dragging kilobytes per row over mobile data to render a number and a label.
   it('never include raw_email', () => {
-    expect(TRANSACTION_LIST_COLUMNS).not.toContain('raw_email')
-    expect(TRANSACTION_SUMMARY_COLUMNS).not.toContain('raw_email')
+    expect(transactionListColumns()).not.toContain('raw_email')
+    expect(transactionSummaryColumns()).not.toContain('raw_email')
   })
 
   it('include the fields the list view renders', () => {
     for (const col of ['id', 'type', 'amount', 'category', 'description', 'transaction_date', 'reviewed']) {
-      expect(TRANSACTION_LIST_COLUMNS).toContain(col)
+      expect(transactionListColumns()).toContain(col)
     }
   })
 
   it('keep the summary list to what totals need', () => {
-    expect(TRANSACTION_SUMMARY_COLUMNS).toContain('amount')
-    expect(TRANSACTION_SUMMARY_COLUMNS).toContain('type')
-    expect(TRANSACTION_SUMMARY_COLUMNS).not.toContain('description')
+    expect(transactionSummaryColumns()).toContain('amount')
+    expect(transactionSummaryColumns()).toContain('type')
+    expect(transactionSummaryColumns()).not.toContain('description')
   })
 })
 
@@ -183,5 +185,27 @@ describe('buildFilterOptions', () => {
 
   it('handles a missing wallet list', () => {
     expect(buildFilterOptions().length).toBeGreaterThan(0)
+  })
+})
+
+describe('orderGoalsBySlot', () => {
+  it('orders by slot when migration 003 has run', () => {
+    const q = fakeQuery()
+    orderGoalsBySlot(q)
+    expect(q.calls).toEqual([
+      { method: 'order', args: ['slot', { ascending: true, nullsFirst: false }] },
+      { method: 'order', args: ['created_at', { ascending: true }] },
+    ])
+  })
+
+  it('falls back to creation order when slot is missing', () => {
+    // Ordering by a column the database does not have is a 42703, and on Daily
+    // HQ that error is inside the aggregate check -- it would take the whole
+    // page down over the ordering of three text boxes.
+    setSchemaCapabilities(['goals.slot'])
+    const q = fakeQuery()
+    orderGoalsBySlot(q)
+    expect(q.calls).toEqual([{ method: 'order', args: ['created_at', { ascending: true }] }])
+    resetSchemaCapabilities()
   })
 })

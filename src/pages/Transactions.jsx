@@ -7,7 +7,7 @@ import { toast } from '../lib/toast'
 import ErrorState from '../components/ui/ErrorState'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import {
-  TRANSACTION_LIST_COLUMNS,
+  transactionListColumns,
   PAGE_SIZE,
   applyTransactionFilter,
   buildFilterOptions,
@@ -54,7 +54,7 @@ export default function Transactions() {
     async (from, size, currentWallets) => {
       let query = supabase
         .from('transactions')
-        .select(TRANSACTION_LIST_COLUMNS)
+        .select(transactionListColumns())
         .order('transaction_date', { ascending: false })
         .order('created_at', { ascending: false })
         // One extra row, purely to know whether a "Load more" button belongs

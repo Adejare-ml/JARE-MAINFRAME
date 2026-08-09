@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
+import { useSchemaCheck } from './hooks/useSchemaCheck'
 import ErrorBoundary from './components/ErrorBoundary'
 import Layout from './components/layout/Layout'
 import Login from './pages/Login'
@@ -14,8 +15,11 @@ import Repairs from './pages/Repairs'
 
 function App() {
   const { session, loading, signIn, signOut } = useAuth()
+  // Runs alongside the session restore, so the two waits overlap and no page
+  // can query before we know which columns exist.
+  const { checking, pending } = useSchemaCheck()
 
-  if (loading) {
+  if (loading || checking) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -31,7 +35,7 @@ function App() {
   }
 
   return (
-    <Layout onSignOut={signOut}>
+    <Layout onSignOut={signOut} pendingMigrations={pending}>
       <ErrorBoundary>
         <Routes>
         <Route path="/" element={<DailyHQ />} />

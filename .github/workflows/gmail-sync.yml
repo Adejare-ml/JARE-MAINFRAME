@@ -7,6 +7,10 @@ on:
     - cron: '0 7,9,13,17 * * *'
   workflow_dispatch:   # manual trigger button
 
+permissions:
+  contents: read
+  issues: write   # so a failed run can tell someone
+
 jobs:
   sync:
     runs-on: ubuntu-latest
@@ -32,3 +36,59 @@ jobs:
           OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL }}
           NVIDIA_BASE_URL: ${{ vars.NVIDIA_BASE_URL }}
           NVIDIA_MODEL: ${{ vars.NVIDIA_MODEL }}
+
+      # A silent cron is a cron you find out about days late. This sync failed
+      # on two consecutive scheduled runs and nothing said so -- it surfaced
+      # only because the app broke for an unrelated reason on the same morning.
+      #
+      # One issue, reopened and commented on, rather than a new one every four
+      # hours: an inbox with six identical issues gets muted, which puts you
+      # back where you started.
+      - name: Report failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = 'Gmail sync is failing'
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+            const body = [
+              `The scheduled Gmail sync failed at ${new Date().toISOString()}.`,
+              '',
+              `Run: ${runUrl}`,
+              '',
+              'Common causes, most likely first:',
+              '- `invalid_grant` — the Google refresh token expired or was revoked.',
+              '  Re-run `scripts/get-refresh-token.mjs` and update the',
+              '  `GOOGLE_REFRESH_TOKEN` secret. If it recurs weekly, set the OAuth',
+              '  consent screen to "In production" — refresh tokens issued by an app',
+              '  in "Testing" status expire after 7 days.',
+              '- A column error — a migration in `supabase/migrations/` has not been run.',
+              '- A missing secret — check the env block in the run log for a blank value.',
+            ].join('\n')
+
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'all',
+              labels: 'sync-failure',
+              per_page: 10,
+            })
+
+            const open = existing.data.find(i => i.title === title)
+            if (open) {
+              if (open.state === 'closed') {
+                await github.rest.issues.update({
+                  owner: context.repo.owner, repo: context.repo.repo,
+                  issue_number: open.number, state: 'open',
+                })
+              }
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: open.number, body,
+              })
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner, repo: context.repo.repo,
+                title, body, labels: ['sync-failure'],
+              })
+            }
