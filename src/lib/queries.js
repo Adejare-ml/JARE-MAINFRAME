@@ -20,10 +20,18 @@ import { hasColumn } from './schema.js'
 
 /**
  * Columns a list view wants but only gets after a migration has been run.
- * Every entry must also appear in GATED_COLUMNS in schema.js, which is what
- * maps it to the file the user has to run.
+ *
+ * Every value here must also be a key in GATED_COLUMNS in schema.js, which is
+ * what maps it to the file the user has to run -- and, more importantly, what
+ * the startup probe actually asks the database about. A column listed here and
+ * missing there is silently inert: the probe never checks it, `hasColumn`
+ * always answers true, and the query goes out naming a column that may not
+ * exist. That drift happened once with `voided` and would have reproduced the
+ * outage; a test in tests/schema.test.js now fails if the two disagree.
+ *
+ * Exported for that test.
  */
-const GATED_LIST_COLUMNS = {
+export const GATED_LIST_COLUMNS = {
   explanation: 'transactions.explanation',
   voided: 'transactions.voided',
 }

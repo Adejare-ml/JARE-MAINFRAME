@@ -25,6 +25,7 @@
  */
 export const GATED_COLUMNS = {
   'transactions.explanation': '005_llm_categorization.sql',
+  'transactions.voided': '006_transaction_void.sql',
   'goals.slot': '003_goal_slots.sql',
 }
 
