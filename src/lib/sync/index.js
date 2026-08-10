@@ -35,6 +35,8 @@ export {
 
 export { nextCursor } from './cursor.js'
 
+export { FailureLedger, MAX_ATTEMPTS } from './failures.js'
+
 export {
   directionFromBalance,
   hasReliableDirection,
