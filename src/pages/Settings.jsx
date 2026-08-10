@@ -359,23 +359,20 @@ export default function Settings() {
 
   const isConnected = gmailStatus === 'connected'
 
-  // Compute dynamic sender list for display
-  const dynamicSenders = wallets
-    .filter(w => w.alert_sender && w.is_active !== false)
-    .map(w => ({ name: w.name, sender: w.alert_sender }))
-
-  const defaultSenders = [
-    { name: 'GTBank', sender: 'GeNS@gtbank.com' },
-    { name: 'OPay', sender: 'no-reply@opay-nigeria.com' },
-  ]
-
-  // Merge: show wallet senders first, then add defaults if not already covered
-  const allSenders = [...dynamicSenders]
-  for (const ds of defaultSenders) {
-    if (!allSenders.some(s => s.sender.toLowerCase() === ds.sender.toLowerCase())) {
-      allSenders.push(ds)
-    }
-  }
+  // Exactly the predicate buildWalletIndex uses to decide which senders the
+  // sync will search, so this list is the sync's list rather than a second
+  // opinion about it.
+  //
+  // This used to merge in a hardcoded [GTBank, OPay] pair whenever those two
+  // addresses were absent, which meant the panel headed "Auto-synced senders"
+  // named both of them at all times -- including the weeks when neither wallet
+  // had `alert_sender` set and the sync was searching Stanbic alone. The one
+  // screen you would open to ask "is Opay being watched?" answered from a
+  // constant. A list of what is configured has to be able to be empty,
+  // otherwise it is decoration.
+  const allSenders = wallets
+    .filter((w) => w.alert_sender && w.is_active !== false)
+    .map((w) => ({ name: w.name, sender: w.alert_sender }))
 
   return (
     <div className="space-y-6 pb-8 max-w-2xl mx-auto">
@@ -486,15 +483,22 @@ export default function Settings() {
               {/* Auto-synced Senders (dynamic from wallets) */}
               <div className="pt-3 border-t border-white/5">
                 <p className="text-xs text-muted font-semibold mb-2">Auto-synced senders:</p>
-                <ul className="text-xs text-muted-dim space-y-1 font-mono pl-2">
-                  {allSenders.map((s, i) => (
-                    <li key={i} className="flex items-center gap-2">
-                      <span className="text-accent">•</span>
-                      <span>{s.sender}</span>
-                      <span className="text-muted-dim text-[10px] font-sans">({s.name})</span>
-                    </li>
-                  ))}
-                </ul>
+                {allSenders.length === 0 ? (
+                  <p className="text-xs text-yellow-400 pl-2">
+                    None. No active wallet has an alert sender, so the scheduled sync has
+                    nothing to search and will import nothing. Add one below.
+                  </p>
+                ) : (
+                  <ul className="text-xs text-muted-dim space-y-1 font-mono pl-2">
+                    {allSenders.map((s) => (
+                      <li key={s.sender} className="flex items-center gap-2">
+                        <span className="text-accent">•</span>
+                        <span>{s.sender}</span>
+                        <span className="text-muted-dim text-[10px] font-sans">({s.name})</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             </div>
           </section>
