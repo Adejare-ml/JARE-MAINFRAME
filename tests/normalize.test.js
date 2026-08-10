@@ -4,6 +4,7 @@ import {
   extractJsonObject,
   isValidDate,
   RAW_EMAIL_MAX_CHARS,
+  VALID_CONFIDENCE,
 } from '../src/lib/sync/normalize.js'
 
 const valid = {
@@ -15,6 +16,36 @@ const valid = {
   transaction_time: '10:30:09',
   confidence: 'HIGH',
 }
+
+describe('confidence matches what the database will accept', () => {
+  // `transactions_confidence_check` in the live schema permits HIGH and LOW.
+  // This list is the last gate before an insert, so any value it blesses is a
+  // value Postgres is asked to store. When it listed MEDIUM as well, a sync run
+  // found 32 emails and inserted zero -- every row rejected with a 23514, under
+  // a report that read "Synced 0 new transactions", which is also what a run
+  // that legitimately finds nothing prints.
+  it('permits exactly the two values the check constraint allows', () => {
+    expect(VALID_CONFIDENCE).toEqual(['HIGH', 'LOW'])
+  })
+
+  it('coerces MEDIUM to LOW rather than passing it to the database', () => {
+    const result = validateParsedTransaction({ ...valid, confidence: 'MEDIUM' })
+    expect(result.ok).toBe(true)
+    expect(result.value.confidence).toBe('LOW')
+  })
+
+  it.each([['HIGH'], ['LOW'], ['high'], ['low']])('keeps %s', (confidence) => {
+    const result = validateParsedTransaction({ ...valid, confidence })
+    expect(result.value.confidence).toBe(confidence.toUpperCase())
+  })
+
+  it('never emits a value outside the whitelist, whatever it is handed', () => {
+    for (const junk of ['MAYBE', '', null, undefined, 42, 'HIGHEST']) {
+      const result = validateParsedTransaction({ ...valid, confidence: junk })
+      expect(VALID_CONFIDENCE).toContain(result.value.confidence)
+    }
+  })
+})
 
 describe('validateParsedTransaction', () => {
   it('passes a well-formed transaction through', () => {

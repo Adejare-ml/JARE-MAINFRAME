@@ -9,7 +9,20 @@
 import { ALL_CATEGORIES } from '../constants.js'
 
 export const VALID_TYPES = ['debit', 'credit']
-export const VALID_CONFIDENCE = ['HIGH', 'MEDIUM', 'LOW']
+
+// Two values, because the database allows two. `transactions_confidence_check`
+// in the live schema accepts HIGH and LOW, every producer in this codebase
+// emits one of those (combineConfidence is even typed `'HIGH'|'LOW'`), and the
+// review queue is a boolean question -- is this settled or does a human need to
+// look.
+//
+// This list read ['HIGH', 'MEDIUM', 'LOW'] until a sync run found 32 emails and
+// inserted none of them, every row bouncing off that constraint with a 23514.
+// The guard below exists precisely to stop an invalid value reaching Postgres,
+// and it passed MEDIUM straight through because this array said MEDIUM was
+// fine. A whitelist that disagrees with the schema is worse than no whitelist:
+// it fails in the one place you are not looking, having reported success.
+export const VALID_CONFIDENCE = ['HIGH', 'LOW']
 
 /** Full email bodies carry balances and account fragments and bloat every
  *  unfiltered select. Keep just enough to eyeball a mis-parse. */
