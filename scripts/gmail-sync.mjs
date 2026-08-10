@@ -35,6 +35,7 @@ import {
   combineConfidence,
   chunk,
   MAX_CORRECTION_EXAMPLES,
+  FailureLedger,
 } from '../src/lib/sync/index.js'
 import { extractTransaction, categorizeBatch, hasAnyProvider, LLM_CONFIG } from './llm.mjs'
 
@@ -87,6 +88,10 @@ const stats = {
   needsReview: 0,
   walletsUpdated: new Set(),
   truncated: false,
+  // Messages that exhausted their retries this run and were let past the
+  // cursor. Reported loudly: this is the one outcome where the sync stops
+  // trying to import something, so it must never be inferred from a silence.
+  gaveUp: [],
   warnings: [],
   errors: [],
 }
@@ -362,12 +367,52 @@ async function run() {
   let oldestFailed = null
   let loopFailed = false
 
+  // How many times each message has already failed, from previous runs. Loaded
+  // before the cursor helpers because they close over it -- a message that has
+  // exhausted its retries is let past the watermark rather than pinning it.
+  //
+  // A missing table degrades to the old behaviour (retry forever) rather than
+  // failing the run: migration 008 may not have been applied yet, and refusing
+  // to sync over a bookkeeping table would be a worse outage than the leak it
+  // fixes.
+  const ledger = await loadFailureLedger(supabase)
+
   const markProcessed = (at) => {
     if (at && (!newestProcessed || at > newestProcessed)) newestProcessed = at
   }
   const markFailed = (at) => {
     loopFailed = true
     if (at && (!oldestFailed || at < oldestFailed)) oldestFailed = at
+  }
+
+  /**
+   * A retryable failure: hold the cursor for it, unless it has now failed often
+   * enough that holding the cursor is costing more than the message is worth.
+   *
+   * Giving up is not the same as losing the transaction. The message stays in
+   * Gmail, the row is recorded in sync_failures with its date and error, and
+   * the run report names it. What stops is the re-reading -- which is the whole
+   * expense, and which was buying nothing on the sixth identical attempt.
+   */
+  const holdOrGiveUp = (messageId, at, reason) => {
+    if (!messageId) {
+      // No id to count against, so this cannot be bounded. Hold, as before.
+      markFailed(at)
+      return
+    }
+
+    const { attempts, giveUp } = ledger.recordFailure(messageId, {
+      reason,
+      date: at,
+      source: null,
+    })
+
+    if (giveUp) {
+      stats.gaveUp.push({ messageId, date: at, reason, attempts })
+      markProcessed(at)
+    } else {
+      markFailed(at)
+    }
   }
 
   // ── Phase 1: fetch every message body ──
@@ -435,7 +480,7 @@ async function run() {
         // bank sending from a second domain. Hold the cursor: adding the wallet
         // in Settings should be enough to pick these up on the next run.
         stats.unmatchedSenders.add(senderEmail || '(no From header)')
-        markFailed(messageDate)
+        holdOrGiveUp(msgId, messageDate, `no wallet claims ${senderEmail || 'this sender'}`)
         continue
       }
 
@@ -456,9 +501,12 @@ async function run() {
 
       if (!parsed) {
         // A transient LLM outage looks exactly like this, so hold the cursor
-        // and try again next run rather than losing the transaction.
+        // and try again next run rather than losing the transaction -- but only
+        // for a bounded number of runs. Two Opay alerts that no model could read
+        // held the watermark at a fixed date indefinitely, and every run after
+        // them re-read a window that grew with the calendar.
         stats.parseFailures++
-        markFailed(messageDate)
+        holdOrGiveUp(msgId, messageDate, 'no parser or model could read this email')
         continue
       }
 
@@ -500,12 +548,18 @@ async function run() {
         pending.push({ txn, wallet, directionConfidence: parsed.directionConfidence })
       }
 
+      // Handled cleanly. Drop any failure history: an outage that has since
+      // resolved should leave no trace, or the table fills with problems that
+      // no longer exist and stops being worth reading.
+      ledger.recordSuccess(msgData.id)
       markProcessed(messageDate)
     } catch (msgErr) {
       stats.errors.push(`Message ${msgData?.id || 'unknown'}: ${msgErr.message}`)
-      markFailed(messageDate)
+      holdOrGiveUp(msgData?.id, messageDate, msgErr.message)
     }
   }
+
+  await flushFailureLedger(supabase, ledger)
 
   await categorizeInserted(supabase, pending, corrections)
 
@@ -722,6 +776,61 @@ async function applyBalances(supabase, latestBalances, wallets) {
 }
 
 /**
+ * Load the per-message failure counts that let the cursor give up eventually.
+ *
+ * Degrades to an empty ledger -- meaning "retry forever", the behaviour before
+ * migration 008 -- if the table is not there. That is the honest fallback: an
+ * un-applied migration should cost efficiency, not transactions.
+ */
+async function loadFailureLedger(supabase) {
+  const { data, error } = await supabase
+    .from('sync_failures')
+    .select('message_id, attempts, source, message_date, last_error')
+
+  if (error) {
+    // 42P01 undefined_table, PGRST205 unknown table in the schema cache.
+    const missing =
+      error.code === '42P01' ||
+      error.code === 'PGRST205' ||
+      /relation .* does not exist|could not find the table/i.test(error.message || '')
+
+    if (missing) {
+      console.warn(
+        '⚠️  sync_failures table not found -- run migration 008. Failed messages ' +
+          'will be retried indefinitely and can pin last_sync.',
+      )
+    } else {
+      stats.warnings.push(`Could not read sync_failures: ${error.message}`)
+    }
+    return new FailureLedger([])
+  }
+
+  return new FailureLedger(data || [])
+}
+
+/**
+ * Write back what this run learned. Never fatal: a sync that imported real
+ * transactions must not be reported as failed because its bookkeeping did not
+ * save.
+ */
+async function flushFailureLedger(supabase, ledger) {
+  const writes = ledger.pendingWrites()
+  const deletes = ledger.pendingDeletes()
+
+  if (writes.length > 0) {
+    const { error } = await supabase
+      .from('sync_failures')
+      .upsert(writes, { onConflict: 'message_id' })
+    if (error) stats.warnings.push(`Could not record sync failures: ${error.message}`)
+  }
+
+  if (deletes.length > 0) {
+    const { error } = await supabase.from('sync_failures').delete().in('message_id', deletes)
+    if (error) stats.warnings.push(`Could not clear resolved sync failures: ${error.message}`)
+  }
+}
+
+/**
  * Move the Gmail watermark. The rule itself lives in src/lib/sync/cursor.js so
  * it can be tested; this only reports and writes.
  */
@@ -764,6 +873,7 @@ function printRunReport(startTime) {
   console.log(`  New transactions:    ${stats.newTransactions}`)
   console.log(`  Duplicates skipped:  ${stats.duplicatesSkipped}`)
   console.log(`  Parse failures:      ${stats.parseFailures}`)
+  console.log(`  Gave up on:          ${stats.gaveUp.length}`)
   console.log(`  Validation rejects:  ${stats.validationRejects}`)
   console.log(`  Wallets updated:     ${stats.walletsUpdated.size}`)
   console.log(`  Auto-accepted:       ${stats.autoAccepted}`)
@@ -788,6 +898,20 @@ function printRunReport(startTime) {
     console.log('  ── Senders with no wallet ──')
     for (const sender of stats.unmatchedSenders) console.log(`    ❔ ${sender}`)
     console.log('     Add these in Settings → Banks & Wallets to capture them.')
+  }
+
+  // The one outcome where the sync stops trying to import a real email, so it
+  // is named rather than counted. Each of these is a transaction that will not
+  // appear in the ledger unless it is logged by hand.
+  if (stats.gaveUp.length > 0) {
+    console.log('  ── Gave up after repeated failures ──')
+    for (const g of stats.gaveUp) {
+      console.log(`    🛑 ${g.date || 'unknown date'} (${g.attempts} attempts): ${g.reason}`)
+      console.log(`       https://mail.google.com/mail/u/0/#all/${g.messageId}`)
+    }
+    console.log('     These no longer hold last_sync back. Log them manually if')
+    console.log('     they matter, or fix the parser and delete their rows from')
+    console.log('     sync_failures to have them retried.')
   }
 
   if (stats.warnings.length > 0) {
