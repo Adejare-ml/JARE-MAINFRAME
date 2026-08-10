@@ -197,7 +197,20 @@ async function parseEmail(senderDomain, body, source, strategy, chain, walletId)
       // Inference, not a stated label -- so balance movement below still gets
       // first refusal on the direction.
       direction_source: 'llm',
-      confidence: 'MEDIUM',
+      // LOW, not MEDIUM. This is the value the row is *born* with, moments
+      // before categorization overwrites it via combineConfidence -- which
+      // returns only 'HIGH' or 'LOW'. So did every other producer in the
+      // codebase; 'MEDIUM' was a third value nothing generated and nothing
+      // read, and `transactions_confidence_check` in the live schema rejects
+      // it outright.
+      //
+      // The cost of that one word: every LLM-parsed email ever fetched failed
+      // to insert. Thirty-two in a single run, each with the same 23514, while
+      // the report printed a cheerful "Synced 0 new transactions" -- because a
+      // sync that finds nothing and a sync whose every insert bounces both end
+      // at zero. Rules-parsed wallets were unaffected, which is why Stanbic
+      // imported for months and GTBank and Opay never once did.
+      confidence: 'LOW',
       raw_email: body,
     }
   }
