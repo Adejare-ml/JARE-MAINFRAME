@@ -177,6 +177,52 @@ export function daysAgo(days, date = new Date()) {
   return toDateOnly(d)
 }
 
+/**
+ * Monday of the week containing `date`, as YYYY-MM-DD.
+ *
+ * Monday because a week that starts on Sunday puts Saturday and Sunday in
+ * different weeks, and "how did my week go" is a question about Monday to
+ * Sunday. `getDay()` returns 0 for Sunday, which is the off-by-one that makes
+ * hand-rolled versions of this wrong for exactly one day in seven.
+ *
+ * Local time throughout, like every other date helper here: the UTC form made
+ * Daily HQ load *yesterday's* priorities between midnight and 1am Lagos.
+ *
+ * Note this is NOT what the "This Week" filter chip means. That one is
+ * `daysAgo(7)` -- a rolling window, which cannot support week-over-week
+ * comparison or carry-over because its boundaries move every time you look.
+ *
+ * @param {Date} [date]
+ * @returns {string}
+ */
+export function startOfWeek(date = new Date()) {
+  const d = new Date(date)
+  const daysSinceMonday = (d.getDay() + 6) % 7
+  d.setDate(d.getDate() - daysSinceMonday)
+  return toDateOnly(d)
+}
+
+/** Sunday of the week containing `date`, as YYYY-MM-DD. */
+export function endOfWeek(date = new Date()) {
+  const d = new Date(startOfWeek(date) + 'T00:00:00')
+  d.setDate(d.getDate() + 6)
+  return toDateOnly(d)
+}
+
+/** `weeks` weeks before the Monday of `date`'s week, as YYYY-MM-DD. */
+export function weeksAgo(weeks, date = new Date()) {
+  const d = new Date(startOfWeek(date) + 'T00:00:00')
+  d.setDate(d.getDate() - weeks * 7)
+  return toDateOnly(d)
+}
+
+/** Last day of the month containing `date`, as YYYY-MM-DD. */
+export function endOfMonth(date = new Date()) {
+  // Day 0 of the *next* month is the last day of this one, and it handles
+  // February and leap years without a table of month lengths.
+  return toDateOnly(new Date(date.getFullYear(), date.getMonth() + 1, 0))
+}
+
 /** Longest search term we send. Beyond this it is a paste, not a search. */
 const SEARCH_MAX = 60
 

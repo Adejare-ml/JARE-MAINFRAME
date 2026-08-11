@@ -27,6 +27,17 @@ export const GATED_COLUMNS = {
   'transactions.explanation': '005_llm_categorization.sql',
   'transactions.voided': '006_transaction_void.sql',
   'goals.slot': '003_goal_slots.sql',
+
+  // The cadence columns all arrive together in 009, so one missing means all
+  // missing. They are listed individually anyway: `hasColumn` answers per
+  // column, and a select list that drops `generated` while still asking for
+  // `metric` is the same 42703 by another name.
+  'goals.parent_id': '009_goal_cadence.sql',
+  'goals.generated': '009_goal_cadence.sql',
+  'goals.target_amount': '009_goal_cadence.sql',
+  'goals.metric': '009_goal_cadence.sql',
+  'goals.metric_category': '009_goal_cadence.sql',
+  'goals.metric_wallet_id': '009_goal_cadence.sql',
 }
 
 /**
