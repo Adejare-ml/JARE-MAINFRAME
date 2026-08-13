@@ -168,15 +168,28 @@ describe('pace', () => {
 })
 
 describe('decomposeMonthly', () => {
+  // target_date is the period the goal is FOR -- the 1st for a monthly goal --
+  // not a free-form deadline. The deadline is derived as the end of that month,
+  // which is what keeps (period, target_date, slot) meaning "one set of goals
+  // per period" across all three cadences.
   const monthly = {
     id: 'm1',
     period: 'monthly',
     title: 'Laptop fund',
-    target_date: AUG_END,
+    target_date: '2026-08-01',
     metric: 'save_at_least',
     target_amount: 150000,
     metric_category: 'Savings',
   }
+
+  it('derives its deadline from the month it is anchored to', () => {
+    // Same answer whichever day of August the goal is anchored to, because the
+    // month's end is what matters -- storing a deadline separately would let
+    // the two disagree.
+    const fromFirst = decomposeMonthly(monthly, { done: 0 }, '2026-08-10')
+    const fromTenth = decomposeMonthly({ ...monthly, target_date: '2026-08-10' }, { done: 0 }, '2026-08-10')
+    expect(fromFirst.target_amount).toBe(fromTenth.target_amount)
+  })
 
   it('produces one weekly goal for the current week', () => {
     const row = decomposeMonthly(monthly, { done: 0 }, '2026-08-10')

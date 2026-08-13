@@ -171,7 +171,14 @@ export function decomposeMonthly(goal, progress, today = toDateOnly(new Date()))
   if (!goal || goal.period !== 'monthly') return null
   if (goal.metric === 'manual') return null
 
-  const deadline = goal.target_date || endOfMonth(new Date(`${today}T00:00:00`))
+  // `target_date` is the period this goal is FOR, never a free-form deadline --
+  // the 1st for a monthly goal, the Monday for a weekly one, the day itself for
+  // a daily one. Keeping that uniform is what lets the unique index on
+  // (period, target_date, slot) mean "one set of goals per period", and it is
+  // why the deadline is derived here rather than stored: a monthly goal is due
+  // when its month ends.
+  const anchor = goal.target_date || today
+  const deadline = endOfMonth(new Date(`${anchor}T00:00:00`))
   const weeks = weeksRemaining(deadline, today)
   const { remaining, perPeriod } = pace(goal, progress, weeks)
 

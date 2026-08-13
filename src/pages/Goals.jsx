@@ -2,10 +2,20 @@ import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { toast } from '../lib/toast'
-import { formatDate } from '../lib/formatters'
+import { formatDate, formatNaira } from '../lib/formatters'
 import ErrorState from '../components/ui/ErrorState'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
-import { toDateOnly, daysAgo, orderGoalsBySlot } from '../lib/queries'
+import {
+  toDateOnly,
+  daysAgo,
+  orderGoalsBySlot,
+  startOfMonth,
+  excludeVoided,
+  transactionSummaryColumns,
+} from '../lib/queries'
+import { hasColumn } from '../lib/schema'
+import GoalForm from '../components/goals/GoalForm'
+import TargetCard from '../components/goals/TargetCard'
 
 /**
  * Your daily priorities, read back.
@@ -20,26 +30,69 @@ const HISTORY_DAYS = 30
 
 export default function Goals() {
   const [goals, setGoals] = useState([])
+  const [targets, setTargets] = useState([])
+  const [monthTransactions, setMonthTransactions] = useState([])
+  const [wallets, setWallets] = useState([])
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState(null)
   const [togglingId, setTogglingId] = useState(null)
 
+  const [showForm, setShowForm] = useState(false)
+  const [editing, setEditing] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
+
   const today = toDateOnly(new Date())
+
+  // Migration 009 brought the cadence columns. Without it this page still
+  // works -- the daily list below is untouched by 009 -- but a goal cannot be
+  // created, because the insert would name columns the database does not have
+  // and come back PGRST204.
+  const canPlan = hasColumn('goals.metric')
 
   const fetchGoals = useCallback(async () => {
     try {
       setPageError(null)
-      const { data, error } = await orderGoalsBySlot(
+
+      // `period` predates 009 and is not gated, so filtering on it is safe on
+      // any database. Filtering or ordering on `metric` would not be: that is a
+      // 42703 on a database behind the app, which is the outage schema.js
+      // exists to prevent.
+      const [dailyRes, targetRes, txnRes, walletRes] = await Promise.all([
+        orderGoalsBySlot(
+          supabase
+            .from('goals')
+            .select('*')
+            .eq('period', 'daily')
+            .gte('target_date', daysAgo(HISTORY_DAYS))
+            .order('target_date', { ascending: false }),
+        ),
         supabase
           .from('goals')
           .select('*')
-          .eq('period', 'daily')
-          .gte('target_date', daysAgo(HISTORY_DAYS))
-          .order('target_date', { ascending: false }),
-      )
+          .in('period', ['monthly', 'weekly'])
+          .gte('target_date', startOfMonth())
+          .order('period', { ascending: true }),
+        // Scoped to the month: a monthly goal needs the whole month and a
+        // weekly one a subset of it, so one fetch serves both.
+        excludeVoided(
+          supabase
+            .from('transactions')
+            .select(transactionSummaryColumns())
+            .gte('transaction_date', startOfMonth()),
+        ),
+        supabase.from('wallets').select('id, name, is_active'),
+      ])
 
-      if (error) throw error
-      setGoals(data || [])
+      if (dailyRes.error) throw dailyRes.error
+      if (targetRes.error) throw targetRes.error
+      if (txnRes.error) throw txnRes.error
+      if (walletRes.error) throw walletRes.error
+
+      setGoals(dailyRes.data || [])
+      setTargets(targetRes.data || [])
+      setMonthTransactions(txnRes.data || [])
+      setWallets(walletRes.data || [])
     } catch (err) {
       console.error('Error loading goals:', err)
       setPageError(err.message || 'Failed to load')
@@ -47,6 +100,69 @@ export default function Goals() {
       setLoading(false)
     }
   }, [])
+
+  /**
+   * Save a goal. Hand-created goals take a slot in the 0-9 range: migration
+   * 009 reserves 10+ for generated rows, and a NULL slot is invisible to
+   * `on conflict (period, target_date, slot)` -- so it would look saved while
+   * every later write inserted another copy beside it.
+   */
+  const handleSave = async (payload) => {
+    setSaving(true)
+    try {
+      const { id, ...fields } = payload
+
+      let row = fields
+      if (!id) {
+        const taken = new Set(
+          targets
+            .filter((t) => t.period === fields.period && t.target_date === fields.target_date)
+            .map((t) => t.slot),
+        )
+        let slot = 0
+        while (slot < 10 && taken.has(slot)) slot++
+        if (slot >= 10) {
+          toast.error('That period already holds ten goals — finish or remove one first')
+          return
+        }
+        row = { ...fields, slot }
+      }
+
+      const { error } = id
+        ? await supabase.from('goals').update(row).eq('id', id)
+        : await supabase.from('goals').insert(row)
+      if (error) throw error
+
+      toast.success(id ? 'Updated ✓' : 'Goal set ✓')
+      setShowForm(false)
+      setEditing(null)
+      fetchGoals()
+    } catch (err) {
+      console.error('Error saving goal:', err)
+      toast.error('Failed to save: ' + (err.message || 'check connection'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async (id, confirmed = false) => {
+    if (!confirmed) {
+      setConfirmDeleteId(id)
+      return
+    }
+    try {
+      // 009's parent_id cascade takes the generated children with it, so this
+      // cannot leave tasks in tomorrow's list with nothing to explain them.
+      const { error } = await supabase.from('goals').delete().eq('id', id)
+      if (error) throw error
+      toast.success('Deleted ✓')
+      setConfirmDeleteId(null)
+      fetchGoals()
+    } catch (err) {
+      console.error('Error deleting goal:', err)
+      toast.error('Could not delete: ' + (err.message || 'check connection'))
+    }
+  }
 
   useEffect(() => {
     fetchGoals()
@@ -108,12 +224,80 @@ export default function Goals() {
 
   return (
     <div className="space-y-6 pb-6">
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold text-white">Goals 🎯</h1>
-        <p className="text-muted text-sm mt-0.5">
-          Your daily priorities, set each morning on Daily HQ
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-white">Goals 🎯</h1>
+          <p className="text-muted text-sm mt-0.5">
+            What you are aiming at, and today's priorities
+          </p>
+        </div>
+        {canPlan && (
+          <button
+            onClick={() => {
+              setEditing(null)
+              setShowForm(true)
+            }}
+            className="px-4 py-2.5 bg-accent text-black rounded-xl text-sm font-bold min-h-[48px] flex-shrink-0"
+          >
+            + New
+          </button>
+        )}
       </div>
+
+      {/* Monthly and weekly targets */}
+      <section className="bg-card rounded-3xl p-6 border border-white/5 space-y-4">
+        <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">
+          Targets
+        </h2>
+
+        {!canPlan ? (
+          <p className="text-xs text-yellow-400 leading-relaxed">
+            Monthly and weekly goals need{' '}
+            <code className="font-mono text-yellow-200">
+              supabase/migrations/009_goal_cadence.sql
+            </code>
+            . Run it in the Supabase SQL editor and this section starts working. Today's
+            priorities below are unaffected.
+          </p>
+        ) : targets.length === 0 ? (
+          <div className="text-center py-6 space-y-2">
+            <span className="text-3xl block" aria-hidden="true">🎯</span>
+            <p className="text-sm text-muted max-w-xs mx-auto">
+              Set a target for the month and it will work out what that means each week
+              and each day — and read its own progress from your transactions.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {targets.map((goal) => (
+              <TargetCard
+                key={goal.id}
+                goal={goal}
+                transactions={monthTransactions}
+                today={today}
+                onEdit={(g) => {
+                  setEditing(g)
+                  setShowForm(true)
+                }}
+                onDelete={handleDelete}
+                confirmingDelete={confirmDeleteId === goal.id}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+
+      <GoalForm
+        open={showForm}
+        editing={editing}
+        wallets={wallets}
+        saving={saving}
+        onClose={() => {
+          setShowForm(false)
+          setEditing(null)
+        }}
+        onSave={handleSave}
+      />
 
       {/* Stats — real counts, not the zeros that used to be hardcoded here */}
       <div className="grid grid-cols-3 gap-3">
