@@ -239,75 +239,90 @@ export function decomposeWeekly(goal, progress, today = toDateOnly(new Date())) 
   }
 }
 
-/**
- * Assign distinct slots to rows headed for the same (period, target_date), and
- * cap how many land on one day.
- *
- * The unique index is on (period, target_date, slot), so two derived tasks both
- * claiming GENERATED_SLOT_BASE would make the second upsert overwrite the
- * first -- silently, leaving one goal with no task and no error anywhere.
- */
-export function assignSlots(rows) {
-  const perKey = new Map()
-  const out = []
-
-  for (const row of rows) {
-    if (!row) continue
-    const key = `${row.period}|${row.target_date}`
-    const used = perKey.get(key) || 0
-    if (used >= MAX_GENERATED_PER_DAY) continue
-    perKey.set(key, used + 1)
-    out.push({ ...row, slot: GENERATED_SLOT_BASE + used })
-  }
-
-  return out
+/** Identity of a derived row: which goal produced it, for which period. */
+function lineage(row) {
+  return `${row.parent_id}|${row.period}|${row.target_date}`
 }
 
 /**
- * Which generated rows may be written, given what is already in the database.
+ * Which generated rows may be written, given what is already stored.
  *
- * The rule that matters: **never overwrite a human decision.** A generated task
- * that has been ticked, or whose title has been edited, is left exactly as it
- * is. Regeneration is for rows nobody has touched.
+ * Two rules carry this function.
  *
- * This follows the precedent already in DailyHQ's priority upsert, which omits
- * `completed` from its payload on purpose so that saving an edit cannot untick
- * a box the user already ticked.
+ * **Never overwrite a human decision.** A derived task that has been ticked, or
+ * that turns out to be sitting in a row a person typed, is left exactly as it
+ * is. Regeneration is only ever for rows nobody has touched. This follows the
+ * precedent in DailyHQ's priority upsert, which omits `completed` from its
+ * payload on purpose so that saving an edit cannot untick a box.
  *
- * @param {Array<object>} candidates - freshly derived rows
- * @param {Array<object>} existing - rows already stored for those keys
- * @returns {{write: Array<object>, kept: Array<object>}}
+ * **Identity is the parent, not the slot.** Matching on
+ * (period, target_date, slot) looked fine and was not: slots are handed out by
+ * position, so adding one goal renumbers the rest, and the task derived from
+ * goal A lands on the row derived from goal B -- rewriting it, with no error
+ * anywhere. A goal produces at most one task per period, so the parent is what
+ * makes a row the same row, and the stored slot is reused rather than
+ * recomputed.
+ *
+ * @param {Array<object>} candidates - freshly derived rows, each with parent_id
+ * @param {Array<object>} existing - stored rows for the same periods
+ * @returns {{write: Array<object>, kept: Array<object>, unchanged: Array<object>}}
  */
 export function reconcileGenerated(candidates, existing = []) {
-  const byKey = new Map(
-    (existing || []).map((row) => [`${row.period}|${row.target_date}|${row.slot}`, row]),
-  )
+  const byLineage = new Map()
+  const takenSlots = new Map()
+
+  for (const row of existing || []) {
+    if (!row) continue
+    if (row.parent_id) byLineage.set(lineage(row), row)
+
+    const key = `${row.period}|${row.target_date}`
+    if (!takenSlots.has(key)) takenSlots.set(key, new Set())
+    if (row.slot != null) takenSlots.get(key).add(row.slot)
+  }
 
   const write = []
   const kept = []
+  const unchanged = []
+  const perPeriod = new Map()
 
   for (const row of candidates || []) {
-    const found = byKey.get(`${row.period}|${row.target_date}|${row.slot}`)
+    if (!row) continue
+    const found = byLineage.get(lineage(row))
 
-    if (!found) {
-      write.push(row)
+    if (found) {
+      // A person typed here, or ticked it. Either way it is theirs now.
+      if (found.generated === false || found.completed) {
+        kept.push(found)
+        continue
+      }
+
+      // Nothing about it has changed, so writing it would be a round trip that
+      // updates a row to the value it already holds.
+      if (found.title === row.title && Number(found.target_amount) === Number(row.target_amount)) {
+        unchanged.push(found)
+        continue
+      }
+
+      write.push({ ...row, slot: found.slot, id: found.id })
       continue
     }
 
-    // Someone typed here. Generated rows live at slot 10+, but a hand-typed row
-    // could still be sitting there from before the constraint existed.
-    if (found.generated === false) {
-      kept.push(found)
-      continue
-    }
+    // A parent seen for the first time: give it the lowest free generated slot,
+    // and cap how many derived tasks may land on one day. Beyond the cap it is
+    // a wall, not a plan.
+    const key = `${row.period}|${row.target_date}`
+    const made = perPeriod.get(key) || 0
+    if (made >= MAX_GENERATED_PER_DAY) continue
 
-    if (found.completed) {
-      kept.push(found)
-      continue
-    }
+    const taken = takenSlots.get(key) || new Set()
+    let slot = GENERATED_SLOT_BASE
+    while (taken.has(slot)) slot++
 
-    write.push({ ...row, id: found.id })
+    taken.add(slot)
+    takenSlots.set(key, taken)
+    perPeriod.set(key, made + 1)
+    write.push({ ...row, slot })
   }
 
-  return { write, kept }
+  return { write, kept, unchanged }
 }

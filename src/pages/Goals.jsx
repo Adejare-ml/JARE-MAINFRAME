@@ -14,6 +14,7 @@ import {
   transactionSummaryColumns,
 } from '../lib/queries'
 import { hasColumn } from '../lib/schema'
+import { goalProgress } from '../lib/planning'
 import GoalForm from '../components/goals/GoalForm'
 import TargetCard from '../components/goals/TargetCard'
 
@@ -209,10 +210,27 @@ export default function Goals() {
   }
 
   const todayGoals = goals.filter(g => g.target_date === today)
+  const todayTransactions = monthTransactions.filter(t => t.transaction_date === today)
   const history = goals.filter(g => g.target_date !== today)
 
-  const completedCount = goals.filter(g => g.completed).length
-  const completionRate = goals.length > 0 ? Math.round((completedCount / goals.length) * 100) : null
+  // Today's count can be exact, because today's transactions are loaded: a
+  // measured task is done when the ledger says so, a typed one when it is
+  // ticked.
+  const doneToday = todayGoals.filter(g => {
+    const p = goalProgress(g, todayTransactions)
+    return p.measured ? p.met : g.completed
+  }).length
+
+  // The 30-day figures cannot be. Doneness for a measured task lives in the
+  // transactions of the day it belongs to, and only this month's are loaded --
+  // so counting those rows would report every one of them as missed. They are
+  // excluded instead, and the tiles measure what they can actually see: the
+  // tasks whose completion is a stored decision.
+  const tickable = goals.filter(g => !g.metric || g.metric === 'manual')
+  const completedCount = tickable.filter(g => g.completed).length
+  const completionRate = tickable.length > 0
+    ? Math.round((completedCount / tickable.length) * 100)
+    : null
 
   // Days where every priority set was ticked off.
   const byDate = new Map()
@@ -220,7 +238,10 @@ export default function Goals() {
     if (!byDate.has(g.target_date)) byDate.set(g.target_date, [])
     byDate.get(g.target_date).push(g)
   }
-  const perfectDays = [...byDate.values()].filter(day => day.every(g => g.completed)).length
+  const perfectDays = [...byDate.values()].filter(
+    day => day.some(g => !g.metric || g.metric === 'manual')
+      && day.every(g => (!g.metric || g.metric === 'manual') ? g.completed : true),
+  ).length
 
   return (
     <div className="space-y-6 pb-6">
@@ -304,7 +325,7 @@ export default function Goals() {
         <div className="bg-card rounded-2xl p-4 border border-white/5">
           <p className="text-[10px] text-muted uppercase tracking-wider mb-1">Done today</p>
           <p className="text-xl font-bold text-white tabular-nums">
-            {todayGoals.filter(g => g.completed).length}
+            {doneToday}
             <span className="text-muted text-sm font-normal">/{todayGoals.length || 0}</span>
           </p>
         </div>
@@ -336,30 +357,65 @@ export default function Goals() {
           </div>
         ) : (
           <ul className="space-y-2">
-            {todayGoals.map(goal => (
-              <li key={goal.id}>
-                <button
-                  onClick={() => toggleComplete(goal)}
-                  disabled={togglingId === goal.id}
-                  aria-pressed={goal.completed}
-                  className="w-full flex items-center gap-3 p-3 rounded-2xl bg-background/50 border border-white/5 hover:border-white/10 transition-all min-h-[48px] text-left disabled:opacity-60"
-                >
-                  <span
-                    className={`w-6 h-6 rounded-lg border-2 flex-shrink-0 flex items-center justify-center text-xs font-bold transition-colors ${
-                      goal.completed
-                        ? 'bg-accent border-accent text-black'
-                        : 'border-white/20 text-transparent'
-                    }`}
-                    aria-hidden="true"
+            {todayGoals.map(goal => {
+              // A measured task is done when the ledger says so, not when a box
+              // is ticked -- and it is never given a checkbox, because ticking
+              // one would claim something the transactions do not support, and
+              // the generator reads `completed` as "a person touched this" and
+              // would stop updating the figure.
+              const progress = goalProgress(goal, todayTransactions)
+
+              if (progress.measured) {
+                return (
+                  <li
+                    key={goal.id}
+                    className="flex items-center gap-3 p-3 rounded-2xl bg-background/50 border border-white/5 min-h-[48px]"
                   >
-                    ✓
-                  </span>
-                  <span className={`text-sm ${goal.completed ? 'text-muted line-through' : 'text-white'}`}>
-                    {goal.title}
-                  </span>
-                </button>
-              </li>
-            ))}
+                    <span
+                      className={`w-6 h-6 rounded-lg flex-shrink-0 flex items-center justify-center text-xs font-bold ${
+                        progress.met ? 'bg-accent text-black' : 'border-2 border-white/20 text-transparent'
+                      }`}
+                      aria-hidden="true"
+                    >
+                      ✓
+                    </span>
+                    <span className="min-w-0">
+                      <span className={`block text-sm ${progress.met ? 'text-muted line-through' : 'text-white'}`}>
+                        {goal.title}
+                      </span>
+                      <span className="block text-[10px] text-muted-dim">
+                        {formatNaira(progress.done)} of {formatNaira(progress.target)} · {progress.source}
+                      </span>
+                    </span>
+                  </li>
+                )
+              }
+
+              return (
+                <li key={goal.id}>
+                  <button
+                    onClick={() => toggleComplete(goal)}
+                    disabled={togglingId === goal.id}
+                    aria-pressed={goal.completed}
+                    className="w-full flex items-center gap-3 p-3 rounded-2xl bg-background/50 border border-white/5 hover:border-white/10 transition-all min-h-[48px] text-left disabled:opacity-60"
+                  >
+                    <span
+                      className={`w-6 h-6 rounded-lg border-2 flex-shrink-0 flex items-center justify-center text-xs font-bold transition-colors ${
+                        goal.completed
+                          ? 'bg-accent border-accent text-black'
+                          : 'border-white/20 text-transparent'
+                      }`}
+                      aria-hidden="true"
+                    >
+                      ✓
+                    </span>
+                    <span className={`text-sm ${goal.completed ? 'text-muted line-through' : 'text-white'}`}>
+                      {goal.title}
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
           </ul>
         )}
       </section>

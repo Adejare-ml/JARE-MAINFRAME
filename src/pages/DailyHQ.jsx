@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { formatNaira, formatDate } from '../lib/formatters'
@@ -9,6 +9,7 @@ import ErrorState from '../components/ui/ErrorState'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import { summarizeMonth } from '../lib/summary'
 import { upcomingDebts } from '../lib/debts'
+import { generateTasks } from '../lib/generateTasks'
 import {
   transactionListColumns,
   orderGoalsBySlot,
@@ -136,10 +137,47 @@ export default function DailyHQ() {
     fetchDailyData()
   }, [fetchDailyData])
 
+  // Derive today's tasks from the goals that imply them.
+  //
+  // This is the one write in the app that happens without the user asking for
+  // it, which is the point -- these are the tasks you did not have to type --
+  // but it is kept on a short leash:
+  //
+  // Its own effect, keyed on the date, and deliberately NOT chained to
+  // `fetchDailyData`. That callback is re-fired by the realtime subscription on
+  // every burst of transactions, so hanging generation off it would regenerate
+  // forty times while a Gmail sync lands.
+  //
+  // The ref guard is for StrictMode, which double-invokes effects in
+  // development; generation is idempotent so a second run is harmless, but it
+  // is a wasted round trip.
+  const generatedFor = useRef(null)
+  useEffect(() => {
+    if (generatedFor.current === todayDate) return
+    generatedFor.current = todayDate
+
+    let cancelled = false
+    generateTasks(supabase, { today: todayDate }).then((result) => {
+      // Only refetch if something actually landed. An unchanged day writes
+      // nothing, and refetching to display identical rows is the churn this
+      // whole reconcile exists to avoid.
+      if (!cancelled && result.written > 0) fetchDailyData()
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [todayDate, fetchDailyData])
+
   // This page runs five queries per refresh, so an undebounced subscription
   // meant a sync inserting 40 rows fired 200 round trips to render the same
   // three transactions.
-  useRealtimeRefresh(['wallets', 'transactions'], fetchDailyData, { channelPrefix: 'hq' })
+  //
+  // `goals` is watched too: priorities are ticked here and generated tasks are
+  // written by the effect above, so without it a change made on another device
+  // -- or by the generator itself -- would sit invisible until a navigation.
+  // The 'hq' prefix keeps the topic `hq:goals`, distinct from the Goals page's
+  // `goals:goals`, since two channels sharing a topic collide.
+  useRealtimeRefresh(['wallets', 'transactions', 'goals'], fetchDailyData, { channelPrefix: 'hq' })
 
   const handleSavePriorities = async (e) => {
     e.preventDefault()

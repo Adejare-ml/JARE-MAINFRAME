@@ -6,7 +6,7 @@ import {
   pace,
   decomposeMonthly,
   decomposeWeekly,
-  assignSlots,
+
   reconcileGenerated,
   GENERATED_SLOT_BASE,
   MAX_GENERATED_PER_DAY,
@@ -265,89 +265,123 @@ describe('decomposeWeekly', () => {
   })
 })
 
-describe('assignSlots', () => {
-  it('gives rows on the same day distinct slots', () => {
-    // Two derived tasks both claiming slot 10 would make the second upsert
-    // overwrite the first -- silently, leaving one goal with no task at all.
-    const rows = assignSlots([
-      { period: 'daily', target_date: '2026-08-10', title: 'a' },
-      { period: 'daily', target_date: '2026-08-10', title: 'b' },
-    ])
-    expect(rows.map((r) => r.slot)).toEqual([GENERATED_SLOT_BASE, GENERATED_SLOT_BASE + 1])
-  })
-
-  it('never enters the hand-typed range', () => {
-    const rows = assignSlots([{ period: 'daily', target_date: '2026-08-10' }])
-    expect(rows[0].slot).toBeGreaterThanOrEqual(GENERATED_SLOT_BASE)
-  })
-
-  it('restarts numbering on a different day', () => {
-    const rows = assignSlots([
-      { period: 'daily', target_date: '2026-08-10' },
-      { period: 'daily', target_date: '2026-08-11' },
-    ])
-    expect(rows.map((r) => r.slot)).toEqual([GENERATED_SLOT_BASE, GENERATED_SLOT_BASE])
-  })
-
-  it('caps how many land on one day', () => {
-    const many = Array.from({ length: 12 }, () => ({ period: 'daily', target_date: '2026-08-10' }))
-    expect(assignSlots(many)).toHaveLength(MAX_GENERATED_PER_DAY)
-  })
-
-  it('drops nulls from decompose rather than crashing on them', () => {
-    expect(assignSlots([null, { period: 'daily', target_date: '2026-08-10' }, null])).toHaveLength(1)
-  })
-})
-
 describe('reconcileGenerated', () => {
+  /** A task derived from weekly goal `w1`, for Monday 10 August. */
   const candidate = {
+    parent_id: 'w1',
     period: 'daily',
     target_date: '2026-08-10',
-    slot: 10,
     title: 'Set aside ₦5,000 today',
+    target_amount: 5000,
     generated: true,
   }
 
-  it('writes a task that does not exist yet', () => {
+  const stored = (over = {}) => ({ ...candidate, id: 'g1', slot: 10, completed: false, ...over })
+
+  it('writes a task that does not exist yet, in the generated slot range', () => {
     const { write } = reconcileGenerated([candidate], [])
     expect(write).toHaveLength(1)
+    expect(write[0].slot).toBeGreaterThanOrEqual(GENERATED_SLOT_BASE)
   })
 
-  it('updates an untouched generated task in place', () => {
-    // Same row, new number -- it must update rather than insert a duplicate.
-    const { write } = reconcileGenerated([candidate], [
-      { ...candidate, id: 'g1', title: 'Set aside ₦4,000 today', completed: false },
-    ])
+  it('updates an untouched task in place when its number changes', () => {
+    const { write } = reconcileGenerated([candidate], [stored({ title: 'Set aside ₦4,000 today', target_amount: 4000 })])
     expect(write).toHaveLength(1)
     expect(write[0].id).toBe('g1')
+    expect(write[0].slot).toBe(10)
+  })
+
+  it('writes nothing when nothing has changed', () => {
+    // Generation runs on every page load. Without this, opening Daily HQ twice
+    // costs a write that sets a row to the value it already holds.
+    const { write, unchanged } = reconcileGenerated([candidate], [stored()])
+    expect(write).toHaveLength(0)
+    expect(unchanged).toHaveLength(1)
   })
 
   it('never unticks a completed task', () => {
-    // The rule that matters. This mirrors DailyHQ's priority upsert, which
-    // omits `completed` on purpose so an edit cannot untick a ticked box.
-    const { write, kept } = reconcileGenerated([candidate], [
-      { ...candidate, id: 'g1', completed: true },
-    ])
+    // Mirrors DailyHQ's priority upsert, which omits `completed` on purpose so
+    // an edit cannot untick a ticked box.
+    const { write, kept } = reconcileGenerated([candidate], [stored({ completed: true, target_amount: 1 })])
     expect(write).toHaveLength(0)
     expect(kept).toHaveLength(1)
   })
 
   it('never overwrites something a person typed', () => {
     const { write, kept } = reconcileGenerated([candidate], [
-      { ...candidate, id: 'g1', generated: false, title: 'Buy mum a gift', completed: false },
+      stored({ generated: false, title: 'Buy mum a gift' }),
     ])
     expect(write).toHaveLength(0)
     expect(kept[0].title).toBe('Buy mum a gift')
   })
 
+  // The bug this rewrite exists for. Keying on (period, target_date, slot) meant
+  // slots were handed out by array position, so adding one goal renumbered the
+  // rest and goal A's task landed on the row belonging to goal B -- rewriting
+  // it, with no error anywhere.
+  it('keeps each goal on its own row when another goal appears', () => {
+    const fromW1 = { ...candidate, parent_id: 'w1', title: 'W1 task' }
+    const fromW2 = { ...candidate, parent_id: 'w2', title: 'W2 task' }
+
+    const first = reconcileGenerated([fromW1], [])
+    const w1Slot = first.write[0].slot
+
+    // Next run, a second goal exists and sorts ahead of it.
+    const second = reconcileGenerated(
+      [fromW2, fromW1],
+      [{ ...fromW1, id: 'g1', slot: w1Slot, completed: false }],
+    )
+
+    const w1Row = second.write.concat(second.unchanged).find((r) => r.parent_id === 'w1')
+    const w2Row = second.write.find((r) => r.parent_id === 'w2')
+
+    expect(w1Row.slot).toBe(w1Slot)
+    expect(w2Row.slot).not.toBe(w1Slot)
+  })
+
+  it('gives two new goals on the same day distinct slots', () => {
+    const { write } = reconcileGenerated(
+      [
+        { ...candidate, parent_id: 'a' },
+        { ...candidate, parent_id: 'b' },
+      ],
+      [],
+    )
+    expect(new Set(write.map((r) => r.slot)).size).toBe(2)
+  })
+
+  it('steps over a slot already taken by a hand-typed row', () => {
+    const { write } = reconcileGenerated([candidate], [
+      { period: 'daily', target_date: '2026-08-10', slot: 10, generated: false, title: 'mine' },
+    ])
+    expect(write[0].slot).toBeGreaterThan(10)
+  })
+
+  it('restarts numbering on a different day', () => {
+    const { write } = reconcileGenerated(
+      [
+        { ...candidate, parent_id: 'a', target_date: '2026-08-10' },
+        { ...candidate, parent_id: 'b', target_date: '2026-08-11' },
+      ],
+      [],
+    )
+    expect(write.map((r) => r.slot)).toEqual([GENERATED_SLOT_BASE, GENERATED_SLOT_BASE])
+  })
+
+  it('caps how many derived tasks land on one day', () => {
+    const many = Array.from({ length: 12 }, (_, i) => ({ ...candidate, parent_id: `p${i}` }))
+    expect(reconcileGenerated(many, []).write).toHaveLength(MAX_GENERATED_PER_DAY)
+  })
+
   it('treats a different day as a different row', () => {
     const { write } = reconcileGenerated([candidate], [
-      { ...candidate, target_date: '2026-08-09', id: 'g1', completed: true },
+      stored({ target_date: '2026-08-09', completed: true }),
     ])
     expect(write).toHaveLength(1)
   })
 
-  it('handles no existing rows at all', () => {
+  it('survives nulls and missing arguments', () => {
+    expect(reconcileGenerated([null, candidate], [null]).write).toHaveLength(1)
     expect(reconcileGenerated([candidate]).write).toHaveLength(1)
     expect(reconcileGenerated([], []).write).toHaveLength(0)
   })
