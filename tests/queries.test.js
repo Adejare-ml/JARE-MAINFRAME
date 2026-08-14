@@ -5,7 +5,11 @@ import {
   orderGoalsBySlot,
   toDateOnly,
   startOfMonth,
+  endOfMonth,
   daysAgo,
+  startOfWeek,
+  endOfWeek,
+  weeksAgo,
   applyTransactionFilter,
   buildFilterOptions,
   needsReview,
@@ -75,6 +79,69 @@ describe('date helpers', () => {
   it('counts back across a month boundary', () => {
     expect(daysAgo(7, new Date(2026, 7, 3))).toBe('2026-07-27')
     expect(daysAgo(1, new Date(2026, 0, 1))).toBe('2025-12-31')
+  })
+
+  it('finds the last day of the month, including February', () => {
+    expect(endOfMonth(new Date(2026, 7, 10))).toBe('2026-08-31')
+    expect(endOfMonth(new Date(2026, 3, 10))).toBe('2026-04-30')
+    // 2028 is a leap year; 2026 is not. A hardcoded month-length table gets
+    // exactly this wrong once every four years.
+    expect(endOfMonth(new Date(2026, 1, 10))).toBe('2026-02-28')
+    expect(endOfMonth(new Date(2028, 1, 10))).toBe('2028-02-29')
+  })
+})
+
+describe('calendar weeks', () => {
+  // 2026-08-10 is a Monday, so that week runs 10th to 16th August.
+  it('starts the week on Monday', () => {
+    expect(startOfWeek(new Date(2026, 7, 10))).toBe('2026-08-10')
+    expect(startOfWeek(new Date(2026, 7, 13))).toBe('2026-08-10')
+    expect(endOfWeek(new Date(2026, 7, 13))).toBe('2026-08-16')
+  })
+
+  // The off-by-one that makes hand-rolled versions wrong one day in seven:
+  // getDay() returns 0 for Sunday, so a naive `date - getDay()` throws Sunday
+  // forward into the week that has not started yet.
+  it('puts Sunday at the END of its week, not the start of the next', () => {
+    const sunday = new Date(2026, 7, 16)
+    expect(sunday.getDay()).toBe(0)
+    expect(startOfWeek(sunday)).toBe('2026-08-10')
+    expect(endOfWeek(sunday)).toBe('2026-08-16')
+  })
+
+  it('handles a week spanning a month boundary', () => {
+    // Mon 31 Aug 2026 through Sun 6 Sep 2026.
+    expect(startOfWeek(new Date(2026, 8, 2))).toBe('2026-08-31')
+    expect(endOfWeek(new Date(2026, 8, 2))).toBe('2026-09-06')
+  })
+
+  it('handles a week spanning a year boundary', () => {
+    // Mon 28 Dec 2026 through Sun 3 Jan 2027.
+    expect(startOfWeek(new Date(2026, 11, 30))).toBe('2026-12-28')
+    expect(endOfWeek(new Date(2026, 11, 30))).toBe('2027-01-03')
+  })
+
+  // Same bug class as toDateOnly's: the UTC form of a Lagos date is the
+  // previous day between midnight and 1am, which once made Daily HQ load
+  // yesterday's priorities.
+  it('uses local time at both ends of the day', () => {
+    expect(startOfWeek(new Date(2026, 7, 13, 0, 30))).toBe('2026-08-10')
+    expect(startOfWeek(new Date(2026, 7, 13, 23, 30))).toBe('2026-08-10')
+  })
+
+  it('steps back whole weeks from the Monday', () => {
+    expect(weeksAgo(1, new Date(2026, 7, 13))).toBe('2026-08-03')
+    expect(weeksAgo(4, new Date(2026, 7, 13))).toBe('2026-07-13')
+    expect(weeksAgo(0, new Date(2026, 7, 13))).toBe('2026-08-10')
+  })
+
+  it('always spans exactly seven days', () => {
+    // Every day of one week must agree on where that week begins and ends.
+    for (let day = 10; day <= 16; day++) {
+      const d = new Date(2026, 7, day)
+      expect(startOfWeek(d)).toBe('2026-08-10')
+      expect(endOfWeek(d)).toBe('2026-08-16')
+    }
   })
 })
 

@@ -24,3 +24,18 @@ jobs:
           node --check scripts/gmail-sync.mjs
           node --check scripts/llm.mjs
           node --check scripts/test-llm.mjs
+
+      # `node --check` parses syntax without resolving imports, so it cannot see
+      # a bad module path. That gap hid a missing `.js` in summary.js which made
+      # planning.js -- and everything importing it -- unloadable outside Vite,
+      # while every test still passed because Vitest resolves extensionless paths.
+      #
+      # These are the modules scripts/ imports, or is about to: they have to load
+      # under plain Node, not just under the bundler.
+      - name: Check shared modules load under Node
+        run: |
+          for m in planning queries summary schema constants formatters debts; do
+            node --input-type=module -e "await import('./src/lib/$m.js')" \
+              || { echo "::error::src/lib/$m.js does not load under Node"; exit 1; }
+          done
+          node --input-type=module -e "await import('./src/lib/sync/index.js')"

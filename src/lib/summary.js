@@ -1,4 +1,8 @@
-import { ALL_CATEGORIES } from './constants'
+// Extension required. Vite and Vitest resolve `./constants`; Node's ESM loader
+// does not, and this one missing `.js` made every module that imports this file
+// -- including planning.js -- unloadable outside the bundler. CI did not catch
+// it because `node --check` parses syntax without resolving imports.
+import { ALL_CATEGORIES } from './constants.js'
 
 /**
  * Month money math, shared by Budget and Daily HQ.
