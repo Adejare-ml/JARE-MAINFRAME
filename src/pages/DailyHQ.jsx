@@ -10,33 +10,48 @@ import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import { summarizeMonth } from '../lib/summary'
 import { upcomingDebts } from '../lib/debts'
 import { generateTasks } from '../lib/generateTasks'
+import { isTaskDone, GENERATED_SLOT_BASE } from '../lib/planning'
+import TodayList from '../components/daily/TodayList'
+import Yesterday from '../components/daily/Yesterday'
+import ActivityGrid from '../components/daily/ActivityGrid'
 import {
   transactionListColumns,
   orderGoalsBySlot,
   transactionSummaryColumns,
   startOfMonth,
   toDateOnly,
+  daysAgo,
   NEEDS_REVIEW_FILTER,
   excludeVoided,
 } from '../lib/queries'
 
+/** Days of history the activity grid needs: eight whole weeks plus slack for
+ *  whichever weekday today is. */
+const GRID_DAYS = 63
+
 export default function DailyHQ() {
   const [wallets, setWallets] = useState([])
   const [transactions, setTransactions] = useState([])
-  const [monthTransactions, setMonthTransactions] = useState([])
+  const [recentRows, setRecentRows] = useState([])
   const [debts, setDebts] = useState([])
-  const [priorities, setPriorities] = useState(['', '', ''])
+  // Every daily row in the grid window. Today's list, yesterday's count and the
+  // activity grid are all derived from this one array.
+  const [dailyTasks, setDailyTasks] = useState([])
+  const [togglingId, setTogglingId] = useState(null)
   const [unreviewedCount, setUnreviewedCount] = useState(0)
   const [warnThreshold, setWarnThreshold] = useState(10000)
   // Default until the user sets one in Settings; the bar hides at 0.
   const [budgetTarget, setBudgetTarget] = useState(85000)
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState(null)
-  const [savingPriorities, setSavingPriorities] = useState(false)
 
   // Local date: the UTC form flips at 1am Lagos, which made this page load and
   // save *yesterday's* priorities during that hour.
   const todayDate = toDateOnly(new Date())
+  const yesterdayDate = daysAgo(1)
+  // The transactions fetch has to reach back to whichever is earlier: the start
+  // of this month, or yesterday. On the 1st those differ.
+  const earliestNeeded = startOfMonth() < yesterdayDate ? startOfMonth() : yesterdayDate
   const fullDateStr = new Date().toLocaleDateString('en-GB', {
     weekday: 'long',
     day: 'numeric',
@@ -77,18 +92,26 @@ export default function DailyHQ() {
             .from('user_settings')
             .select('key, value')
             .in('key', ['low_balance_threshold', 'monthly_budget_target']),
+          // Widened to cover yesterday as well as the month. On the 1st those
+          // are different months, so the rows are split apart below rather than
+          // summed together -- folding last month's spending into this month's
+          // total is exactly the kind of quietly-wrong number this app keeps
+          // having to fix.
           excludeVoided(
             supabase
               .from('transactions')
               .select(transactionSummaryColumns())
-              .gte('transaction_date', startOfMonth()),
+              .gte('transaction_date', earliestNeeded),
           ),
+          // Eight weeks, not just today: the same rows feed today's list,
+          // yesterday's count and the activity grid, so one query serves all
+          // three rather than three queries serving one each.
           orderGoalsBySlot(
             supabase
               .from('goals')
               .select('*')
               .eq('period', 'daily')
-              .eq('target_date', todayDate),
+              .gte('target_date', daysAgo(GRID_DAYS)),
           ),
           supabase.from('debts').select('*').eq('settled', false),
         ])
@@ -108,7 +131,8 @@ export default function DailyHQ() {
       setWallets(walletsRes.data || [])
       setTransactions(recentRes.data || [])
       setUnreviewedCount(countRes.count || 0)
-      setMonthTransactions(monthRes.data || [])
+      setRecentRows(monthRes.data || [])
+      setDailyTasks(goalsRes.data || [])
 
       for (const row of settingsRes.data || []) {
         const parsed = parseFloat(row.value)
@@ -117,14 +141,6 @@ export default function DailyHQ() {
         if (row.key === 'monthly_budget_target') setBudgetTarget(parsed)
       }
 
-      // Place each goal in its own slot rather than by array position, so a
-      // gap (slot 0 and 2 filled, 1 cleared) does not shuffle them up.
-      const loaded = ['', '', '']
-      for (const g of goalsRes.data || []) {
-        const slot = Number.isInteger(g.slot) ? g.slot : loaded.findIndex(v => v === '')
-        if (slot >= 0 && slot < 3) loaded[slot] = g.title || ''
-      }
-      setPriorities(loaded)
     } catch (err) {
       console.error('Error fetching Daily HQ data:', err)
       setPageError(err.message || 'Failed to load')
@@ -179,62 +195,78 @@ export default function DailyHQ() {
   // `goals:goals`, since two channels sharing a topic collide.
   useRealtimeRefresh(['wallets', 'transactions', 'goals'], fetchDailyData, { channelPrefix: 'hq' })
 
-  const handleSavePriorities = async (e) => {
-    e.preventDefault()
-    setSavingPriorities(true)
-    try {
-      // Upsert by slot rather than delete-then-insert. The old version wiped
-      // the day before writing it back, so a dropped connection between the
-      // two erased the priorities while the screen still showed them -- and it
-      // reset `completed` on every save, so a ticked box never survived an
-      // edit. Note `completed` is absent from the payload on purpose: upsert
-      // must not overwrite a box the user already ticked.
-      const filled = priorities
-        .map((title, slot) => ({ title: title.trim(), slot }))
-        .filter(p => p.title !== '')
+  /**
+   * Tick a task. Optimistic, because a checkbox that waits for a round trip on
+   * mobile data feels broken; rolled back below if the write fails.
+   */
+  const toggleTask = async (task) => {
+    setTogglingId(task.id)
+    const next = !task.completed
+    setDailyTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, completed: next } : t)))
 
-      if (filled.length > 0) {
+    const { error } = await supabase.from('goals').update({ completed: next }).eq('id', task.id)
+
+    if (error) {
+      setDailyTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, completed: !next } : t)))
+      toast.error('Could not update: ' + error.message)
+    }
+    setTogglingId(null)
+  }
+
+  /**
+   * Write a task's title -- an edit when `task` is given, a new one when it is
+   * null.
+   *
+   * `completed` is absent from the payload on purpose, and has been since the
+   * upsert replaced a delete-then-insert: editing the words of a task must not
+   * untick a box you already ticked.
+   */
+  const saveTaskTitle = async (task, title) => {
+    try {
+      if (task) {
+        const { error } = await supabase.from('goals').update({ title }).eq('id', task.id)
+        if (error) throw error
+      } else {
+        // Lowest free slot below the generated range. 009 reserves 10+ for
+        // derived rows, so a hand-typed task can never land on one.
+        //
+        // Filtered from `dailyTasks` (state) rather than the derived
+        // `todayTasks`, which is declared below the early returns -- closing
+        // over it would put this handler one refactor away from a temporal
+        // dead zone ReferenceError.
+        const taken = new Set(
+          dailyTasks
+            .filter((t) => t.target_date === todayDate && t.slot != null)
+            .map((t) => t.slot),
+        )
+        let slot = 0
+        while (slot < GENERATED_SLOT_BASE && taken.has(slot)) slot++
+        if (slot >= GENERATED_SLOT_BASE) {
+          toast.error('That is ten priorities for one day — finish one first')
+          return
+        }
+
         const { error } = await supabase.from('goals').upsert(
-          filled.map(p => ({
-            title: p.title,
-            slot: p.slot,
-            period: 'daily',
-            target_date: todayDate,
-          })),
+          { title, slot, period: 'daily', target_date: todayDate },
           { onConflict: 'period,target_date,slot' },
         )
         if (error) throw error
       }
-
-      // Only slots the user actually cleared are removed.
-      const clearedSlots = priorities
-        .map((title, slot) => (title.trim() === '' ? slot : null))
-        .filter(slot => slot !== null)
-
-      if (clearedSlots.length > 0) {
-        const { error } = await supabase
-          .from('goals')
-          .delete()
-          .eq('period', 'daily')
-          .eq('target_date', todayDate)
-          .in('slot', clearedSlots)
-        if (error) throw error
-      }
-
-      toast.success('Priorities saved ✓')
       fetchDailyData()
     } catch (err) {
-      console.error('Error saving priorities:', err)
-      toast.error('Failed to save priorities: ' + (err.message || 'check connection'))
-    } finally {
-      setSavingPriorities(false)
+      console.error('Error saving priority:', err)
+      toast.error('Failed to save: ' + (err.message || 'check connection'))
     }
   }
 
-  const handlePriorityChange = (index, value) => {
-    const updated = [...priorities]
-    updated[index] = value
-    setPriorities(updated)
+  /** Clearing a task's text removes it, the gesture the old three-box form used. */
+  const deleteTask = async (task) => {
+    const { error } = await supabase.from('goals').delete().eq('id', task.id)
+    if (error) {
+      toast.error('Could not remove: ' + error.message)
+      return
+    }
+    fetchDailyData()
   }
 
   if (loading) {
@@ -279,6 +311,22 @@ export default function DailyHQ() {
   // query -- the headline card was three transactions divided by a hardcoded
   // 85000. Now: the real month query through the same tested math Budget uses,
   // transfers excluded, against a target set in Settings.
+  // One fetch, three windows. Splitting rather than summing keeps the month
+  // card exact on the 1st, when `earliestNeeded` reaches into last month.
+  const monthTransactions = recentRows.filter((t) => t.transaction_date >= startOfMonth())
+  const yesterdayTransactions = recentRows.filter((t) => t.transaction_date === yesterdayDate)
+  const todayTransactions = recentRows.filter((t) => t.transaction_date === todayDate)
+
+  const todayTasks = dailyTasks.filter((t) => t.target_date === todayDate)
+  const yesterdayTasks = dailyTasks.filter((t) => t.target_date === yesterdayDate)
+
+  // The grid and yesterday's count must judge a measured task by the ledger of
+  // ITS OWN day, not today's -- otherwise a task met last Tuesday reads as
+  // missed. Rows outside the transaction window have no evidence either way, so
+  // they fall back to the stored flag.
+  const doneOn = (task) =>
+    isTaskDone(task, recentRows.filter((t) => t.transaction_date === task.target_date))
+
   const liquidWalletIds = new Set(liquidWallets.map(w => w.id))
   const monthSummary = summarizeMonth(monthTransactions, liquidWalletIds)
   const totalSpent = monthSummary.spent
@@ -445,36 +493,38 @@ export default function DailyHQ() {
       </section>
 
       {/* TODAY'S PRIORITIES */}
+      {/* Today — the task list, typed and derived, tickable in place */}
       <section className="bg-card rounded-3xl p-6 border border-white/5 space-y-4">
-        <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">
-          Today's Priorities
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">Today</h2>
+          {todayTasks.length > 0 && (
+            <span className="text-[10px] text-muted tabular-nums">
+              {todayTasks.filter(doneOn).length}/{todayTasks.length} done
+            </span>
+          )}
+        </div>
 
-        <form onSubmit={handleSavePriorities} className="space-y-3">
-          {[0, 1, 2].map((index) => (
-            <div key={index} className="flex items-center gap-3">
-              <span className="text-xs font-bold text-accent w-4 text-center">{index + 1}.</span>
-              <input
-                type="text"
-                value={priorities[index]}
-                onChange={(e) => handlePriorityChange(index, e.target.value)}
-                placeholder={`Priority #${index + 1}...`}
-                className="flex-1 px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
-              />
-            </div>
-          ))}
-
-          <button
-            type="submit"
-            disabled={savingPriorities}
-            className="w-full py-3.5 bg-accent hover:bg-accent/90 text-black font-bold text-sm rounded-xl transition-all shadow-md shadow-accent/20 min-h-[48px] disabled:opacity-50"
-          >
-            {savingPriorities ? 'Saving...' : 'Save Priorities ✓'}
-          </button>
-        </form>
+        <TodayList
+          tasks={todayTasks}
+          transactions={todayTransactions}
+          busyId={togglingId}
+          onToggle={toggleTask}
+          onSaveTitle={saveTaskTitle}
+          onDelete={deleteTask}
+          canAdd={todayTasks.filter((t) => (t.slot ?? 0) < GENERATED_SLOT_BASE).length < GENERATED_SLOT_BASE}
+        />
       </section>
 
-      {/* RECENT TRANSACTIONS */}
+      <Yesterday
+        transactions={yesterdayTransactions}
+        tasks={yesterdayTasks}
+        isDone={doneOn}
+        liquidWalletIds={liquidWalletIds}
+      />
+
+      <ActivityGrid tasks={dailyTasks} isDone={doneOn} today={todayDate} />
+
+      {/* Recent Transactions */}
       <section className="bg-card rounded-3xl p-6 border border-white/5 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">
