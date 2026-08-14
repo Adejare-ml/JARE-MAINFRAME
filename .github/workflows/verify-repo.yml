@@ -1,0 +1,93 @@
+name: Verify Repo Goals
+
+on:
+  schedule:
+    # 22:30 Lagos = 21:30 UTC. Late enough that the day's work has landed,
+    # early enough that it is still the same day if something needs saying.
+    - cron: '30 21 * * *'
+  workflow_dispatch:   # manual trigger button
+
+permissions:
+  contents: read   # the script reads commits through the API, it does not push
+  issues: write    # so a failed run can tell someone
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - run: npm ci
+      - name: Verify repo goals
+        run: node scripts/verify-repo.mjs
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          # The token Actions issues for this run. It can read this repository's
+          # commits, which is the entire permission this needs -- no secret to
+          # create, rotate or leak.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Repository *variables*, not secrets: none of this is sensitive, and
+          # the point of putting them here is that verifying a second project,
+          # or moving timezone, is a settings change rather than a code change.
+          # Unset is fine -- the script falls back to this repository, every
+          # author, and Lagos.
+          VERIFY_REPO: ${{ vars.VERIFY_REPO }}
+          VERIFY_AUTHOR: ${{ vars.VERIFY_AUTHOR }}
+          VERIFY_TZ_OFFSET_MINUTES: ${{ vars.VERIFY_TZ_OFFSET_MINUTES }}
+          VERIFY_DAYS: ${{ vars.VERIFY_DAYS }}
+
+      # Same shape as the Gmail sync's failure step, and for the same reason: a
+      # silent cron is a cron you find out about days late. One issue, reopened
+      # and commented on, rather than a new one every night -- an inbox with six
+      # identical issues gets muted, which puts you back where you started.
+      - name: Report failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = 'Repo goal verification is failing'
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+            const body = [
+              `The scheduled repo verification failed at ${new Date().toISOString()}.`,
+              '',
+              `Run: ${runUrl}`,
+              '',
+              'Common causes, most likely first:',
+              '- A column error — `supabase/migrations/010_repo_goals.sql` has not been run.',
+              '- A 404 from GitHub — the `VERIFY_REPO` variable names a repository',
+              '  this run cannot see. Unset it to fall back to this one.',
+              '- A missing secret — check the env block in the run log for a blank value.',
+              '',
+              'While this is failing, repo goals show as *not checked yet* rather than',
+              'as missed. That is deliberate: an unverified day is not a failed one.',
+            ].join('\n')
+
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'all',
+              labels: 'sync-failure',
+              per_page: 10,
+            })
+
+            const open = existing.data.find(i => i.title === title)
+            if (open) {
+              if (open.state === 'closed') {
+                await github.rest.issues.update({
+                  owner: context.repo.owner, repo: context.repo.repo,
+                  issue_number: open.number, state: 'open',
+                })
+              }
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: open.number, body,
+              })
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner, repo: context.repo.repo,
+                title, body, labels: ['sync-failure'],
+              })
+            }

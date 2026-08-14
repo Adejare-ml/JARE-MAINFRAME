@@ -9,8 +9,10 @@ import {
   decomposeWeekly,
 
   reconcileGenerated,
+  periodWindow,
   GENERATED_SLOT_BASE,
   MAX_GENERATED_PER_DAY,
+  REPO_METRIC,
 } from '../src/lib/planning.js'
 
 /** August 2026: the 1st is a Saturday, the 10th a Monday, the 31st a Monday. */
@@ -425,5 +427,237 @@ describe('isTaskDone', () => {
   it('survives being handed nothing', () => {
     expect(isTaskDone(null)).toBe(false)
     expect(isTaskDone({})).toBe(false)
+  })
+})
+
+// ───────────────────────────────────────────────────────────────
+// Goals about code
+//
+// The money metrics compute their answer from transactions the browser is
+// already holding. A repo goal cannot: the browser has no GitHub credentials,
+// so a scheduled Action writes `evidence` and `verified_at` and this reads
+// them. That one difference is what every test below is about.
+// ───────────────────────────────────────────────────────────────
+
+const repoGoal = (over = {}) => ({
+  id: 'r1',
+  period: 'daily',
+  target_date: '2026-08-10',
+  title: 'Ship the planner',
+  metric: REPO_METRIC,
+  target_amount: 2,
+  ...over,
+})
+
+const checked = (counted, extra = {}) => ({
+  verified_at: '2026-08-10T21:30:00Z',
+  evidence: {
+    repo: 'Adejare-ml/JARE-MAINFRAME',
+    from: '2026-08-10',
+    to: '2026-08-10',
+    counted,
+    commits: Array.from({ length: counted }, (_, i) => ({ sha: `sha${i}`, message: `work ${i}` })),
+  },
+  ...extra,
+})
+
+describe('periodWindow', () => {
+  it('gives a daily goal the one day it is for', () => {
+    expect(periodWindow({ period: 'daily', target_date: '2026-08-10' })).toEqual({
+      from: '2026-08-10',
+      to: '2026-08-10',
+    })
+  })
+
+  it('gives a weekly goal Monday to Sunday', () => {
+    expect(periodWindow({ period: 'weekly', target_date: '2026-08-10' })).toEqual({
+      from: '2026-08-10',
+      to: '2026-08-16',
+    })
+  })
+
+  it('gives a monthly goal the whole month, from its anchor', () => {
+    // `target_date` is the 1st for a monthly goal, so this looks like a no-op --
+    // until a goal is anchored mid-month by hand, which is why it is derived
+    // rather than assumed.
+    expect(periodWindow({ period: 'monthly', target_date: '2026-08-01' })).toEqual({
+      from: '2026-08-01',
+      to: '2026-08-31',
+    })
+  })
+
+  it('does not stop a week at a month boundary', () => {
+    // Monday 31 August 2026 runs into September. A window that stopped at the
+    // month end would drop six days of a real week.
+    expect(periodWindow({ period: 'weekly', target_date: '2026-08-31' })).toEqual({
+      from: '2026-08-31',
+      to: '2026-09-06',
+    })
+  })
+
+  it('returns null rather than a window of NaN', () => {
+    expect(periodWindow(null)).toBe(null)
+    expect(periodWindow({ period: 'daily' })).toBe(null)
+    expect(periodWindow({ period: 'daily', target_date: 'whenever' })).toBe(null)
+  })
+})
+
+describe('goalProgress on a repo goal', () => {
+  it('reports nobody having looked as unchecked, not as zero done', () => {
+    // The distinction the whole stage turns on. A goal the verifier has not
+    // reached yet must not be drawn as a goal that was checked and failed --
+    // the same error as reading a sync run that imported nothing as an empty
+    // inbox.
+    const progress = goalProgress(repoGoal())
+    expect(progress.checked).toBe(false)
+    expect(progress.met).toBe(false)
+    expect(progress.source).toBe('not checked yet')
+  })
+
+  it('cannot be met on evidence nobody has verified', () => {
+    // Defensive, and deliberately so: a row carrying evidence with no
+    // `verified_at` is a half-written update, and treating it as authoritative
+    // would let a failed run report success.
+    const progress = goalProgress(repoGoal({ evidence: { counted: 99 } }))
+    expect(progress.met).toBe(false)
+  })
+
+  it('reports a checked-and-empty day as checked, with nothing found', () => {
+    const progress = goalProgress(repoGoal(checked(0)))
+    expect(progress.checked).toBe(true)
+    expect(progress.done).toBe(0)
+    expect(progress.met).toBe(false)
+  })
+
+  it('is met once the commits reach the target', () => {
+    const progress = goalProgress(repoGoal(checked(2)))
+    expect(progress.done).toBe(2)
+    expect(progress.met).toBe(true)
+    expect(progress.share).toBe(1)
+  })
+
+  it('names the repository it counted, so the figure can be traced', () => {
+    expect(goalProgress(repoGoal(checked(1))).source).toMatch(/Adejare-ml\/JARE-MAINFRAME/)
+  })
+
+  it('ignores transactions entirely', () => {
+    // Passed the same rows every other goal gets, because the caller does not
+    // branch. A repo goal that quietly counted a bank credit would be worse
+    // than one that counted nothing.
+    const withMoney = goalProgress(repoGoal(checked(1)), [
+      { type: 'credit', amount: 500000, category: 'Savings' },
+    ])
+    expect(withMoney.done).toBe(1)
+  })
+
+  it('survives junk in the evidence column', () => {
+    for (const evidence of [null, 'nonsense', {}, { counted: -4 }, { counted: 'three' }]) {
+      const progress = goalProgress(repoGoal({ verified_at: 'now', evidence }))
+      expect(progress.done).toBe(0)
+      expect(Number.isFinite(progress.share)).toBe(true)
+    }
+  })
+})
+
+describe('isTaskDone on a repo goal', () => {
+  it('lets a tick stand for work that left no commits', () => {
+    // Office work, a review, an afternoon of decisions -- none of it shows up
+    // in a repository, and a system that called that a failed day would teach
+    // you to stop trusting it.
+    expect(isTaskDone(repoGoal(checked(0, { completed: true })))).toBe(true)
+  })
+
+  it('is done on the evidence alone, with no tick', () => {
+    expect(isTaskDone(repoGoal(checked(2)))).toBe(true)
+  })
+
+  it('is not done when neither the repo nor you say so', () => {
+    expect(isTaskDone(repoGoal(checked(0)))).toBe(false)
+    expect(isTaskDone(repoGoal())).toBe(false)
+  })
+
+  it('does not extend that loophole to money', () => {
+    // The guard on the exception. A savings goal ticked by hand with no
+    // matching credit must still read as not done, or the goal and the ledger
+    // it is measured against would disagree.
+    const savings = {
+      metric: 'save_at_least',
+      target_amount: 5000,
+      metric_category: 'Savings',
+      completed: true,
+    }
+    expect(isTaskDone(savings, [])).toBe(false)
+  })
+})
+
+describe('decomposing a repo goal', () => {
+  const monthly = {
+    id: 'm1',
+    period: 'monthly',
+    target_date: '2026-08-01',
+    title: 'Ship the planner',
+    metric: REPO_METRIC,
+    target_amount: 40,
+  }
+
+  it('divides commits by the weeks left, exactly as it divides naira', () => {
+    // Nothing about the arithmetic is money-specific, which is the reason this
+    // stage could be built before the model-written plans of stage 8: the
+    // skeleton was already correct, only the unit and the wording differ.
+    const week = decomposeMonthly(monthly, { done: 0 }, '2026-08-10')
+    expect(week.target_amount).toBe(Math.ceil(40 / weeksRemaining(AUG_END, '2026-08-10')))
+    expect(week.metric).toBe(REPO_METRIC)
+  })
+
+  it('states the weekly figure in commits, not in naira', () => {
+    const week = decomposeMonthly(monthly, { done: 0 }, '2026-08-10')
+    expect(week.title).toMatch(/commits? toward Ship the planner this week/)
+    expect(week.title).not.toContain('₦')
+  })
+
+  it('states the daily figure in commits too', () => {
+    const day = decomposeWeekly(
+      { ...monthly, id: 'w1', period: 'weekly', target_date: '2026-08-10', target_amount: 10 },
+      { done: 0 },
+      '2026-08-10',
+    )
+    expect(day.title).toMatch(/^Ship \d+ commits? today$/)
+    expect(day.target_amount).toBe(2)
+  })
+
+  it('says "1 commit", not "1 commits"', () => {
+    const day = decomposeWeekly(
+      { ...monthly, id: 'w1', period: 'weekly', target_date: '2026-08-16', target_amount: 1 },
+      { done: 0 },
+      '2026-08-16',
+    )
+    expect(day.title).toBe('Ship 1 commit today')
+  })
+
+  it('carries no category or wallet down the chain', () => {
+    // 010's amended check accepts a repo goal without either. A derived row
+    // that picked one up from somewhere would be measured against a category on
+    // a card about code.
+    const week = decomposeMonthly(monthly, { done: 0 }, '2026-08-10')
+    expect(week.metric_category).toBe(null)
+    expect(week.metric_wallet_id).toBe(null)
+  })
+
+  it('leaves the money wording untouched', () => {
+    // Regression guard. The three metrics now share a title function, and
+    // changing the naira format would rewrite every stored generated row once,
+    // because reconcileGenerated compares titles.
+    const savings = {
+      id: 'm2',
+      period: 'monthly',
+      target_date: '2026-08-01',
+      title: 'Laptop fund',
+      metric: 'save_at_least',
+      target_amount: 150000,
+      metric_category: 'Savings',
+    }
+    const week = decomposeMonthly(savings, { done: 0 }, '2026-08-10')
+    expect(week.title).toMatch(/^Set aside ₦[\d,]+ toward Laptop fund$/)
+    expect(week.title).not.toMatch(/\.\d\d/)
   })
 })

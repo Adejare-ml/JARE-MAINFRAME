@@ -11,6 +11,7 @@ import { summarizeMonth } from '../lib/summary'
 import { upcomingDebts } from '../lib/debts'
 import { generateTasks } from '../lib/generateTasks'
 import { isTaskDone, GENERATED_SLOT_BASE } from '../lib/planning'
+import { hasColumn } from '../lib/schema'
 import TodayList from '../components/daily/TodayList'
 import Yesterday from '../components/daily/Yesterday'
 import ActivityGrid from '../components/daily/ActivityGrid'
@@ -266,6 +267,38 @@ export default function DailyHQ() {
     } catch (err) {
       console.error('Error saving priority:', err)
       toast.error('Failed to save: ' + (err.message || 'check connection'))
+    }
+  }
+
+  /**
+   * Record why a repo task did not land.
+   *
+   * The point of the column, and the reason it is a sentence rather than a
+   * flag: a bare miss teaches nothing, and "office work overran" read back at
+   * the end of a month is the only part of this worth having. It is written
+   * separately from `completed` because the two are different admissions -- a
+   * task can be explained without being ticked, and ticked without explanation.
+   */
+  const saveTaskReason = async (task, reason) => {
+    if (!hasColumn('goals.blocked_reason')) {
+      toast.error('Run 010_repo_goals.sql first — there is nowhere to keep this yet')
+      return
+    }
+
+    setDailyTasks((prev) =>
+      prev.map((t) => (t.id === task.id ? { ...t, blocked_reason: reason } : t)),
+    )
+
+    const { error } = await supabase
+      .from('goals')
+      .update({ blocked_reason: reason })
+      .eq('id', task.id)
+
+    if (error) {
+      setDailyTasks((prev) =>
+        prev.map((t) => (t.id === task.id ? { ...t, blocked_reason: task.blocked_reason } : t)),
+      )
+      toast.error('Could not save that: ' + error.message)
     }
   }
 
@@ -566,6 +599,7 @@ export default function DailyHQ() {
             onToggle={toggleTask}
             onSaveTitle={saveTaskTitle}
             onDelete={deleteTask}
+            onSaveReason={hasColumn('goals.blocked_reason') ? saveTaskReason : undefined}
             canAdd={todayTasks.filter((t) => (t.slot ?? 0) < GENERATED_SLOT_BASE).length < GENERATED_SLOT_BASE}
           />
         </section>

@@ -209,3 +209,55 @@ describe('generateTasks', () => {
     expect(result.written).toBe(0)
   })
 })
+
+describe('generateTasks on a goal about code', () => {
+  const repoMonthly = {
+    id: 'rm1',
+    period: 'monthly',
+    target_date: '2026-08-01',
+    title: 'Ship the planner',
+    metric: 'repo_commits',
+    target_amount: 40,
+    slot: 1,
+    generated: false,
+  }
+
+  it('decomposes it exactly as it decomposes money', async () => {
+    // The reason stage 7 could be built before the model-written plans of
+    // stage 8: nothing in the chain is money-specific, so a coding goal already
+    // had a working generator. Only the wording and the unit differ.
+    const client = fakeClient({ goals: [repoMonthly], transactions: [] })
+    const result = await generateTasks(client, { today: TODAY })
+
+    expect(result.written).toBeGreaterThan(0)
+    const rows = client.writes.flatMap((w) => w.rows)
+    expect(rows.map((row) => row.period)).toEqual(expect.arrayContaining(['weekly', 'daily']))
+
+    for (const row of rows) {
+      expect(row.metric).toBe('repo_commits')
+      expect(row.title).not.toContain('\u20a6')
+      // 010's amended check accepts a repo goal with neither, and a derived row
+      // that picked one up would be measured against a category on a card about
+      // code.
+      expect(row.metric_category).toBe(null)
+      expect(row.metric_wallet_id).toBe(null)
+    }
+  })
+
+  it('never writes `completed`, `evidence` or `verified_at`', async () => {
+    // The verifier owns those three columns, and it runs somewhere else. A
+    // generator that wrote them would be asserting a result nobody has checked
+    // -- and reconcileGenerated reads `completed` as "a person touched this",
+    // so it would also freeze the row against every later run.
+    const client = fakeClient({ goals: [repoMonthly] })
+    await generateTasks(client, { today: TODAY })
+
+    for (const write of client.writes) {
+      for (const row of write.rows) {
+        expect(row).not.toHaveProperty('completed')
+        expect(row).not.toHaveProperty('evidence')
+        expect(row).not.toHaveProperty('verified_at')
+      }
+    }
+  })
+})
