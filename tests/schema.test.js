@@ -12,6 +12,7 @@ import {
   transactionListColumns,
   transactionSummaryColumns,
   excludeVoided,
+  excludeDrafts,
   GATED_LIST_COLUMNS,
 } from '../src/lib/queries.js'
 
@@ -132,6 +133,45 @@ describe('the registry stays honest', () => {
     for (const key of Object.values(GATED_LIST_COLUMNS)) {
       expect(Object.keys(GATED_COLUMNS)).toContain(key)
     }
+  })
+})
+
+describe('excludeDrafts respects the probe', () => {
+  function fakeGoalQuery() {
+    const calls = []
+    const builder = new Proxy({}, {
+      get: (_t, prop) => (prop === 'calls' ? calls : (...args) => {
+        calls.push({ method: prop, args })
+        return builder
+      }),
+    })
+    return builder
+  }
+
+  // setSchemaCapabilities takes the columns that are MISSING, so an empty list
+  // is a fully migrated database.
+  it('filters to active plans once migration 011 has run', () => {
+    setSchemaCapabilities([])
+    const q = excludeDrafts(fakeGoalQuery())
+    expect(q.calls).toEqual([{ method: 'eq', args: ['plan_status', 'active'] }])
+  })
+
+  it('adds nothing before 011, when nothing can be a draft', () => {
+    // Naming a column the database does not have is the 42703 that took Daily
+    // HQ, Budget and the Ledger down together.
+    setSchemaCapabilities(['goals.plan_status'])
+    expect(excludeDrafts(fakeGoalQuery()).calls).toEqual([])
+  })
+
+  it('is what keeps a proposal off the screens', () => {
+    // The planner writes drafts into `goals` while nobody is watching. "Drafted,
+    // not applied" is not a property of that script -- a script can be re-run,
+    // edited or misconfigured -- it is a property of every read, and this is the
+    // read. If this ever silently stops filtering, a model's suggestion appears
+    // on Daily HQ as a task you agreed to.
+    setSchemaCapabilities([])
+    const q = excludeDrafts(fakeGoalQuery())
+    expect(q.calls[0].args[1]).toBe('active')
   })
 })
 

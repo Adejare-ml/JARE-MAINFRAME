@@ -28,6 +28,7 @@ import {
   weeksAgo,
   NEEDS_REVIEW_FILTER,
   excludeVoided,
+  excludeDrafts,
 } from '../lib/queries'
 
 /** Days of history the activity grid needs: eight whole weeks plus slack for
@@ -118,11 +119,13 @@ export default function DailyHQ() {
           // yesterday's count and the activity grid, so one query serves all
           // three rather than three queries serving one each.
           orderGoalsBySlot(
-            supabase
-              .from('goals')
-              .select('*')
-              .in('period', ['daily', 'weekly'])
-              .gte('target_date', daysAgo(GRID_DAYS)),
+            excludeDrafts(
+              supabase
+                .from('goals')
+                .select('*')
+                .in('period', ['daily', 'weekly'])
+                .gte('target_date', daysAgo(GRID_DAYS)),
+            ),
           ),
           supabase.from('debts').select('*').eq('settled', false),
         ])

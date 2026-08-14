@@ -27,6 +27,7 @@ import {
   startOfWeek,
   endOfWeek,
   excludeVoided,
+  excludeDrafts,
   transactionSummaryColumns,
 } from './queries.js'
 import { goalProgress, decomposeMonthly, decomposeWeekly, reconcileGenerated } from './planning.js'
@@ -66,7 +67,11 @@ export async function generateTasks(client, { today = toDateOnly(new Date()) } =
     const weekEnd = endOfWeek(anchor)
 
     const [goalsRes, txnRes] = await Promise.all([
-      client.from('goals').select('*').gte('target_date', monthStart),
+      // Drafts excluded: a proposal the planner wrote overnight must not
+      // decompose into today's tasks before anyone has agreed to it, and a
+      // draft weekly row sitting in `existingWeekly` would also confuse
+      // reconcileGenerated into treating a suggestion as the stored plan.
+      excludeDrafts(client.from('goals').select('*').gte('target_date', monthStart)),
       excludeVoided(
         client
           .from('transactions')

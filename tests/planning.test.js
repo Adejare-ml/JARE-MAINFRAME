@@ -290,7 +290,12 @@ describe('reconcileGenerated', () => {
   it('updates an untouched task in place when its number changes', () => {
     const { write } = reconcileGenerated([candidate], [stored({ title: 'Set aside ₦4,000 today', target_amount: 4000 })])
     expect(write).toHaveLength(1)
-    expect(write[0].id).toBe('g1')
+    // Identified by its slot, not by its id. PostgREST refuses a bulk upsert
+    // whose objects have differing keys, and this array mixes updates with
+    // inserts as soon as a second goal appears -- so nothing carries an id and
+    // the unique index on (period, target_date, slot) does the arbitrating.
+    expect(write[0].slot).toBe(10)
+    expect(write[0]).not.toHaveProperty('id')
     expect(write[0].slot).toBe(10)
   })
 
@@ -659,5 +664,81 @@ describe('decomposing a repo goal', () => {
     const week = decomposeMonthly(savings, { done: 0 }, '2026-08-10')
     expect(week.title).toMatch(/^Set aside ₦[\d,]+ toward Laptop fund$/)
     expect(week.title).not.toMatch(/\.\d\d/)
+  })
+})
+
+describe('a planned row is owned twice', () => {
+  // The collision the planner creates. It writes one row per week of the month;
+  // the generator only ever owns the current week -- so on exactly one week at
+  // a time, both want the same (parent, period, target_date).
+  const candidate = {
+    parent_id: 'm1',
+    period: 'weekly',
+    target_date: '2026-08-10',
+    title: '3 commits toward Ship the planner this week',
+    target_amount: 3,
+    generated: true,
+    metric: REPO_METRIC,
+  }
+
+  const planned = {
+    id: 'p1',
+    parent_id: 'm1',
+    period: 'weekly',
+    target_date: '2026-08-10',
+    slot: 31,
+    title: 'Ship the planner',
+    focus: 'Cover src/lib/constants.js with tests',
+    plan_evidence: { cites: 'src/lib/constants.js', kind: 'path' },
+    generated: false,
+    completed: false,
+  }
+
+  it('gives a planned row its number instead of skipping it', () => {
+    // Skipping it -- which treating it as hand-typed did -- left the planned
+    // week with no target_amount, so decomposeWeekly had nothing to divide and
+    // that week produced no daily task at all. Approving a plan would quietly
+    // have emptied the week it was a plan for.
+    const { write, kept } = reconcileGenerated([candidate], [planned])
+    expect(kept).toEqual([])
+    expect(write).toHaveLength(1)
+    expect(write[0].target_amount).toBe(3)
+    expect(write[0].slot).toBe(31)
+  })
+
+  it('never sends the words back, so the arithmetic cannot overwrite them', () => {
+    // PostgREST only updates the columns in the body, so leaving these out is
+    // what protects them. If they ever appeared in a payload, the next page
+    // load would replace a model's sentence with a division.
+    const { write } = reconcileGenerated([candidate], [planned])
+    expect(write[0]).not.toHaveProperty('focus')
+    expect(write[0]).not.toHaveProperty('plan_evidence')
+  })
+
+  it('still leaves a genuinely hand-typed row alone', () => {
+    // The rule only loosens for rows carrying a plan. A weekly goal you typed
+    // yourself is still yours.
+    const typed = { ...planned, focus: null, plan_evidence: null }
+    const { write, kept } = reconcileGenerated([candidate], [typed])
+    expect(write).toEqual([])
+    expect(kept).toHaveLength(1)
+  })
+
+  it('still leaves a ticked planned row alone', () => {
+    const { write, kept } = reconcileGenerated([candidate], [{ ...planned, completed: true }])
+    expect(write).toEqual([])
+    expect(kept).toHaveLength(1)
+  })
+
+  it('prefers the planned row when a generated one is sitting at the same week', () => {
+    // Both exist for one week if the generator ran before the plan was
+    // approved. Taking whichever came last in the array would make the outcome
+    // depend on row order.
+    const generatedSibling = { ...planned, id: 'g1', slot: 10, focus: null, generated: true }
+
+    for (const existing of [[generatedSibling, planned], [planned, generatedSibling]]) {
+      const { write } = reconcileGenerated([candidate], existing)
+      expect(write[0].slot).toBe(31)
+    }
   })
 })

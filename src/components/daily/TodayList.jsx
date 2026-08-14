@@ -179,9 +179,14 @@ export default function TodayList({
                       typed has to account for itself, or it reads as the app
                       inventing work. */}
                   <span className="block text-[10px] text-muted-dim mt-0.5">
-                    {progress.overridable && progress.measured
-                      ? repoLine(progress, task)
-                      : 'From a goal'}
+                    {/* A plan you approved says what this is about; otherwise
+                        all a derived task can say for itself is where it came
+                        from. Either way it accounts for itself, or it reads as
+                        the app inventing work. */}
+                    {task.focus ||
+                      (progress.overridable && progress.measured
+                        ? repoLine(progress, task)
+                        : 'From a goal')}
                   </span>
                 </span>
               ) : (

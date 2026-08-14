@@ -10,12 +10,16 @@ import {
   orderGoalsBySlot,
   startOfMonth,
   excludeVoided,
+  excludeDrafts,
   transactionSummaryColumns,
 } from '../lib/queries'
 import { hasColumn } from '../lib/schema'
 import { goalProgress } from '../lib/planning'
 import GoalForm from '../components/goals/GoalForm'
 import TargetCard from '../components/goals/TargetCard'
+import ProposedPlan from '../components/goals/ProposedPlan'
+import KnowledgeGaps from '../components/goals/KnowledgeGaps'
+import { PLAN_STATUS } from '../lib/planReview'
 
 /**
  * Goals: what you are aiming at, and how the last thirty days went.
@@ -42,6 +46,9 @@ export default function Goals() {
   const [editing, setEditing] = useState(null)
   const [saving, setSaving] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
+  const [drafts, setDrafts] = useState([])
+  const [gaps, setGaps] = useState([])
+  const [planBusy, setPlanBusy] = useState(false)
 
   const today = toDateOnly(new Date())
 
@@ -51,6 +58,11 @@ export default function Goals() {
   // and come back PGRST204.
   const canPlan = hasColumn('goals.metric')
 
+  // 011 brought the planner's columns. Without it there are no drafts to review
+  // and nowhere to log a gap, so both sections are absent rather than broken --
+  // and `excludeDrafts` is a no-op, which is correct: nothing can be a draft.
+  const canReview = hasColumn('goals.plan_status')
+
   const fetchGoals = useCallback(async () => {
     try {
       setPageError(null)
@@ -59,21 +71,28 @@ export default function Goals() {
       // any database. Filtering or ordering on `metric` would not be: that is a
       // 42703 on a database behind the app, which is the outage schema.js
       // exists to prevent.
-      const [dailyRes, targetRes, txnRes, walletRes] = await Promise.all([
+      const [dailyRes, targetRes, txnRes, walletRes, draftRes, gapRes] = await Promise.all([
         orderGoalsBySlot(
+          excludeDrafts(
+            supabase
+              .from('goals')
+              .select('*')
+              .eq('period', 'daily')
+              .gte('target_date', daysAgo(HISTORY_DAYS))
+              .order('target_date', { ascending: false }),
+          ),
+        ),
+        // Active only. The drafts the planner proposed are fetched separately
+        // below and shown as a proposal to approve -- mixing them in here would
+        // present a suggestion as a target you already hold.
+        excludeDrafts(
           supabase
             .from('goals')
             .select('*')
-            .eq('period', 'daily')
-            .gte('target_date', daysAgo(HISTORY_DAYS))
-            .order('target_date', { ascending: false }),
+            .in('period', ['monthly', 'weekly'])
+            .gte('target_date', startOfMonth())
+            .order('period', { ascending: true }),
         ),
-        supabase
-          .from('goals')
-          .select('*')
-          .in('period', ['monthly', 'weekly'])
-          .gte('target_date', startOfMonth())
-          .order('period', { ascending: true }),
         // Scoped to the month: a monthly goal needs the whole month and a
         // weekly one a subset of it, so one fetch serves both.
         excludeVoided(
@@ -83,6 +102,22 @@ export default function Goals() {
             .gte('transaction_date', startOfMonth()),
         ),
         supabase.from('wallets').select('id, name, is_active'),
+        // The planner's two halves, both additive. A page that fails because a
+        // proposal could not load would make the optional part of this feature
+        // able to break the part you rely on.
+        canReview
+          ? supabase
+              .from('goals')
+              .select('*')
+              .eq('plan_status', PLAN_STATUS.DRAFT)
+              .order('target_date', { ascending: true })
+          : Promise.resolve({ data: [], error: null }),
+        canReview
+          ? supabase
+              .from('knowledge_gaps')
+              .select('*')
+              .order('created_at', { ascending: false })
+          : Promise.resolve({ data: [], error: null }),
       ])
 
       if (dailyRes.error) throw dailyRes.error
@@ -90,17 +125,25 @@ export default function Goals() {
       if (txnRes.error) throw txnRes.error
       if (walletRes.error) throw walletRes.error
 
+      if (draftRes.error) console.warn('Proposed plan unavailable:', draftRes.error.message)
+      if (gapRes.error) console.warn('Knowledge gaps unavailable:', gapRes.error.message)
+
       setGoals(dailyRes.data || [])
       setTargets(targetRes.data || [])
       setMonthTransactions(txnRes.data || [])
       setWallets(walletRes.data || [])
+      setDrafts(draftRes.error ? [] : draftRes.data || [])
+      setGaps(gapRes.error ? [] : gapRes.data || [])
     } catch (err) {
       console.error('Error loading goals:', err)
       setPageError(err.message || 'Failed to load')
     } finally {
       setLoading(false)
     }
-  }, [])
+    // `canReview` is read inside this callback, and it flips from false to true
+    // when the startup probe lands. Without it in the deps the first fetch's
+    // answer would stick and the proposal would stay invisible until a reload.
+  }, [canReview])
 
   /**
    * Save a goal. Hand-created goals take a slot in the 0-9 range: migration
@@ -144,6 +187,93 @@ export default function Goals() {
     } finally {
       setSaving(false)
     }
+  }
+
+  /**
+   * Accept the proposed plan, or throw it away.
+   *
+   * Approving flips `plan_status` and nothing else. The words become yours; the
+   * numbers were never the model's to give -- how much each week asks for is
+   * still worked out from the goal by planning.js, every run.
+   *
+   * Discarding marks rather than deletes. A proposal you rejected is worth
+   * keeping: it is the record of what the planner suggested and what you
+   * thought of it, which is the only way to tell later whether it is getting
+   * better or worse.
+   */
+  const decidePlan = async (status) => {
+    if (drafts.length === 0) return
+    setPlanBusy(true)
+
+    const ids = drafts.map((d) => d.id)
+    const previous = drafts
+    setDrafts([])
+
+    // Approving the week that is already under way would otherwise leave two
+    // rows for it: the one the generator wrote from arithmetic, and the one the
+    // planner wrote from evidence. They share a parent and a week, so from then
+    // on which of them the generator maintained would depend on row order.
+    // The planned row is the one to keep -- it carries the words -- so the
+    // generator's is removed and it rebuilds the number onto the survivor.
+    if (status === PLAN_STATUS.ACTIVE) {
+      for (const draft of previous) {
+        if (!draft.parent_id) continue
+        await supabase
+          .from('goals')
+          .delete()
+          .eq('parent_id', draft.parent_id)
+          .eq('period', draft.period)
+          .eq('target_date', draft.target_date)
+          .eq('generated', true)
+      }
+    }
+
+    const { error } = await supabase.from('goals').update({ plan_status: status }).in('id', ids)
+
+    if (error) {
+      setDrafts(previous)
+      toast.error('Could not save that: ' + error.message)
+    } else {
+      toast.success(status === PLAN_STATUS.ACTIVE ? 'Plan approved ✓' : 'Discarded')
+      fetchGoals()
+    }
+    setPlanBusy(false)
+  }
+
+  /**
+   * Log something you took on trust.
+   *
+   * Upserted on `topic`, which migration 011 makes unique: hitting the same
+   * wall twice should deepen one record rather than scatter five near-identical
+   * ones the planner would then read as five separate gaps. Re-logging a closed
+   * gap reopens it, which is the honest thing to do when it comes back.
+   */
+  const logGap = async ({ topic, note }) => {
+    setPlanBusy(true)
+    const { error } = await supabase
+      .from('knowledge_gaps')
+      .upsert({ topic, note, source: 'agent', resolved_at: null, updated_at: new Date().toISOString() },
+        { onConflict: 'topic' })
+
+    if (error) toast.error('Could not log that: ' + error.message)
+    else {
+      toast.success('Logged ✓')
+      fetchGoals()
+    }
+    setPlanBusy(false)
+  }
+
+  /** Closed, not deleted -- a gap you closed is the most useful row in the table. */
+  const resolveGap = async (gap) => {
+    setPlanBusy(true)
+    const { error } = await supabase
+      .from('knowledge_gaps')
+      .update({ resolved_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq('id', gap.id)
+
+    if (error) toast.error('Could not save that: ' + error.message)
+    else fetchGoals()
+    setPlanBusy(false)
   }
 
   const handleDelete = async (id, confirmed = false) => {
@@ -245,6 +375,14 @@ export default function Goals() {
           </button>
         )}
       </div>
+
+      {/* First, because it is the only thing here that is waiting on you. */}
+      <ProposedPlan
+        drafts={drafts}
+        onApprove={() => decidePlan(PLAN_STATUS.ACTIVE)}
+        onDiscard={() => decidePlan(PLAN_STATUS.DISCARDED)}
+        busy={planBusy}
+      />
 
       {/* Monthly and weekly targets */}
       <section className="bg-card rounded-3xl p-6 border border-white/5 space-y-4">
@@ -357,6 +495,12 @@ export default function Goals() {
               ))}
           </div>
         </section>
+      )}
+
+      {/* Last, because it is a place to put something rather than something to
+          read. It is also the input that makes next month's plan about you. */}
+      {canReview && (
+        <KnowledgeGaps gaps={gaps} onLog={logGap} onResolve={resolveGap} busy={planBusy} />
       )}
     </div>
   )

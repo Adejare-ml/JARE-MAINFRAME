@@ -152,6 +152,29 @@ export function excludeVoided(query) {
 }
 
 /**
+ * Keep proposals out of a query that is asking about your actual plan.
+ *
+ * The counterpart to `excludeVoided`, and load-bearing for the same reason: the
+ * planner writes rows into `goals` while you are asleep, and every screen that
+ * reads goals without this filter would present a model's suggestion as
+ * something you had agreed to. "Drafted, not applied" is not a property of the
+ * planner script -- a script can be re-run, edited or misconfigured. It is a
+ * property of every read, which is why it lives here and is applied at each one
+ * rather than remembered at each one.
+ *
+ * Before 011 nothing can be a draft, so the filter is skipped -- naming the
+ * column unconditionally would be the 42703 that took Daily HQ, Budget and the
+ * Ledger down together.
+ *
+ * @param {object} query - a supabase query builder on `goals`
+ * @returns {object}
+ */
+export function excludeDrafts(query) {
+  if (!hasColumn('goals.plan_status')) return query
+  return query.eq('plan_status', 'active')
+}
+
+/**
  * Format a Date as the YYYY-MM-DD that `transaction_date` stores.
  * Uses local time: "this month" should mean the user's month, not UTC's.
  *
