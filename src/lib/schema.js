@@ -54,6 +54,13 @@ export const GATED_COLUMNS = {
   'goals.focus': '011_month_planner.sql',
   'goals.plan_evidence': '011_month_planner.sql',
   'goals.planned_at': '011_month_planner.sql',
+
+  // A whole table rather than a column, which is why probeSchema had to learn
+  // about 42P01 above. One key is enough to make the banner name the file;
+  // `free_minutes` is listed too because it is the figure the page actually
+  // renders, so a partially-applied 012 is caught rather than assumed away.
+  'day_briefs.brief_date': '012_day_brief.sql',
+  'day_briefs.free_minutes': '012_day_brief.sql',
 }
 
 /**
@@ -73,6 +80,25 @@ export function isMissingColumnError(error) {
   if (!error) return false
   if (error.code === '42703' || error.code === 'PGRST204') return true
   return /column .* does not exist|could not find the .* column/i.test(error.message || '')
+}
+
+/**
+ * True when the whole table is absent, not just a column of it.
+ *
+ * A different error entirely -- 42P01 from Postgres, PGRST205 from PostgREST's
+ * schema cache -- and until 012 the probe treated it as "failed for another
+ * reason" and moved on. That was survivable while every gated column lived on a
+ * table that already existed. It stops being survivable the moment a migration
+ * introduces a table, because the probe would record nothing missing,
+ * `hasColumn` would answer true, and the banner that is supposed to name the
+ * file you have to run would stay silent about it.
+ *
+ * @param {{code?: string, message?: string}} error
+ */
+export function isMissingTableError(error) {
+  if (!error) return false
+  if (error.code === '42P01' || error.code === 'PGRST205') return true
+  return /relation .* does not exist|could not find the table/i.test(error.message || '')
 }
 
 // Module-level rather than React state, and set once per session.
@@ -160,6 +186,16 @@ export async function probeSchema(client) {
     [...byTable.entries()].map(async ([table, columns]) => {
       const { error } = await client.from(table).select(columns.join(', ')).limit(1)
       if (!error) return
+
+      // No table means no columns, and there is nothing to narrow down -- every
+      // gated column on it is absent by definition. One probe answers it, and
+      // skipping the per-column follow-up avoids firing a request per column
+      // that can only produce the same error.
+      if (isMissingTableError(error)) {
+        for (const column of columns) absent.push(`${table}.${column}`)
+        return
+      }
+
       if (!isMissingColumnError(error)) {
         console.warn(`Schema probe on ${table} failed for another reason:`, error.message)
         return

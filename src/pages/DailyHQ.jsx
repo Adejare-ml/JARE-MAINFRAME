@@ -13,6 +13,9 @@ import { generateTasks } from '../lib/generateTasks'
 import { isTaskDone, GENERATED_SLOT_BASE } from '../lib/planning'
 import { hasColumn } from '../lib/schema'
 import TodayList from '../components/daily/TodayList'
+import DictateDay from '../components/daily/DictateDay'
+import DayBrief from '../components/daily/DayBrief'
+import EndOfDay from '../components/daily/EndOfDay'
 import Yesterday from '../components/daily/Yesterday'
 import ActivityGrid from '../components/daily/ActivityGrid'
 import WeekReview from '../components/daily/WeekReview'
@@ -35,6 +38,10 @@ import {
  *  whichever weekday today is. */
 const GRID_DAYS = 63
 
+/** When the day stops being something to plan and starts being something to
+ *  account for. 18:00 local. */
+const EVENING_HOUR = 18
+
 export default function DailyHQ() {
   const [wallets, setWallets] = useState([])
   const [transactions, setTransactions] = useState([])
@@ -43,6 +50,7 @@ export default function DailyHQ() {
   // Every daily row in the grid window. Today's list, yesterday's count and the
   // activity grid are all derived from this one array.
   const [dailyTasks, setDailyTasks] = useState([])
+  const [dayBrief, setDayBrief] = useState(null)
   const [togglingId, setTogglingId] = useState(null)
   const [mode, setMode] = useState('day')
   const [unreviewedCount, setUnreviewedCount] = useState(0)
@@ -83,7 +91,7 @@ export default function DailyHQ() {
       // is checked: supabase-js returns errors rather than throwing, so the
       // old destructure-data-only version made the catch unreachable and a
       // total network failure rendered "Total: ₦0.00" and "All clear!".
-      const [walletsRes, recentRes, countRes, settingsRes, monthRes, goalsRes, debtsRes] =
+      const [walletsRes, recentRes, countRes, settingsRes, monthRes, goalsRes, debtsRes, briefRes] =
         await Promise.all([
           supabase.from('wallets').select('*'),
           excludeVoided(
@@ -128,6 +136,12 @@ export default function DailyHQ() {
             ),
           ),
           supabase.from('debts').select('*').eq('settled', false),
+          // Today's shape, from the overnight run. Additive like debts: a page
+          // that fails because the calendar could not be read would let the
+          // optional half of this break the half you rely on.
+          hasColumn('day_briefs.brief_date')
+            ? supabase.from('day_briefs').select('*').eq('brief_date', todayDate).maybeSingle()
+            : Promise.resolve({ data: null, error: null }),
         ])
 
       const firstError =
@@ -141,6 +155,9 @@ export default function DailyHQ() {
       // use.
       if (debtsRes.error) console.warn('Debts unavailable:', debtsRes.error.message)
       setDebts(debtsRes.error ? [] : debtsRes.data || [])
+
+      if (briefRes.error) console.warn('Day brief unavailable:', briefRes.error.message)
+      setDayBrief(briefRes.error ? null : briefRes.data || null)
 
       setWallets(walletsRes.data || [])
       setTransactions(recentRes.data || [])
@@ -305,6 +322,47 @@ export default function DailyHQ() {
     }
   }
 
+  /**
+   * Add several tasks at once, from one thing said or typed.
+   *
+   * Slots are claimed in one pass rather than by calling saveTaskTitle in a
+   * loop: that would recompute the free slot from `dailyTasks`, which has not
+   * been refetched yet, so every task in a dictation would be handed the same
+   * slot and the upsert would collapse three tasks into one.
+   */
+  const addTasks = async (titles) => {
+    const taken = new Set(
+      dailyTasks
+        .filter((t) => t.period === 'daily' && t.target_date === todayDate && t.slot != null)
+        .map((t) => t.slot),
+    )
+
+    const rows = []
+    let slot = 0
+    for (const title of titles) {
+      while (slot < GENERATED_SLOT_BASE && taken.has(slot)) slot++
+      if (slot >= GENERATED_SLOT_BASE) break
+      taken.add(slot)
+      rows.push({ title, slot, period: 'daily', target_date: todayDate })
+    }
+
+    if (rows.length === 0) {
+      toast.error('That is ten priorities for one day — finish one first')
+      return
+    }
+
+    const { error } = await supabase
+      .from('goals')
+      .upsert(rows, { onConflict: 'period,target_date,slot' })
+
+    if (error) {
+      toast.error('Failed to save: ' + error.message)
+      return
+    }
+    toast.success(`Added ${rows.length} ✓`)
+    fetchDailyData()
+  }
+
   /** Clearing a task's text removes it, the gesture the old three-box form used. */
   const deleteTask = async (task) => {
     const { error } = await supabase.from('goals').delete().eq('id', task.id)
@@ -441,6 +499,10 @@ export default function DailyHQ() {
 
       {mode === 'day' ? (
         <>
+        {/* What today already has in it. Above everything, because it changes
+            what the numbers below are worth asking for. */}
+        <DayBrief brief={dayBrief} />
+
         {/* CASH RECONCILIATION PROMPT */}
         <CashReconciliation onReconciled={fetchDailyData} />
 
@@ -595,6 +657,17 @@ export default function DailyHQ() {
             )}
           </div>
 
+          {/* Say the day, or type it. The textarea is the baseline and the
+              microphone is an accelerator on top -- see src/lib/speech.js. */}
+          <DictateDay
+            onAdd={addTasks}
+            busy={Boolean(togglingId)}
+            remaining={
+              GENERATED_SLOT_BASE -
+              todayTasks.filter((t) => (t.slot ?? 0) < GENERATED_SLOT_BASE).length
+            }
+          />
+
           <TodayList
             tasks={todayTasks}
             transactions={todayTransactions}
@@ -606,6 +679,16 @@ export default function DailyHQ() {
             canAdd={todayTasks.filter((t) => (t.slot ?? 0) < GENERATED_SLOT_BASE).length < GENERATED_SLOT_BASE}
           />
         </section>
+
+        {/* Asked once, in the evening, and only about what is still open. */}
+        {currentHour >= EVENING_HOUR && (
+          <EndOfDay
+            open={todayTasks.filter((t) => !doneOn(t))}
+            onToggle={toggleTask}
+            onSaveReason={hasColumn('goals.blocked_reason') ? saveTaskReason : undefined}
+            busyId={togglingId}
+          />
+        )}
 
         <Yesterday
           transactions={yesterdayTransactions}

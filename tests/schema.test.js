@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import {
   GATED_COLUMNS,
   isMissingColumnError,
+  isMissingTableError,
   setSchemaCapabilities,
   resetSchemaCapabilities,
   hasColumn,
@@ -112,6 +113,47 @@ describe('gated column lists', () => {
     setSchemaCapabilities(['transactions.explanation'])
     // No leading, trailing or doubled commas from filtering something out.
     expect(transactionListColumns()).not.toMatch(/^,|,$|,\s*,/)
+  })
+})
+
+describe('a missing table, not just a missing column', () => {
+  it('recognises both the Postgres and the PostgREST spelling', () => {
+    expect(isMissingTableError({ code: '42P01' })).toBe(true)
+    expect(isMissingTableError({ code: 'PGRST205' })).toBe(true)
+    expect(isMissingTableError({ message: 'relation "day_briefs" does not exist' })).toBe(true)
+    expect(isMissingTableError({ message: "Could not find the table 'public.day_briefs'" })).toBe(true)
+  })
+
+  it('does not confuse it with a missing column', () => {
+    // They need different handling: a missing column is narrowed down one at a
+    // time, a missing table takes every gated column on it at once.
+    expect(isMissingTableError({ code: '42703' })).toBe(false)
+    expect(isMissingColumnError({ code: '42P01' })).toBe(false)
+    expect(isMissingTableError(null)).toBe(false)
+  })
+
+  it('marks every gated column on an absent table as absent', async () => {
+    // Until 012 the probe logged "failed for another reason" and moved on,
+    // which was survivable only while every gated column lived on a table that
+    // already existed. Left alone, `hasColumn` would answer true for a table
+    // that is not there and the banner would never name the file to run.
+    resetSchemaCapabilities()
+    const client = {
+      from: (table) => ({
+        select: () => ({
+          limit: async () =>
+            table === 'day_briefs'
+              ? { error: { code: '42P01', message: 'relation "day_briefs" does not exist' } }
+              : { data: [], error: null },
+        }),
+      }),
+    }
+
+    const absent = await probeSchema(client)
+    expect(absent).toContain('day_briefs.brief_date')
+    expect(absent).toContain('day_briefs.free_minutes')
+    expect(pendingMigrations()).toContain('012_day_brief.sql')
+    expect(hasColumn('day_briefs.brief_date')).toBe(false)
   })
 })
 
@@ -245,7 +287,12 @@ describe('probeSchema', () => {
     expect(hasColumn('transactions.explanation')).toBe(true)
     // One request per table, no per-column follow-up. This is the common case
     // and it must stay cheap.
-    expect(requests).toHaveLength(2)
+    //
+    // Asserted against the registry rather than a literal, so adding a gated
+    // column to an existing table cannot break this test and adding a whole new
+    // table cannot silently multiply the requests without anyone noticing.
+    const tables = new Set(Object.keys(GATED_COLUMNS).map((key) => key.split('.')[0]))
+    expect(requests).toHaveLength(tables.size)
   })
 
   it('narrows to the exact missing column', async () => {

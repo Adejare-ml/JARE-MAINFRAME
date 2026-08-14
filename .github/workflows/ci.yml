@@ -26,6 +26,8 @@ jobs:
           node --check scripts/test-llm.mjs
           node --check scripts/verify-repo.mjs
           node --check scripts/plan-month.mjs
+          node --check scripts/draft-day.mjs
+          node --check scripts/google.mjs
 
       # `node --check` parses syntax without resolving imports, so it cannot see
       # a bad module path. That gap hid a missing `.js` in summary.js which made
@@ -36,7 +38,7 @@ jobs:
       # under plain Node, not just under the bundler.
       - name: Check shared modules load under Node
         run: |
-          for m in planning queries summary schema constants formatters debts repo repoProfile planReview planPrompt; do
+          for m in planning queries summary schema constants formatters debts repo repoProfile planReview planPrompt speech calendar; do
             node --input-type=module -e "await import('./src/lib/$m.js')" \
               || { echo "::error::src/lib/$m.js does not load under Node"; exit 1; }
           done

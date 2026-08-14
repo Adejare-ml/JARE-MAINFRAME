@@ -38,6 +38,7 @@ import {
   FailureLedger,
 } from '../src/lib/sync/index.js'
 import { extractTransaction, categorizeBatch, hasAnyProvider, LLM_CONFIG } from './llm.mjs'
+import { getAccessToken as refreshGoogleToken } from './google.mjs'
 
 // ───────────────────────────────────────────────────────────────
 // 1. Credentials
@@ -101,43 +102,16 @@ const stats = {
 // ───────────────────────────────────────────────────────────────
 
 async function getAccessToken() {
-  const params = new URLSearchParams({
-    client_id: GOOGLE_CLIENT_ID,
-    client_secret: GOOGLE_CLIENT_SECRET,
-    refresh_token: GOOGLE_REFRESH_TOKEN,
-    grant_type: 'refresh_token',
+  // The refresh dance, and the `invalid_grant` remedy it prints, live in
+  // scripts/google.mjs now that the day planner needs them too. One copy, so
+  // the message that took several silent scheduled failures to work out cannot
+  // drift between callers.
+  const { accessToken } = await refreshGoogleToken({
+    clientId: GOOGLE_CLIENT_ID,
+    clientSecret: GOOGLE_CLIENT_SECRET,
+    refreshToken: GOOGLE_REFRESH_TOKEN,
   })
-
-  const res = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: params.toString(),
-  })
-
-  if (!res.ok) {
-    const body = await res.text()
-
-    // invalid_grant means the refresh token is dead, not that anything is
-    // wrong with this run. Say what to do about it: the raw Google payload
-    // tells you the token expired and nothing else, which is how this sat
-    // broken through several scheduled runs.
-    if (body.includes('invalid_grant')) {
-      throw new Error(
-        'Google refresh token is expired or revoked.\n' +
-          '  Fix: run this locally, then paste the result into the ' +
-          'GOOGLE_REFRESH_TOKEN repository secret:\n' +
-          '    GOOGLE_CLIENT_ID="..." GOOGLE_CLIENT_SECRET="..." node scripts/get-refresh-token.mjs\n' +
-          '  If this keeps happening every ~7 days, the OAuth consent screen for this ' +
-          'Google Cloud project is still in "Testing" publishing status -- Google ' +
-          'expires those refresh tokens weekly. Setting it to "In production" stops it.\n' +
-          `  Google said: ${body}`,
-      )
-    }
-
-    throw new Error(`Failed to refresh Google token (${res.status}): ${body}`)
-  }
-
-  return (await res.json()).access_token
+  return accessToken
 }
 
 // ───────────────────────────────────────────────────────────────
