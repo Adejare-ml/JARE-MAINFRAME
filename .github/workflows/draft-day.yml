@@ -1,0 +1,98 @@
+name: Draft Tomorrow
+
+on:
+  schedule:
+    # 22:00 Lagos = 21:00 UTC. Late enough that tomorrow's calendar has settled,
+    # and it writes only context -- no tasks, nothing ticked -- so an overnight
+    # run cannot change what you have agreed to.
+    - cron: '0 21 * * *'
+  workflow_dispatch:   # manual trigger button
+
+permissions:
+  contents: read
+  issues: write   # so a failed run can tell someone
+
+jobs:
+  draft:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - run: npm ci
+      - name: Draft tomorrow
+        run: node scripts/draft-day.mjs
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          # Repository *variables*, all optional. Defaults are Lagos, 09:00-18:00,
+          # the primary calendar, two days ahead. Changing your working hours
+          # should be a settings change, not a commit.
+          DAY_TZ_OFFSET_MINUTES: ${{ vars.DAY_TZ_OFFSET_MINUTES }}
+          DAY_START_MINUTES: ${{ vars.DAY_START_MINUTES }}
+          DAY_END_MINUTES: ${{ vars.DAY_END_MINUTES }}
+          DAY_CALENDAR_ID: ${{ vars.DAY_CALENDAR_ID }}
+          DAY_DRAFT_DAYS: ${{ vars.DAY_DRAFT_DAYS }}
+
+      # Same shape as the other three schedules, and for the same reason: a
+      # silent cron is a cron you find out about days late. One issue, reopened
+      # and commented on, rather than a new one every night.
+      #
+      # Note this only fires when the run itself fails. A token that cannot read
+      # the calendar is NOT a failure here -- it is recorded as `unavailable` and
+      # the app says so on the page, which is more useful than an issue nobody
+      # reads.
+      - name: Report failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = 'Day drafting is failing'
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+            const body = [
+              `The overnight day draft failed at ${new Date().toISOString()}.`,
+              '',
+              `Run: ${runUrl}`,
+              '',
+              'Common causes, most likely first:',
+              '- A table error — `supabase/migrations/012_day_brief.sql` has not been run.',
+              '- `invalid_grant` — the Google refresh token expired or was revoked.',
+              '  Re-run `scripts/get-refresh-token.mjs`; it now asks for Gmail and',
+              '  Calendar together, so one consent covers both.',
+              '- A missing secret — check the env block in the run log for a blank value.',
+              '',
+              'A token without the calendar scope does NOT reach here — that is recorded',
+              'as `unavailable` and shown on Daily HQ, because "I could not look" is',
+              'something you should see on the page rather than in an issue.',
+            ].join('\n')
+
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'all',
+              labels: 'sync-failure',
+              per_page: 10,
+            })
+
+            const open = existing.data.find(i => i.title === title)
+            if (open) {
+              if (open.state === 'closed') {
+                await github.rest.issues.update({
+                  owner: context.repo.owner, repo: context.repo.repo,
+                  issue_number: open.number, state: 'open',
+                })
+              }
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: open.number, body,
+              })
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner, repo: context.repo.repo,
+                title, body, labels: ['sync-failure'],
+              })
+            }

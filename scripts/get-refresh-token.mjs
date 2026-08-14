@@ -11,7 +11,9 @@
  *    GOOGLE_CLIENT_ID="your_client_id" GOOGLE_CLIENT_SECRET="your_client_secret" node scripts/get-refresh-token.mjs
  * 
  * 3. Open the printed Google Consent URL in your browser.
- * 4. Sign in, authorize the app with gmail.readonly scope, and approve consent.
+ * 4. Sign in and approve consent. It asks for gmail.readonly (the transaction
+ *    sync) and calendar.readonly (the overnight day brief) together, so one
+ *    re-consent covers both and you never have to do this twice.
  * 5. Copy the 'code' query parameter from the redirect URL (or browser page).
  * 6. Paste the code back into the CLI prompt.
  * 7. Copy the printed GOOGLE_REFRESH_TOKEN into your GitHub Repository Secrets!
@@ -19,6 +21,7 @@
  */
 
 import readline from 'readline'
+import { SCOPES } from './google.mjs'
 
 const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET } = process.env
 
@@ -29,7 +32,11 @@ if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
 }
 
 const redirectUri = 'http://localhost'
-const scope = 'https://www.googleapis.com/auth/gmail.readonly'
+// Both scopes, from one list shared with the scripts that use them. Asking for
+// only what today's script needs is how you end up re-consenting every time a
+// feature lands -- and a token issued for Gmail alone fails the calendar call
+// with a 403 that says nothing about which scope is missing.
+const scope = SCOPES.join(' ')
 
 // Construct authorization URL with offline access and prompt=consent
 const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` + new URLSearchParams({
