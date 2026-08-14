@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { toast } from '../lib/toast'
-import { formatDate, formatNaira } from '../lib/formatters'
+import { formatDate } from '../lib/formatters'
 import ErrorState from '../components/ui/ErrorState'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import {
@@ -19,11 +18,13 @@ import GoalForm from '../components/goals/GoalForm'
 import TargetCard from '../components/goals/TargetCard'
 
 /**
- * Your daily priorities, read back.
+ * Goals: what you are aiming at, and how the last thirty days went.
  *
- * Daily HQ has been writing the `goals` table every morning; this page was 62
- * lines of static markup with hardcoded zeros that said "No goals yet" while
- * the rows sat in Postgres.
+ * Today's tasks are NOT here -- they live on Daily HQ, where they are written
+ * and now also ticked. This page kept the history deliberately: the activity
+ * grid over there answers "how have I been doing" at a glance, and this answers
+ * "what did I actually write down on the 5th", which is a different question a
+ * grid cannot answer.
  */
 
 /** How far back the completion rate looks. */
@@ -36,7 +37,6 @@ export default function Goals() {
   const [wallets, setWallets] = useState([])
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState(null)
-  const [togglingId, setTogglingId] = useState(null)
 
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -170,25 +170,6 @@ export default function Goals() {
   }, [fetchGoals])
 
   useRealtimeRefresh(['goals'], fetchGoals, { channelPrefix: 'goals' })
-
-  const toggleComplete = async (goal) => {
-    setTogglingId(goal.id)
-    // Optimistic: a checkbox that waits for a round trip on mobile data feels
-    // broken. Rolled back below if the write fails.
-    const next = !goal.completed
-    setGoals(prev => prev.map(g => (g.id === goal.id ? { ...g, completed: next } : g)))
-
-    const { error } = await supabase
-      .from('goals')
-      .update({ completed: next })
-      .eq('id', goal.id)
-
-    if (error) {
-      setGoals(prev => prev.map(g => (g.id === goal.id ? { ...g, completed: !next } : g)))
-      toast.error('Could not update: ' + error.message)
-    }
-    setTogglingId(null)
-  }
 
   if (loading) {
     return (
@@ -342,84 +323,6 @@ export default function Goals() {
       </div>
 
       {/* Today */}
-      <section className="bg-card rounded-3xl p-6 border border-white/5">
-        <h2 className="text-xs font-semibold text-muted uppercase tracking-wider mb-4">Today</h2>
-
-        {todayGoals.length === 0 ? (
-          <div className="text-center py-6 space-y-3">
-            <p className="text-sm text-muted">No priorities set for today yet.</p>
-            <Link
-              to="/"
-              className="inline-block px-5 py-3 bg-accent text-black font-bold text-sm rounded-xl min-h-[48px] leading-6"
-            >
-              Set them on Daily HQ →
-            </Link>
-          </div>
-        ) : (
-          <ul className="space-y-2">
-            {todayGoals.map(goal => {
-              // A measured task is done when the ledger says so, not when a box
-              // is ticked -- and it is never given a checkbox, because ticking
-              // one would claim something the transactions do not support, and
-              // the generator reads `completed` as "a person touched this" and
-              // would stop updating the figure.
-              const progress = goalProgress(goal, todayTransactions)
-
-              if (progress.measured) {
-                return (
-                  <li
-                    key={goal.id}
-                    className="flex items-center gap-3 p-3 rounded-2xl bg-background/50 border border-white/5 min-h-[48px]"
-                  >
-                    <span
-                      className={`w-6 h-6 rounded-lg flex-shrink-0 flex items-center justify-center text-xs font-bold ${
-                        progress.met ? 'bg-accent text-black' : 'border-2 border-white/20 text-transparent'
-                      }`}
-                      aria-hidden="true"
-                    >
-                      ✓
-                    </span>
-                    <span className="min-w-0">
-                      <span className={`block text-sm ${progress.met ? 'text-muted line-through' : 'text-white'}`}>
-                        {goal.title}
-                      </span>
-                      <span className="block text-[10px] text-muted-dim">
-                        {formatNaira(progress.done)} of {formatNaira(progress.target)} · {progress.source}
-                      </span>
-                    </span>
-                  </li>
-                )
-              }
-
-              return (
-                <li key={goal.id}>
-                  <button
-                    onClick={() => toggleComplete(goal)}
-                    disabled={togglingId === goal.id}
-                    aria-pressed={goal.completed}
-                    className="w-full flex items-center gap-3 p-3 rounded-2xl bg-background/50 border border-white/5 hover:border-white/10 transition-all min-h-[48px] text-left disabled:opacity-60"
-                  >
-                    <span
-                      className={`w-6 h-6 rounded-lg border-2 flex-shrink-0 flex items-center justify-center text-xs font-bold transition-colors ${
-                        goal.completed
-                          ? 'bg-accent border-accent text-black'
-                          : 'border-white/20 text-transparent'
-                      }`}
-                      aria-hidden="true"
-                    >
-                      ✓
-                    </span>
-                    <span className={`text-sm ${goal.completed ? 'text-muted line-through' : 'text-white'}`}>
-                      {goal.title}
-                    </span>
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
-        )}
-      </section>
-
       {/* History */}
       {history.length > 0 && (
         <section className="bg-card rounded-3xl p-6 border border-white/5">

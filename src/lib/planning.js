@@ -134,6 +134,25 @@ export function goalProgress(goal, transactions = []) {
 }
 
 /**
+ * Is this task done?
+ *
+ * Two different questions wearing one word. A task you typed is done when you
+ * say so; a measured one is done when the transactions say so, and no earlier.
+ * Keeping the rule here rather than at each call site is not tidiness -- it was
+ * written inline on the Goals page first, and Daily HQ needs the same answer.
+ * Two copies of "what counts as done" is how the app ends up disagreeing with
+ * itself about whether you had a good day.
+ *
+ * @param {object} goal
+ * @param {Array<object>} transactions - rows scoped to the goal's own period
+ * @returns {boolean}
+ */
+export function isTaskDone(goal, transactions = []) {
+  const progress = goalProgress(goal, transactions)
+  return progress.measured ? progress.met : Boolean(goal?.completed)
+}
+
+/**
  * What this goal still needs, and per period from here.
  *
  * Recomputed from what is actually left rather than from the original target

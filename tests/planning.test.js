@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  isTaskDone,
   daysBetween,
   weeksRemaining,
   goalProgress,
@@ -384,5 +385,45 @@ describe('reconcileGenerated', () => {
     expect(reconcileGenerated([null, candidate], [null]).write).toHaveLength(1)
     expect(reconcileGenerated([candidate]).write).toHaveLength(1)
     expect(reconcileGenerated([], []).write).toHaveLength(0)
+  })
+})
+
+describe('isTaskDone', () => {
+  const saving = {
+    metric: 'save_at_least',
+    target_amount: 5000,
+    metric_category: 'Savings',
+    completed: false,
+  }
+
+  it('reads the checkbox for a task you typed', () => {
+    expect(isTaskDone({ title: 'Call the bank', completed: true }, [])).toBe(true)
+    expect(isTaskDone({ title: 'Call the bank', completed: false }, [])).toBe(false)
+  })
+
+  it('reads the ledger for a measured task, ignoring the checkbox', () => {
+    // A measured task never has `completed` set -- the generator refuses to
+    // write it -- so trusting the column would mark every one permanently
+    // undone.
+    expect(isTaskDone(saving, [{ type: 'credit', amount: 5000, category: 'Savings' }])).toBe(true)
+    expect(isTaskDone(saving, [{ type: 'credit', amount: 4999, category: 'Savings' }])).toBe(false)
+  })
+
+  it('flips back when the transaction behind it is voided', () => {
+    // The reason doneness is derived and not stored. A stored flag would leave
+    // the task ticked after the money that satisfied it was struck off.
+    const rows = [{ type: 'credit', amount: 5000, category: 'Savings' }]
+    expect(isTaskDone(saving, rows)).toBe(true)
+    expect(isTaskDone(saving, [{ ...rows[0], voided: true }])).toBe(false)
+  })
+
+  it('treats a task with no metric as manual', () => {
+    // Every row written before migration 009 is this shape.
+    expect(isTaskDone({ title: 'legacy', completed: true })).toBe(true)
+  })
+
+  it('survives being handed nothing', () => {
+    expect(isTaskDone(null)).toBe(false)
+    expect(isTaskDone({})).toBe(false)
   })
 })
