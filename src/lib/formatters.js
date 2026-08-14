@@ -12,6 +12,28 @@ export function formatNaira(amount) {
 }
 
 /**
+ * Format a goal's figure in whatever it is actually counting.
+ *
+ * Most goals count money and there was no need for this until goals started
+ * counting commits too. Rendering "₦3.00" where the goal means three commits is
+ * not a cosmetic slip -- it is the app stating a number in a unit that makes it
+ * false, on the one screen whose whole job is to be checkable.
+ *
+ * Falls through to naira for every metric that is not about a repository, so a
+ * new money metric needs no change here.
+ *
+ * @param {number} amount
+ * @param {string} [metric] - a goals.metric value
+ * @returns {string}
+ */
+export function formatGoalAmount(amount, metric) {
+  if (metric !== 'repo_commits') return formatNaira(amount)
+
+  const count = Math.round(Number(amount) || 0)
+  return `${count.toLocaleString('en-NG')} commit${count === 1 ? '' : 's'}`
+}
+
+/**
  * Format a date string to readable format
  * @param {string} dateString - e.g. "2026-07-29"
  * @returns {string} e.g. "Wed, 29 Jul 2026"

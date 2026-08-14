@@ -18,8 +18,9 @@
  * as an argument rather than importing it.
  */
 
-import { toDateOnly, startOfWeek, endOfWeek, endOfMonth } from './queries.js'
+import { toDateOnly, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from './queries.js'
 import { TRANSFER_CATEGORIES } from './summary.js'
+import { formatGoalAmount } from './formatters.js'
 
 /**
  * Where generated rows start. Slots 0-9 are hand-typed -- Daily HQ writes the
@@ -31,6 +32,40 @@ export const GENERATED_SLOT_BASE = 10
 
 /** Most derived tasks to put on one day. Beyond this it is a wall, not a plan. */
 export const MAX_GENERATED_PER_DAY = 4
+
+/**
+ * The metric whose evidence comes from a repository rather than the ledger.
+ *
+ * Named because it is checked in several places and each of them is doing
+ * something structurally different -- deciding a title, deciding whether a tick
+ * may override the measurement, deciding which unit a number is in. A bare
+ * string literal in all three would hide the fact that they are related.
+ */
+export const REPO_METRIC = 'repo_commits'
+
+/**
+ * The inclusive range of local days a goal's progress is measured over.
+ *
+ * `target_date` is the period the goal is FOR, not a deadline: the 1st for a
+ * monthly goal, the Monday for a weekly one, the day itself for a daily one.
+ * Turning that back into a window is what lets the repo verifier ask the same
+ * question of all three cadences -- how many commits between these two dates --
+ * rather than special-casing each.
+ *
+ * @param {{period?: string, target_date?: string}} goal
+ * @returns {{from: string, to: string}|null}
+ */
+export function periodWindow(goal) {
+  const anchor = goal?.target_date
+  if (!anchor) return null
+
+  const date = new Date(`${anchor}T00:00:00`)
+  if (Number.isNaN(date.getTime())) return null
+
+  if (goal.period === 'weekly') return { from: startOfWeek(date), to: endOfWeek(date) }
+  if (goal.period === 'monthly') return { from: startOfMonth(date), to: endOfMonth(date) }
+  return { from: anchor, to: anchor }
+}
 
 /**
  * Whole days from `from` to `to`, inclusive of both ends.
@@ -80,7 +115,7 @@ export function weeksRemaining(deadline, today) {
  *
  * @param {{metric?: string, target_amount?: number, metric_category?: string, metric_wallet_id?: string, completed?: boolean}} goal
  * @param {Array<object>} transactions - rows already scoped to the goal's period
- * @returns {{measured: boolean, done: number, target: number, share: number, met: boolean, source: string}}
+ * @returns {{measured: boolean, overridable: boolean, checked: boolean, done: number, target: number, share: number, met: boolean, source: string}}
  */
 export function goalProgress(goal, transactions = []) {
   const metric = goal?.metric || 'manual'
@@ -88,6 +123,8 @@ export function goalProgress(goal, transactions = []) {
   if (metric === 'manual') {
     return {
       measured: false,
+      overridable: true,
+      checked: true,
       done: goal?.completed ? 1 : 0,
       target: 1,
       share: goal?.completed ? 1 : 0,
@@ -95,6 +132,8 @@ export function goalProgress(goal, transactions = []) {
       source: 'ticked by hand',
     }
   }
+
+  if (metric === REPO_METRIC) return repoProgress(goal)
 
   const target = Number(goal?.target_amount) || 0
   const wantCredit = metric === 'save_at_least'
@@ -121,6 +160,11 @@ export function goalProgress(goal, transactions = []) {
 
   return {
     measured: true,
+    // Money is not overridable. A transaction either exists or it does not, and
+    // letting a checkbox stand in for one would make the goal disagree with the
+    // ledger it is measured against.
+    overridable: false,
+    checked: true,
     done,
     target,
     share,
@@ -130,6 +174,56 @@ export function goalProgress(goal, transactions = []) {
     source: goal.metric_category
       ? `from ${goal.metric_category} transactions`
       : 'from this wallet’s transactions',
+  }
+}
+
+/**
+ * Progress on a goal about code, read from what the verifier wrote down.
+ *
+ * The only place in this app where progress is READ rather than DERIVED, and
+ * the exception is forced rather than chosen: measuring it means asking GitHub,
+ * the browser has no GitHub credentials, and giving it any would put a token
+ * capable of writing to the repository into a bundle served to the public
+ * internet. So scripts/verify-repo.mjs -- which runs where the credentials
+ * already are -- writes `evidence` and `verified_at`, and this reads them.
+ *
+ * `checked` is the part that must not be dropped on the way to the screen.
+ * There are three states here, not two:
+ *
+ *   verified_at null      nobody has looked yet
+ *   checked, counted 0    looked, found nothing
+ *   checked, counted n    looked, found n
+ *
+ * The first is not a failure and must never be drawn as one -- it is the same
+ * error as reading a sync run that imported nothing as an empty inbox. The
+ * second is not necessarily a failure either, which is what `overridable`
+ * exists for: office work leaves no commits.
+ */
+function repoProgress(goal) {
+  const evidence = goal?.evidence && typeof goal.evidence === 'object' ? goal.evidence : null
+  const checked = Boolean(goal?.verified_at)
+  const target = Number(goal?.target_amount) || 0
+
+  const counted = Number(evidence?.counted)
+  const done = Number.isFinite(counted) && counted >= 0 ? counted : 0
+
+  const repo = evidence?.repo
+
+  return {
+    measured: true,
+    overridable: true,
+    checked,
+    done,
+    target,
+    share: target > 0 ? done / target : 0,
+    // Unchecked can never be met. Reporting a goal as done on evidence nobody
+    // has gathered is the failure mode this whole stage is built to avoid.
+    met: checked && target > 0 && done >= target,
+    source: !checked
+      ? 'not checked yet'
+      : repo
+        ? `counted on ${repo}`
+        : 'counted on the repository',
   }
 }
 
@@ -149,7 +243,16 @@ export function goalProgress(goal, transactions = []) {
  */
 export function isTaskDone(goal, transactions = []) {
   const progress = goalProgress(goal, transactions)
-  return progress.measured ? progress.met : Boolean(goal?.completed)
+  if (!progress.measured) return Boolean(goal?.completed)
+
+  // Some work genuinely leaves nothing to measure. A repo goal met by a day of
+  // reviews, a design decision or an afternoon in the office produces no
+  // commits at all, and a system that called that a failure would be teaching
+  // you to distrust it. So a tick counts here, on top of the evidence rather
+  // than instead of it. Money gets no such loophole -- see `overridable`.
+  if (progress.overridable) return progress.met || Boolean(goal?.completed)
+
+  return progress.met
 }
 
 /**
@@ -206,10 +309,7 @@ export function decomposeMonthly(goal, progress, today = toDateOnly(new Date()))
   if (remaining === 0) return null
 
   return {
-    title:
-      goal.metric === 'save_at_least'
-        ? `Set aside ₦${perPeriod.toLocaleString('en-NG')} toward ${goal.title}`
-        : `Keep ${goal.metric_category || goal.title} under ₦${perPeriod.toLocaleString('en-NG')} this week`,
+    title: weeklyTitle(goal, perPeriod),
     period: 'weekly',
     target_date: startOfWeek(new Date(`${today}T00:00:00`)),
     slot: GENERATED_SLOT_BASE,
@@ -242,10 +342,7 @@ export function decomposeWeekly(goal, progress, today = toDateOnly(new Date())) 
   if (remaining === 0) return null
 
   return {
-    title:
-      goal.metric === 'save_at_least'
-        ? `Set aside ₦${perPeriod.toLocaleString('en-NG')} today`
-        : `Spend under ₦${perPeriod.toLocaleString('en-NG')} on ${goal.metric_category || goal.title} today`,
+    title: dailyTitle(goal, perPeriod),
     period: 'daily',
     target_date: today,
     slot: GENERATED_SLOT_BASE,
@@ -256,6 +353,39 @@ export function decomposeWeekly(goal, progress, today = toDateOnly(new Date())) 
     metric_category: goal.metric_category ?? null,
     metric_wallet_id: goal.metric_wallet_id ?? null,
   }
+}
+
+/**
+ * What the derived row is called.
+ *
+ * Kept together rather than inline at each decomposition, because the three
+ * metrics differ only in wording and the shape of the sentence is what makes a
+ * generated task readable as an instruction rather than as a database row.
+ *
+ * The repo wording is deliberately generic -- "3 commits toward Ship the
+ * planner" is arithmetic, not a plan. Stage 8's model-written titles replace
+ * this string and nothing else: the row, the lineage and the verification are
+ * all already correct, which is why the generic version is worth shipping
+ * first. A number you can explain beats a suggestion you cannot.
+ */
+function weeklyTitle(goal, perPeriod) {
+  if (goal.metric === REPO_METRIC) {
+    return `${formatGoalAmount(perPeriod, REPO_METRIC)} toward ${goal.title} this week`
+  }
+  if (goal.metric === 'save_at_least') {
+    return `Set aside ₦${perPeriod.toLocaleString('en-NG')} toward ${goal.title}`
+  }
+  return `Keep ${goal.metric_category || goal.title} under ₦${perPeriod.toLocaleString('en-NG')} this week`
+}
+
+function dailyTitle(goal, perPeriod) {
+  if (goal.metric === REPO_METRIC) {
+    return `Ship ${formatGoalAmount(perPeriod, REPO_METRIC)} today`
+  }
+  if (goal.metric === 'save_at_least') {
+    return `Set aside ₦${perPeriod.toLocaleString('en-NG')} today`
+  }
+  return `Spend under ₦${perPeriod.toLocaleString('en-NG')} on ${goal.metric_category || goal.title} today`
 }
 
 /** Identity of a derived row: which goal produced it, for which period. */

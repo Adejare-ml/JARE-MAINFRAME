@@ -85,3 +85,49 @@ describe('validateGoal', () => {
     expect(validateGoal(undefined)).toBeTruthy()
   })
 })
+
+describe('validateGoal on a goal about code', () => {
+  const repo = {
+    title: 'Ship the planner',
+    metric: 'repo_commits',
+    target_amount: '40',
+    metric_category: '',
+    metric_wallet_id: '',
+  }
+
+  it('accepts a repo goal with no category and no wallet', () => {
+    // The row the old rule refused. Migration 010 amends
+    // `goals_metric_needs_target` in exactly this shape -- a repo goal is
+    // measured by the repository, which is configuration rather than a column
+    // -- and the two have to agree or the form rejects rows the database would
+    // take, or the reverse.
+    expect(validateGoal(repo)).toBe(null)
+  })
+
+  it('still needs a number above zero', () => {
+    for (const target_amount of ['', '0', '-2', 'lots']) {
+      expect(validateGoal({ ...repo, target_amount })).toBeTruthy()
+    }
+  })
+
+  it('asks for commits, not naira', () => {
+    expect(validateGoal({ ...repo, target_amount: '' })).toMatch(/commits/i)
+  })
+
+  it('refuses half a commit', () => {
+    expect(validateGoal({ ...repo, target_amount: '2.5' })).toBeTruthy()
+  })
+
+  it('does not weaken the rule for money goals', () => {
+    // The regression this pair exists to catch. The easy way to let repo goals
+    // through is to drop the category-or-wallet requirement outright, which
+    // would also let a savings goal through with nothing measuring it -- a goal
+    // that then sits at 0 forever with no error anywhere. Migration 010's verify
+    // block asserts the same thing in SQL.
+    expect(validateGoal({ ...measured, metric_category: '', metric_wallet_id: '' })).toBeTruthy()
+    expect(
+      validateGoal({ ...measured, metric: 'spend_under', metric_category: '', metric_wallet_id: '' }),
+    ).toBeTruthy()
+  })
+})
+

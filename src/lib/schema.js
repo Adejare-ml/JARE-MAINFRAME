@@ -38,6 +38,14 @@ export const GATED_COLUMNS = {
   'goals.metric': '009_goal_cadence.sql',
   'goals.metric_category': '009_goal_cadence.sql',
   'goals.metric_wallet_id': '009_goal_cadence.sql',
+
+  // Where the repo verifier writes what it found. These are the one place the
+  // app stores an answer it cannot recompute -- the browser has no GitHub
+  // credentials -- so a goal that reads them without 010 shows an empty bar and
+  // no explanation, which is the worst of both.
+  'goals.verified_at': '010_repo_goals.sql',
+  'goals.evidence': '010_repo_goals.sql',
+  'goals.blocked_reason': '010_repo_goals.sql',
 }
 
 /**

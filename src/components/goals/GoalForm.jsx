@@ -2,9 +2,10 @@ import { useRef, useState, useEffect } from 'react'
 import { useDismissable } from '../../hooks/useDismissable'
 import { toast } from '../../lib/toast'
 import { ALL_CATEGORIES } from '../../lib/constants'
-import { formatNaira } from '../../lib/formatters'
+import { formatGoalAmount } from '../../lib/formatters'
+import { hasColumn } from '../../lib/schema'
 import { startOfMonth, startOfWeek, endOfMonth, toDateOnly } from '../../lib/queries'
-import { decomposeMonthly, decomposeWeekly, weeksRemaining } from '../../lib/planning'
+import { decomposeMonthly, decomposeWeekly, weeksRemaining, REPO_METRIC } from '../../lib/planning'
 
 /**
  * Create or edit a monthly or weekly goal.
@@ -37,7 +38,19 @@ const METRICS = [
     label: 'Spend under',
     hint: 'Counts debits, ignoring transfers between your own wallets.',
   },
+  {
+    id: REPO_METRIC,
+    label: 'Ship commits',
+    hint: 'Counted from the repository each night. A quiet day is not a failed one.',
+    // Arrives with 010, and unlike the other three it cannot degrade gracefully:
+    // `goals_metric_valid` refuses the value outright, so offering it against a
+    // database that has not caught up produces a 23514 on save and nothing else.
+    needs: 'goals.evidence',
+  },
 ]
+
+/** True for a goal whose evidence comes from a repository, not the ledger. */
+const isRepo = (metric) => metric === REPO_METRIC
 
 const EMPTY = {
   title: '',
@@ -70,10 +83,19 @@ export function validateGoal(form) {
   if (form.metric !== 'manual') {
     const amount = Number(form.target_amount)
     if (!form.target_amount || Number.isNaN(amount) || amount <= 0) {
-      return 'How much? A measured goal needs an amount above zero'
+      return isRepo(form.metric)
+        ? 'How many commits? A measured goal needs a number above zero'
+        : 'How much? A measured goal needs an amount above zero'
     }
-    if (!form.metric_category && !form.metric_wallet_id) {
+    // A repo goal is measured by the repository, which is configuration rather
+    // than a column on the row -- so it satisfies the rule by being what it is.
+    // 010 amends the database check in exactly this shape; the two have to agree
+    // or the form refuses rows the database would take, or the reverse.
+    if (!isRepo(form.metric) && !form.metric_category && !form.metric_wallet_id) {
       return 'Pick a category or a wallet, so it knows what to measure'
+    }
+    if (isRepo(form.metric) && !Number.isInteger(amount)) {
+      return 'Commits come in whole numbers'
     }
   }
 
@@ -126,9 +148,14 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
       metric: form.metric,
       // Nulled rather than left behind, so switching a goal back to a plain
       // reminder does not keep measuring it against a category you forgot about.
+      // A repo goal nulls them for the same reason: it is measured by the
+      // repository, and a leftover category would put a category name on a card
+      // about code.
       target_amount: form.metric === 'manual' ? null : Number(form.target_amount),
-      metric_category: form.metric === 'manual' ? null : form.metric_category || null,
-      metric_wallet_id: form.metric === 'manual' ? null : form.metric_wallet_id || null,
+      metric_category:
+        form.metric === 'manual' || isRepo(form.metric) ? null : form.metric_category || null,
+      metric_wallet_id:
+        form.metric === 'manual' || isRepo(form.metric) ? null : form.metric_wallet_id || null,
       generated: false,
       ...(editing ? { id: editing.id } : {}),
     })
@@ -197,7 +224,7 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
         <div>
           <span className="block text-xs text-muted mb-1.5">How is it measured?</span>
           <div className="space-y-2">
-            {METRICS.map((m) => (
+            {METRICS.filter((m) => !m.needs || hasColumn(m.needs)).map((m) => (
               <button
                 key={m.id}
                 type="button"
@@ -226,60 +253,81 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
           <>
             <div>
               <label htmlFor="goal-amount" className="block text-xs text-muted mb-1.5">
-                {form.metric === 'save_at_least' ? 'Save at least (₦)' : 'Stay under (₦)'}
+                {isRepo(form.metric)
+                  ? 'How many commits?'
+                  : form.metric === 'save_at_least'
+                    ? 'Save at least (₦)'
+                    : 'Stay under (₦)'}
               </label>
               <input
                 id="goal-amount"
                 type="number"
-                inputMode="decimal"
+                inputMode={isRepo(form.metric) ? 'numeric' : 'decimal'}
                 min="1"
-                step="any"
+                step={isRepo(form.metric) ? '1' : 'any'}
                 value={form.target_amount}
                 onChange={(e) => set({ target_amount: e.target.value })}
-                placeholder="150000"
+                placeholder={isRepo(form.metric) ? '40' : '150000'}
                 className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
               />
             </div>
 
-            <div>
-              <label htmlFor="goal-category" className="block text-xs text-muted mb-1.5">
-                Measured on category
-              </label>
-              <select
-                id="goal-category"
-                value={form.metric_category}
-                onChange={(e) => set({ metric_category: e.target.value })}
-                className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-accent min-h-[48px]"
-              >
-                <option value="">— any category —</option>
-                {ALL_CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {isRepo(form.metric) && (
+              <p className="text-[11px] text-muted bg-background/60 border border-white/10 rounded-xl p-3">
+                Checked against the repository each night, and the commits it counted are
+                kept on the goal so the figure can be audited. A day with no commits is
+                recorded as <span className="text-white">checked and empty</span> — never as
+                missed, because office work leaves no trace here. You can still tick one off
+                yourself.
+              </p>
+            )}
 
-            <div>
-              <label htmlFor="goal-wallet" className="block text-xs text-muted mb-1.5">
-                And / or wallet
-              </label>
-              <select
-                id="goal-wallet"
-                value={form.metric_wallet_id}
-                onChange={(e) => set({ metric_wallet_id: e.target.value })}
-                className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-accent min-h-[48px]"
-              >
-                <option value="">— any wallet —</option>
-                {wallets
-                  .filter((w) => w.is_active !== false)
-                  .map((w) => (
-                    <option key={w.id} value={w.id}>
-                      {w.name}
-                    </option>
-                  ))}
-              </select>
-            </div>
+            {/* Money only. A repo goal is measured by the repository, so a
+                category picker here would be a control with nothing behind
+                it -- and one the user would reasonably expect to matter. */}
+            {!isRepo(form.metric) && (
+              <>
+                <div>
+                  <label htmlFor="goal-category" className="block text-xs text-muted mb-1.5">
+                    Measured on category
+                  </label>
+                  <select
+                    id="goal-category"
+                    value={form.metric_category}
+                    onChange={(e) => set({ metric_category: e.target.value })}
+                    className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-accent min-h-[48px]"
+                  >
+                    <option value="">— any category —</option>
+                    {ALL_CATEGORIES.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="goal-wallet" className="block text-xs text-muted mb-1.5">
+                    And / or wallet
+                  </label>
+                  <select
+                    id="goal-wallet"
+                    value={form.metric_wallet_id}
+                    onChange={(e) => set({ metric_wallet_id: e.target.value })}
+                    className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-accent min-h-[48px]"
+                  >
+                    <option value="">— any wallet —</option>
+                    {wallets
+                      .filter((w) => w.is_active !== false)
+                      .map((w) => (
+                        <option key={w.id} value={w.id}>
+                          {w.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </>
+            )}
           </>
         )}
 
@@ -341,9 +389,9 @@ function buildPreview(form) {
     const weeks = weeksRemaining(endOfMonth(new Date()), today)
 
     if (week) {
-      lines.push(`${formatNaira(week.target_amount)} a week`)
+      lines.push(`${formatGoalAmount(week.target_amount, form.metric)} a week`)
       const day = decomposeWeekly({ ...week, id: 'preview-week' }, { done: 0 }, today)
-      if (day) lines.push(`${formatNaira(day.target_amount)} a day`)
+      if (day) lines.push(`${formatGoalAmount(day.target_amount, form.metric)} a day`)
     }
     return {
       lines,
@@ -362,7 +410,7 @@ function buildPreview(form) {
     metric_wallet_id: form.metric_wallet_id || null,
   }
   const day = decomposeWeekly(goal, { done: 0 }, today)
-  if (day) lines.push(`${formatNaira(day.target_amount)} a day`)
+  if (day) lines.push(`${formatGoalAmount(day.target_amount, form.metric)} a day`)
 
   return {
     lines,
