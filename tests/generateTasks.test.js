@@ -210,6 +210,50 @@ describe('generateTasks', () => {
   })
 })
 
+describe('the shape of what it writes', () => {
+  it('sends every row in an upsert with the same keys', async () => {
+    // PostgREST rejects a bulk upsert whose objects do not all carry the same
+    // keys -- PGRST102, "All object keys must match". reconcileGenerated used
+    // to attach `id` to updates and not to inserts, so the array became
+    // heterogeneous the moment you held two goals and only one had moved, and
+    // the whole write 400'd. Nothing caught it: the fake client here does not
+    // validate keys, and with one goal the array is never mixed.
+    const second = { ...monthlyGoal, id: 'm2', slot: 2, title: 'Rent buffer' }
+
+    // One parent with a stored task whose figure has moved (an update), and one
+    // never seen before (an insert) -- the exact combination that broke.
+    const storedWeekly = {
+      id: 'w-old',
+      parent_id: 'm1',
+      period: 'weekly',
+      target_date: '2026-08-10',
+      slot: GENERATED_SLOT_BASE,
+      title: 'Set aside \u20a61 toward Laptop fund',
+      target_amount: 1,
+      generated: true,
+      completed: false,
+    }
+
+    const client = fakeClient({ goals: [monthlyGoal, second, storedWeekly], transactions: [] })
+    await generateTasks(client, { today: TODAY })
+
+    expect(client.writes.length).toBeGreaterThan(0)
+    for (const write of client.writes) {
+      const shapes = new Set(write.rows.map((r) => Object.keys(r).sort().join(',')))
+      expect([...shapes]).toHaveLength(1)
+    }
+  })
+
+  it('never sends an id, so the unique index does the arbitrating', async () => {
+    const client = fakeClient({ goals: [monthlyGoal] })
+    await generateTasks(client, { today: TODAY })
+
+    for (const write of client.writes) {
+      for (const row of write.rows) expect(row).not.toHaveProperty('id')
+    }
+  })
+})
+
 describe('generateTasks on a goal about code', () => {
   const repoMonthly = {
     id: 'rm1',

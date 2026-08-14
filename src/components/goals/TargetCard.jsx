@@ -141,8 +141,21 @@ export default function TargetCard({ goal, transactions = [], today, onEdit, onD
         </p>
       )}
 
+      {/* What a plan you approved said this period was about. Above `next`,
+          because the words are the plan and the number is only its size. */}
+      {goal.focus && (
+        <p className="text-xs text-white/80 border-t border-white/5 pt-2.5">
+          {goal.focus}
+          {goal.plan_evidence?.cites && (
+            <span className="block text-[10px] text-muted-dim mt-0.5 font-mono">
+              {goal.plan_evidence.cites}
+            </span>
+          )}
+        </p>
+      )}
+
       {next && (
-        <p className="text-xs text-white/70 border-t border-white/5 pt-2.5">
+        <p className={`text-xs text-white/70 ${goal.focus ? '' : 'border-t border-white/5 pt-2.5'}`}>
           <span className="text-muted">Next: </span>
           {next.title}
         </p>

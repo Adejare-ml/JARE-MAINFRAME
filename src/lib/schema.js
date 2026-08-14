@@ -46,6 +46,14 @@ export const GATED_COLUMNS = {
   'goals.verified_at': '010_repo_goals.sql',
   'goals.evidence': '010_repo_goals.sql',
   'goals.blocked_reason': '010_repo_goals.sql',
+
+  // The planner's columns. `plan_status` is the load-bearing one: without it
+  // there is no way to filter drafts out, and a proposal a model wrote while
+  // you slept would appear on Daily HQ as a task you had agreed to.
+  'goals.plan_status': '011_month_planner.sql',
+  'goals.focus': '011_month_planner.sql',
+  'goals.plan_evidence': '011_month_planner.sql',
+  'goals.planned_at': '011_month_planner.sql',
 }
 
 /**

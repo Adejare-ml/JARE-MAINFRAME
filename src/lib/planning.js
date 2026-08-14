@@ -422,7 +422,15 @@ export function reconcileGenerated(candidates, existing = []) {
 
   for (const row of existing || []) {
     if (!row) continue
-    if (row.parent_id) byLineage.set(lineage(row), row)
+    if (row.parent_id) {
+      // A planned row wins the lineage. The planner writes one row per week of
+      // the month and the generator only ever owns the current week, so the two
+      // meet on exactly one week at a time -- and when they do, the row
+      // carrying the plan is the one that should survive. Taking whichever
+      // happened to be last in the array would make it depend on row order.
+      const held = byLineage.get(lineage(row))
+      if (!held?.focus) byLineage.set(lineage(row), row)
+    }
 
     const key = `${row.period}|${row.target_date}`
     if (!takenSlots.has(key)) takenSlots.set(key, new Set())
@@ -439,8 +447,28 @@ export function reconcileGenerated(candidates, existing = []) {
     const found = byLineage.get(lineage(row))
 
     if (found) {
-      // A person typed here, or ticked it. Either way it is theirs now.
-      if (found.generated === false || found.completed) {
+      // A person ticked it. That is a decision, and nothing regenerates over a
+      // decision.
+      if (found.completed) {
+        kept.push(found)
+        continue
+      }
+
+      // A person typed here. Theirs -- unless it carries a `focus`, which means
+      // it came from an approved plan.
+      //
+      // A planned row is owned twice, on purpose. The model wrote the words and
+      // the arithmetic owns the number, and neither may overwrite the other:
+      // `focus` and `plan_evidence` are absent from every payload below, so a
+      // PostgREST upsert leaves them exactly as they are, while `title` and
+      // `target_amount` are recomputed the same way they are on any other
+      // derived row.
+      //
+      // Skipping it instead -- which is what treating it as hand-typed did --
+      // left the planned week with no number at all, so decomposeWeekly found
+      // nothing to divide and that week produced no daily task. Approving a
+      // plan would have quietly emptied the week it was a plan for.
+      if (found.generated === false && !found.focus) {
         kept.push(found)
         continue
       }
@@ -452,7 +480,14 @@ export function reconcileGenerated(candidates, existing = []) {
         continue
       }
 
-      write.push({ ...row, slot: found.slot, id: found.id })
+      // No `id` in the payload, deliberately. PostgREST rejects a bulk upsert
+      // whose objects do not all carry the same keys (PGRST102, "All object
+      // keys must match"), and this array mixes updates with inserts the moment
+      // you hold two goals and only one of them has moved. The unique index on
+      // (period, target_date, slot) is the conflict target and the stored slot
+      // is reused just above, so the row is identified without it -- and the
+      // caller's `.select()` still returns the real id.
+      write.push({ ...row, slot: found.slot })
       continue
     }
 

@@ -241,6 +241,62 @@ async function callNvidia(userPrompt, systemPrompt = SYSTEM_PROMPT, maxTokens = 
 }
 
 /**
+ * Ask whichever provider answers first, and hand back the parsed JSON.
+ *
+ * The primary-then-fallback loop was written out twice here before this
+ * existed, and a third caller was one copy away from being the version that
+ * forgot to check `finish_reason` or to log which provider failed. The loop is
+ * identical every time; only the prompt, the budget and what counts as "the
+ * model declined" differ, so those are the parameters.
+ *
+ * Returns null when every configured provider fails or none is configured --
+ * never throws. Each caller decides what an absent answer means, because the
+ * right response differs: the sync sends the email to the review queue, and the
+ * planner writes no drafts at all.
+ *
+ * @param {string} userPrompt
+ * @param {{system?: string, maxTokens?: number, warn?: (msg: string) => void, label?: string, declined?: (parsed: object) => boolean}} [options]
+ * @returns {Promise<{data: object, provider: 'ollama'|'nvidia'} | null>}
+ */
+export async function callModel(
+  userPrompt,
+  { system = SYSTEM_PROMPT, maxTokens = MAX_TOKENS, warn = console.warn, label = '', declined } = {},
+) {
+  const providers = [
+    { name: 'ollama', enabled: LLM_CONFIG.ollama.configured, call: callOllama },
+    { name: 'nvidia', enabled: LLM_CONFIG.nvidia.configured, call: callNvidia },
+  ]
+
+  const what = label ? ` ${label}` : ''
+
+  for (const provider of providers) {
+    if (!provider.enabled) continue
+
+    try {
+      const content = await provider.call(userPrompt, system, maxTokens)
+      const parsed = extractJsonObject(content)
+
+      if (!parsed) {
+        warn(`   ${provider.name}: no JSON object in${what} response`)
+        continue
+      }
+
+      // The model answered, and the answer is "I can't". That is a result, not
+      // a failure -- burning the fallback provider on it would double the cost
+      // of every unparseable email for no chance of a different reply.
+      if (declined && declined(parsed)) return null
+
+      return { data: parsed, provider: provider.name }
+    } catch (err) {
+      const reason = err.name === 'AbortError' ? `timed out after ${REQUEST_TIMEOUT_MS}ms` : err.message
+      warn(`   ${provider.name}${what} failed: ${reason}`)
+    }
+  }
+
+  return null
+}
+
+/**
  * Extract a transaction from an email body.
  *
  * @param {string} emailBody
@@ -248,38 +304,10 @@ async function callNvidia(userPrompt, systemPrompt = SYSTEM_PROMPT, maxTokens = 
  * @returns {Promise<{data: object, provider: 'ollama'|'nvidia'} | null>}
  */
 export async function extractTransaction(emailBody, warn = console.warn) {
-  const userPrompt = `Parse this bank notification email:\n\n${emailBody.slice(0, MAX_BODY_CHARS)}`
-
-  const providers = [
-    { name: 'ollama', enabled: LLM_CONFIG.ollama.configured, call: callOllama },
-    { name: 'nvidia', enabled: LLM_CONFIG.nvidia.configured, call: callNvidia },
-  ]
-
-  for (const provider of providers) {
-    if (!provider.enabled) continue
-
-    try {
-      const content = await provider.call(userPrompt)
-      const parsed = extractJsonObject(content)
-
-      if (!parsed) {
-        warn(`   ${provider.name}: no JSON object in response`)
-        continue
-      }
-      if (parsed.error) {
-        // The model read the email and says it isn't a transaction. That is an
-        // answer, not a failure -- don't burn the fallback provider on it.
-        return null
-      }
-
-      return { data: parsed, provider: provider.name }
-    } catch (err) {
-      const reason = err.name === 'AbortError' ? `timed out after ${REQUEST_TIMEOUT_MS}ms` : err.message
-      warn(`   ${provider.name} failed: ${reason}`)
-    }
-  }
-
-  return null
+  return callModel(`Parse this bank notification email:\n\n${emailBody.slice(0, MAX_BODY_CHARS)}`, {
+    warn,
+    declined: (parsed) => Boolean(parsed.error),
+  })
 }
 
 /**
@@ -302,36 +330,21 @@ export async function extractTransaction(emailBody, warn = console.warn) {
 export async function categorizeBatch(items, corrections = [], warn = console.warn) {
   if (!items || items.length === 0) return { results: [], provider: null }
 
-  const userPrompt = buildBatchPrompt(items, corrections)
+  const answer = await callModel(buildBatchPrompt(items, corrections), {
+    system: CATEGORIZE_SYSTEM_PROMPT,
+    maxTokens: BATCH_MAX_TOKENS,
+    label: 'categorization',
+    warn,
+  })
 
-  const providers = [
-    { name: 'ollama', enabled: LLM_CONFIG.ollama.configured, call: callOllama },
-    { name: 'nvidia', enabled: LLM_CONFIG.nvidia.configured, call: callNvidia },
-  ]
-
-  for (const provider of providers) {
-    if (!provider.enabled) continue
-
-    try {
-      const content = await provider.call(userPrompt, CATEGORIZE_SYSTEM_PROMPT, BATCH_MAX_TOKENS)
-      const parsed = extractJsonObject(content)
-
-      if (!parsed) {
-        warn(`   ${provider.name}: no JSON object in categorization response`)
-        continue
-      }
-
-      // parseBatchResponse guarantees one result per requested id, so a
-      // half-answered batch still yields a usable array.
-      return { results: parseBatchResponse(parsed, items), provider: provider.name }
-    } catch (err) {
-      const reason = err.name === 'AbortError' ? `timed out after ${REQUEST_TIMEOUT_MS}ms` : err.message
-      warn(`   ${provider.name} categorization failed: ${reason}`)
-    }
+  // parseBatchResponse guarantees one result per requested id, so a
+  // half-answered batch still yields a usable array -- and a null answer, when
+  // both providers are unavailable, sends everything to review rather than
+  // nowhere.
+  return {
+    results: parseBatchResponse(answer?.data ?? null, items),
+    provider: answer?.provider ?? null,
   }
-
-  // Both providers unavailable: everything goes to review rather than nowhere.
-  return { results: parseBatchResponse(null, items), provider: null }
 }
 
 /**
