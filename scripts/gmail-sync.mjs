@@ -52,7 +52,22 @@ const {
   SUPABASE_SERVICE_KEY,
 } = process.env
 
+/**
+ * Whose rows these are.
+ *
+ * Required, not optional, and that is the whole point. This script writes with
+ * the service-role key, which bypasses RLS and has no `auth.uid()` -- so a row
+ * it inserts without `user_id` is a row that migration 015's policy makes
+ * invisible to you in the app, with no error anywhere. Treating this as
+ * optional would turn a missing repository secret into silently vanishing data,
+ * which is this project's signature failure.
+ *
+ * Get it from: select id from auth.users;
+ */
+const OWNER_USER_ID = process.env.OWNER_USER_ID
+
 const missingVars = [
+  ['OWNER_USER_ID', OWNER_USER_ID],
   ['GOOGLE_CLIENT_ID', GOOGLE_CLIENT_ID],
   ['GOOGLE_CLIENT_SECRET', GOOGLE_CLIENT_SECRET],
   ['GOOGLE_REFRESH_TOKEN', GOOGLE_REFRESH_TOKEN],
@@ -577,7 +592,10 @@ async function insertTransaction(supabase, txn) {
 
   const { data, error } = await supabase
     .from('transactions')
-    .upsert(txn, { onConflict: 'source,transaction_id', ignoreDuplicates: true })
+    // The owner is stamped here rather than at every call site, so a new
+    // caller cannot forget it. Without it, 015's policy makes the row
+    // invisible in the app while this script reports it inserted.
+    .upsert({ ...txn, user_id: OWNER_USER_ID }, { onConflict: 'source,transaction_id', ignoreDuplicates: true })
     .select('id')
 
   if (error) throw new Error(`Insert failed (${txn.transaction_id}): ${error.message}`)
@@ -794,7 +812,7 @@ async function flushFailureLedger(supabase, ledger) {
   if (writes.length > 0) {
     const { error } = await supabase
       .from('sync_failures')
-      .upsert(writes, { onConflict: 'message_id' })
+      .upsert(writes.map((w) => ({ ...w, user_id: OWNER_USER_ID })), { onConflict: 'message_id' })
     if (error) stats.warnings.push(`Could not record sync failures: ${error.message}`)
   }
 
@@ -826,7 +844,7 @@ async function advanceLastSync(supabase, integration, run) {
 
   const { error } = integration
     ? await supabase.from('integrations').update(payload).eq('id', integration.id)
-    : await supabase.from('integrations').insert({ service: 'gmail', ...payload })
+    : await supabase.from('integrations').insert({ service: 'gmail', user_id: OWNER_USER_ID, ...payload })
 
   if (error) stats.errors.push(`Failed to update last_sync: ${error.message}`)
 }

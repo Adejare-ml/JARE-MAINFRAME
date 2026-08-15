@@ -61,7 +61,22 @@ const CALENDAR_ID = process.env.DAY_CALENDAR_ID || 'primary'
  */
 const DAYS_AHEAD = Number(process.env.DAY_DRAFT_DAYS) || 2
 
+/**
+ * Whose rows these are.
+ *
+ * Required, not optional, and that is the whole point. This script writes with
+ * the service-role key, which bypasses RLS and has no `auth.uid()` -- so a row
+ * it inserts without `user_id` is a row that migration 015's policy makes
+ * invisible to you in the app, with no error anywhere. Treating this as
+ * optional would turn a missing repository secret into silently vanishing data,
+ * which is this project's signature failure.
+ *
+ * Get it from: select id from auth.users;
+ */
+const OWNER_USER_ID = process.env.OWNER_USER_ID
+
 const missingVars = [
+  ['OWNER_USER_ID', OWNER_USER_ID],
   ['GOOGLE_CLIENT_ID', GOOGLE_CLIENT_ID],
   ['GOOGLE_CLIENT_SECRET', GOOGLE_CLIENT_SECRET],
   ['GOOGLE_REFRESH_TOKEN', GOOGLE_REFRESH_TOKEN],
@@ -167,7 +182,7 @@ async function main() {
 
   const rows = dates.map((date) => {
     if (source === 'unavailable') {
-      return { brief_date: date, events: [], busy_minutes: 0, free_minutes: 0, source }
+      return { brief_date: date, events: [], busy_minutes: 0, free_minutes: 0, source, user_id: OWNER_USER_ID }
     }
 
     const day = summariseDay(events, {
@@ -179,6 +194,7 @@ async function main() {
 
     return {
       brief_date: date,
+      user_id: OWNER_USER_ID,
       events: day.events,
       busy_minutes: day.busyMinutes,
       free_minutes: day.freeMinutes,

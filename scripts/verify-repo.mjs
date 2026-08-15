@@ -84,7 +84,22 @@ const OFFSET_MINUTES = Number(process.env.VERIFY_TZ_OFFSET_MINUTES) || LAGOS_OFF
  */
 const VERIFY_DAYS = Number(process.env.VERIFY_DAYS) || 14
 
+/**
+ * Whose rows these are.
+ *
+ * Required, not optional, and that is the whole point. This script writes with
+ * the service-role key, which bypasses RLS and has no `auth.uid()` -- so a row
+ * it inserts without `user_id` is a row that migration 015's policy makes
+ * invisible to you in the app, with no error anywhere. Treating this as
+ * optional would turn a missing repository secret into silently vanishing data,
+ * which is this project's signature failure.
+ *
+ * Get it from: select id from auth.users;
+ */
+const OWNER_USER_ID = process.env.OWNER_USER_ID
+
 const missingVars = [
+  ['OWNER_USER_ID', OWNER_USER_ID],
   ['SUPABASE_URL', SUPABASE_URL],
   ['SUPABASE_SERVICE_KEY', SUPABASE_SERVICE_KEY],
   ['GITHUB_TOKEN', GITHUB_TOKEN],
