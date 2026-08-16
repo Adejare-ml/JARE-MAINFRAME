@@ -49,7 +49,7 @@ jobs:
       # and commented on, rather than a new one every month.
       - name: Report failure
         if: failure()
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const title = 'Month planning is failing'
