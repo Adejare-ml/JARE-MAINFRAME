@@ -92,7 +92,12 @@ rl.question('\n🔑 Step 2: Paste the authorization code here: ', async (code) =
 
     if (!data.refresh_token) {
       console.error('❌ No refresh_token was returned. Make sure you set prompt=consent and access_type=offline.')
-      console.log('Received response:', data)
+      // The keys only, never the object. That response carries `access_token`
+      // and `id_token`, and this is a script somebody may one day run in CI to
+      // debug exactly this branch -- at which point printing it puts two live
+      // credentials into a log that outlives them.
+      console.error(`   Google returned these fields: ${Object.keys(data).join(', ')}`)
+      if (data.error) console.error(`   error: ${data.error}`)
       process.exit(1)
     }
 

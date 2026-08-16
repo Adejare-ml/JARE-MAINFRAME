@@ -25,6 +25,10 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          # Required. The service key bypasses RLS and has no auth.uid(), so a
+          # row written without this is one migration 015 hides from you in the
+          # app, with no error anywhere. The script refuses to start without it.
+          OWNER_USER_ID: ${{ secrets.OWNER_USER_ID }}
           # The token Actions issues for this run. It can read this repository's
           # commits, which is the entire permission this needs -- no secret to
           # create, rotate or leak.

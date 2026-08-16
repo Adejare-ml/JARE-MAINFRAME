@@ -26,6 +26,10 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          # Required. The service key bypasses RLS and has no auth.uid(), so a
+          # row written without this is one migration 015 hides from you in the
+          # app, with no error anywhere. The script refuses to start without it.
+          OWNER_USER_ID: ${{ secrets.OWNER_USER_ID }}
           # The secrets are named OLLAMA_KEY / NVIDIA_KEY in this repository.
           # The `||` accepts either spelling, because a secret that does not
           # exist resolves to an empty string with no error -- which is how

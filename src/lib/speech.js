@@ -61,7 +61,6 @@ const LEAD_INS = [
   'i should',
   'i must',
   'im going to',
-  "i'm going to',",
   "i'm going to",
   'going to',
   'remember to',

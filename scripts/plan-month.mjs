@@ -61,7 +61,22 @@ const PLAN_SLOT_BASE = GENERATED_SLOT_BASE + 20
 /** A month of plan is a short answer. A long budget only buys room to ramble. */
 const PLAN_MAX_TOKENS = 900
 
+/**
+ * Whose rows these are.
+ *
+ * Required, not optional, and that is the whole point. This script writes with
+ * the service-role key, which bypasses RLS and has no `auth.uid()` -- so a row
+ * it inserts without `user_id` is a row that migration 015's policy makes
+ * invisible to you in the app, with no error anywhere. Treating this as
+ * optional would turn a missing repository secret into silently vanishing data,
+ * which is this project's signature failure.
+ *
+ * Get it from: select id from auth.users;
+ */
+const OWNER_USER_ID = process.env.OWNER_USER_ID
+
 const missingVars = [
+  ['OWNER_USER_ID', OWNER_USER_ID],
   ['SUPABASE_URL', SUPABASE_URL],
   ['SUPABASE_SERVICE_KEY', SUPABASE_SERVICE_KEY],
 ]
@@ -190,6 +205,7 @@ async function main() {
     }
 
     const rows = accepted.map((item) => ({
+      user_id: OWNER_USER_ID,
       title: goal.title,
       focus: item.focus,
       period: 'weekly',
