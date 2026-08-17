@@ -28,6 +28,7 @@ jobs:
           node --check scripts/plan-month.mjs
           node --check scripts/draft-day.mjs
           node --check scripts/google.mjs
+          node --check scripts/lib/assertProgress.mjs
 
       # `node --check` parses syntax without resolving imports, so it cannot see
       # a bad module path. That gap hid a missing `.js` in summary.js which made
@@ -43,3 +44,5 @@ jobs:
               || { echo "::error::src/lib/$m.js does not load under Node"; exit 1; }
           done
           node --input-type=module -e "await import('./src/lib/sync/index.js')"
+          node --input-type=module -e "await import('./scripts/lib/assertProgress.mjs')" \
+            || { echo "::error::scripts/lib/assertProgress.mjs does not load under Node"; exit 1; }
