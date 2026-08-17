@@ -29,6 +29,7 @@ import {
   reconsentMessage,
   CALENDAR_SCOPE,
 } from './google.mjs'
+import { assertProgress } from './lib/assertProgress.mjs'
 
 // ───────────────────────────────────────────────────────────────
 // 1. Configuration
@@ -230,6 +231,15 @@ async function main() {
   }
   console.log('─'.repeat(64))
   console.log(`✅ ${rows.length} day(s) drafted`)
+
+  // Each row is honestly labelled 'unavailable' when the calendar could not be
+  // read, which is exactly what `source` exists for -- but a caught exception
+  // that never rethrows also means this ran to completion and exited 0, so
+  // `if: failure()` never sees the one thing here actually worth an alert: the
+  // token needs re-consenting.
+  assertProgress([
+    { ok: source !== 'unavailable', reason: 'could not read the calendar this run (see the warning above)' },
+  ])
 }
 
 main().catch((err) => {
