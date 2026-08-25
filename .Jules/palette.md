@@ -1,0 +1,3 @@
+## 2024-05-18 - Missing Label Associations and Disabled State Clarity
+**Learning:** Found several forms where `<label>` elements were visually placed near `<input>` fields but lacked the `htmlFor` and `id` association. This causes screen readers to announce inputs without their context. Also, disabled "Next" buttons lacked `title` tooltips, which leaves users without visual feedback on *why* they cannot proceed, making forms feel broken.
+**Action:** Always ensure `htmlFor` on `<label>` matches the `id` of its `<input>`. Add `title` attributes to disabled interactive elements (like buttons) to explain the required action (e.g., "Select a category to continue").
