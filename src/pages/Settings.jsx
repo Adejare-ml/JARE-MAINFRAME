@@ -582,6 +582,7 @@ export default function Settings() {
                           <div className="flex gap-1">
                             <button
                               onClick={() => openEditWallet(w)}
+                              aria-label="Edit wallet"
                               className="w-9 h-9 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 text-muted hover:text-white transition-colors text-xs"
                               title="Edit"
                             >
@@ -589,6 +590,7 @@ export default function Settings() {
                             </button>
                             <button
                               onClick={() => handleToggleActive(w)}
+                              aria-label={isInactive ? 'Reactivate wallet' : 'Deactivate wallet'}
                               className={`w-9 h-9 flex items-center justify-center rounded-lg transition-colors text-xs ${
                                 isInactive
                                   ? 'bg-accent/10 hover:bg-accent/20 text-accent'
@@ -616,6 +618,7 @@ export default function Settings() {
                             ) : (
                               <button
                                 onClick={() => setDeletingWalletId(w.id)}
+                                aria-label="Delete wallet"
                                 className="w-9 h-9 flex items-center justify-center rounded-lg bg-white/5 hover:bg-red-500/10 text-muted hover:text-red-400 transition-colors text-xs"
                                 title="Delete"
                               >
@@ -738,6 +741,7 @@ export default function Settings() {
           >
             <button
               onClick={() => setShowWalletModal(false)}
+              aria-label="Close modal"
               className="absolute top-4 right-4 text-muted hover:text-white w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10"
             >
               ✕
@@ -881,6 +885,7 @@ export default function Settings() {
                 <span className="text-xs text-muted font-semibold">Active</span>
                 <button
                   type="button"
+                  aria-label={walletForm.is_active ? 'Deactivate wallet' : 'Activate wallet'}
                   onClick={() => setWalletForm({ ...walletForm, is_active: !walletForm.is_active })}
                   className={`w-12 h-7 rounded-full transition-all relative ${
                     walletForm.is_active ? 'bg-accent' : 'bg-white/10'
