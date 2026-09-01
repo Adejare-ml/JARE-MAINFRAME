@@ -434,6 +434,7 @@ export default function QuickLog() {
             <button 
               onClick={() => setIsOpen(false)}
               className="w-9 h-9 rounded-full bg-white/5 hover:bg-white/10 text-muted hover:text-white flex items-center justify-center font-bold text-sm min-h-[48px] min-w-[48px]"
+              aria-label="Close"
             >
               ✕
             </button>
