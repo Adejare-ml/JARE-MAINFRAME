@@ -174,10 +174,11 @@ export default function QuickLog() {
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center py-6">
-        <label className="text-xs text-muted font-semibold uppercase tracking-wider mb-2">Enter Amount</label>
+        <label htmlFor="amount" className="text-xs text-muted font-semibold uppercase tracking-wider mb-2">Enter Amount</label>
         <div className="flex items-center text-4xl md:text-5xl font-extrabold text-white">
           <span className="text-accent mr-1">₦</span>
           <input
+            id="amount"
             type="number"
             inputMode="decimal"
             autoFocus
@@ -310,8 +311,9 @@ export default function QuickLog() {
       
       <div className="space-y-4 flex-1">
         <div>
-          <label className="block text-xs font-medium text-muted mb-1">Note</label>
+          <label htmlFor="note" className="block text-xs font-medium text-muted mb-1">Note</label>
           <input
+            id="note"
             type="text"
             value={note}
             onChange={(e) => setNote(e.target.value)}
@@ -434,6 +436,7 @@ export default function QuickLog() {
             <button 
               onClick={() => setIsOpen(false)}
               className="w-9 h-9 rounded-full bg-white/5 hover:bg-white/10 text-muted hover:text-white flex items-center justify-center font-bold text-sm min-h-[48px] min-w-[48px]"
+              aria-label="Close"
             >
               ✕
             </button>
