@@ -579,7 +579,10 @@ export default function Transactions() {
                         {icon}
                       </div>
                       {isUnreviewed && (
-                        <span className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 rounded-full border-2 border-card" />
+                        <>
+                          <span className="sr-only">Unreviewed</span>
+                          <span className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 rounded-full border-2 border-card" aria-hidden="true" />
+                        </>
                       )}
                     </div>
 
