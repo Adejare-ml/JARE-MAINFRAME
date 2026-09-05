@@ -584,6 +584,7 @@ export default function Settings() {
                               onClick={() => openEditWallet(w)}
                               className="w-9 h-9 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 text-muted hover:text-white transition-colors text-xs"
                               title="Edit"
+                              aria-label={`Edit ${w.name}`}
                             >
                               ✏️
                             </button>
@@ -595,6 +596,7 @@ export default function Settings() {
                                   : 'bg-white/5 hover:bg-orange-500/10 text-muted hover:text-orange-400'
                               }`}
                               title={isInactive ? 'Reactivate' : 'Deactivate'}
+                              aria-label={`${isInactive ? 'Reactivate' : 'Deactivate'} ${w.name}`}
                             >
                               {isInactive ? '✅' : '⏸️'}
                             </button>
@@ -618,6 +620,7 @@ export default function Settings() {
                                 onClick={() => setDeletingWalletId(w.id)}
                                 className="w-9 h-9 flex items-center justify-center rounded-lg bg-white/5 hover:bg-red-500/10 text-muted hover:text-red-400 transition-colors text-xs"
                                 title="Delete"
+                                aria-label={`Delete ${w.name}`}
                               >
                                 🗑️
                               </button>
@@ -739,6 +742,7 @@ export default function Settings() {
             <button
               onClick={() => setShowWalletModal(false)}
               className="absolute top-4 right-4 text-muted hover:text-white w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10"
+              aria-label="Close modal"
             >
               ✕
             </button>
@@ -871,6 +875,8 @@ export default function Settings() {
                         walletForm.color === c ? 'border-white scale-110' : 'border-transparent hover:scale-105'
                       }`}
                       style={{ backgroundColor: c }}
+                      aria-label={`Color ${c}`}
+                      aria-pressed={walletForm.color === c}
                     />
                   ))}
                 </div>
@@ -878,9 +884,12 @@ export default function Settings() {
 
               {/* Active toggle */}
               <div className="flex items-center justify-between p-3 bg-background/50 rounded-xl border border-white/5">
-                <span className="text-xs text-muted font-semibold">Active</span>
+                <span className="text-xs text-muted font-semibold" id="active-toggle-label">Active</span>
                 <button
                   type="button"
+                  role="switch"
+                  aria-checked={walletForm.is_active}
+                  aria-labelledby="active-toggle-label"
                   onClick={() => setWalletForm({ ...walletForm, is_active: !walletForm.is_active })}
                   className={`w-12 h-7 rounded-full transition-all relative ${
                     walletForm.is_active ? 'bg-accent' : 'bg-white/10'
