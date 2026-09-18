@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { formatNaira, formatDate, formatTime } from '../lib/formatters'
+import { formatNaira, formatDate, formatTime, getCategoryColor } from '../lib/formatters'
 import { CATEGORIES, getCategoryIcon } from '../lib/constants'
 import { toast } from '../lib/toast'
 import ErrorState from '../components/ui/ErrorState'
+import EmptyState from '../components/ui/EmptyState'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
+import { groupByDate } from '../lib/transactionGroups'
 import {
   transactionListColumns,
   PAGE_SIZE,
@@ -205,6 +207,7 @@ export default function Transactions() {
   }
 
   const filteredTransactions = transactions
+  const groupedTransactions = groupByDate(filteredTransactions)
 
   const toggleSelected = (id) => {
     setSelectedIds((prev) => {
@@ -525,24 +528,28 @@ export default function Transactions() {
       {pageError ? (
         <ErrorState message={pageError} onRetry={fetchData} />
       ) : filteredTransactions.length === 0 ? (
-        <div className="bg-card rounded-3xl p-12 border border-white/5 text-center space-y-3">
-          <span className="text-4xl">{activeSearch ? '🔍' : '💳'}</span>
-          <p className="text-base font-bold text-white">
-            {activeSearch ? `Nothing matches “${activeSearch}”` : 'No transactions found'}
-          </p>
-          <p className="text-xs text-muted">
-            {activeSearch
+        <EmptyState
+          icon={activeSearch ? '🔍' : '💳'}
+          title={activeSearch ? `Nothing matches "${activeSearch}"` : 'No transactions found'}
+          message={
+            activeSearch
               ? 'Searched description, recipient, note and exact amount'
-              : 'Try selecting a different filter or log a transaction'}
-          </p>
-        </div>
+              : 'Try selecting a different filter or log a transaction'
+          }
+        />
       ) : (
-        <div className="space-y-2">
-          {filteredTransactions.map((t) => {
+        <div className="space-y-5">
+          {groupedTransactions.map((group) => (
+          <div key={group.date} className="space-y-2">
+            <div className="sticky top-0 z-10 -mx-1 px-1 py-1.5 bg-background/95 backdrop-blur-sm">
+              <span className="text-xs font-bold text-muted uppercase tracking-wider">{group.label}</span>
+            </div>
+            {group.rows.map((t) => {
             const isExpanded = expandedId === t.id && !selectMode
             const isSelected = selectedIds.has(t.id)
             const isCredit = t.type === 'credit'
             const icon = getCategoryIcon(t.category)
+            const categoryColor = getCategoryColor(t.category)
             const walletName = getWalletName(t.wallet_id, t.source)
             const isUnreviewed = needsReview(t)
 
@@ -575,9 +582,20 @@ export default function Transactions() {
                       </span>
                     )}
                     <div className="relative">
-                      <div className="w-11 h-11 rounded-2xl bg-background flex items-center justify-center text-xl border border-white/5">
+                      <div
+                        className={`w-11 h-11 rounded-2xl bg-background flex items-center justify-center text-xl border ${
+                          isCredit ? 'border-accent/40' : 'border-white/5'
+                        }`}
+                      >
                         {icon}
                       </div>
+                      {/* Category color, consistent with CategoryBreakdown and
+                          Badge -- the same getCategoryColor() class, not a
+                          second palette to keep in sync with it. */}
+                      <span
+                        className={`absolute -bottom-0.5 -left-0.5 w-2.5 h-2.5 rounded-full border border-card ${categoryColor}`}
+                        aria-hidden="true"
+                      />
                       {isUnreviewed && (
                         <span className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 rounded-full border-2 border-card" />
                       )}
@@ -613,7 +631,7 @@ export default function Transactions() {
                   </div>
 
                   <div className="text-right ml-3 shrink-0">
-                    <span className={`text-base font-extrabold ${isCredit ? 'text-accent' : 'text-white'}`}>
+                    <span className={`text-base font-extrabold tabular-nums ${isCredit ? 'text-accent' : 'text-white'}`}>
                       {isCredit ? '+' : '-'}{formatNaira(t.amount)}
                     </span>
                     <p className="text-[10px] text-muted capitalize mt-0.5 flex items-center justify-end gap-1.5">
@@ -817,7 +835,9 @@ export default function Transactions() {
                 )}
               </div>
             )
-          })}
+            })}
+          </div>
+          ))}
         </div>
       )}
 
