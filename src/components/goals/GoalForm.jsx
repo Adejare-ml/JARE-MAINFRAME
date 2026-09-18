@@ -60,6 +60,7 @@ const EMPTY = {
   metric_category: 'Savings',
   metric_wallet_id: '',
   icon: '',
+  locked: false,
 }
 
 /**
@@ -118,6 +119,7 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
             metric_category: editing.metric_category || '',
             metric_wallet_id: editing.metric_wallet_id || '',
             icon: editing.icon || '',
+            locked: Boolean(editing.locked),
           }
         : EMPTY,
     )
@@ -156,10 +158,11 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
       metric_wallet_id:
         form.metric === 'manual' || isRepo(form.metric) ? null : form.metric_wallet_id || null,
       generated: false,
-      // Omitted rather than sent as null on a database behind 019: PostgREST
-      // rejects an insert/update naming a column it does not have (PGRST204)
-      // for the whole row, not just this field.
+      // Omitted rather than sent as null on a database behind 019/022:
+      // PostgREST rejects an insert/update naming a column it does not have
+      // (PGRST204) for the whole row, not just this field.
       ...(hasColumn('goals.icon') ? { icon: form.icon || null } : {}),
+      ...(hasColumn('goals.locked') ? { locked: form.locked } : {}),
       ...(editing ? { id: editing.id } : {}),
     })
   }
@@ -230,6 +233,28 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
               ))}
             </div>
           </div>
+        )}
+
+        {hasColumn('goals.locked') && (
+          <button
+            type="button"
+            onClick={() => set({ locked: !form.locked })}
+            aria-pressed={form.locked}
+            className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-left transition-colors min-h-[48px] ${
+              form.locked
+                ? 'bg-amber-500/10 border-amber-500/30'
+                : 'bg-background border-white/10 hover:border-white/20'
+            }`}
+          >
+            <span>
+              <span className={`block text-sm font-semibold ${form.locked ? 'text-amber-400' : 'text-white'}`}>
+                {form.locked ? '🔒 Locked' : 'Lock this goal'}
+              </span>
+              <span className="block text-[11px] text-muted mt-0.5">
+                Asks for confirmation before this can be deleted early. For money you do not want to talk yourself out of.
+              </span>
+            </span>
+          </button>
         )}
 
         <div>

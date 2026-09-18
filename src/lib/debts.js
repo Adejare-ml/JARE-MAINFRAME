@@ -64,6 +64,42 @@ export function cycleStatus(debt) {
 }
 
 /**
+ * When a loan reaches zero, at a flat monthly payment.
+ *
+ * No interest rate: these are personal loans, ajo and esusu, not bank credit
+ * with a compounding balance, so principal minus a flat monthly amount is the
+ * honest arithmetic rather than false precision this app has no rate to back
+ * up. The payment is the caller's own plan (`debts.monthly_payment`), not
+ * derived from anything else -- there is no "minimum payment" here to infer.
+ *
+ * @param {object} debt
+ * @param {number} monthlyPayment
+ * @param {Date} [now]
+ * @returns {{monthsRemaining: number, payoffDate: string} | null} null when
+ *   there is a balance left but no payment to project it forward with
+ */
+export function payoffProjection(debt, monthlyPayment, now = new Date()) {
+  const remaining = outstanding(debt)
+  if (remaining <= 0) return { monthsRemaining: 0, payoffDate: dateOnly(now) }
+
+  const payment = Number(monthlyPayment) || 0
+  if (payment <= 0) return null
+
+  const monthsRemaining = Math.ceil(remaining / payment)
+  const target = new Date(now.getFullYear(), now.getMonth() + monthsRemaining, now.getDate())
+  return { monthsRemaining, payoffDate: dateOnly(target) }
+}
+
+/** Local YYYY-MM-DD, kept in this module rather than importing queries.js so
+ *  debts.js stays as dependency-free as it has been since it was written. */
+function dateOnly(date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+/**
  * Days until a date, from today. Negative means overdue.
  * @param {string} dateStr - YYYY-MM-DD
  * @param {Date} [now]

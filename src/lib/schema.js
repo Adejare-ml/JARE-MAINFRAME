@@ -66,6 +66,12 @@ export const GATED_COLUMNS = {
   'category_rules.trigger_field': '020_category_rules.sql',
   'category_rules.priority': '020_category_rules.sql',
 
+  // What Debts.jsx needs to show a payoff date instead of just a balance.
+  'debts.monthly_payment': '021_debt_monthly_payment.sql',
+
+  // SafeLock-style goals: money not meant to come out early.
+  'goals.locked': '022_lock_goals.sql',
+
   // A whole table rather than a column, which is why probeSchema had to learn
   // about 42P01 above. One key is enough to make the banner name the file;
   // `free_minutes` is listed too because it is the figure the page actually
