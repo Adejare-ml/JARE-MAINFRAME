@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import Sheet from '../ui/Sheet'
-import { ALL_CATEGORIES, GOAL_ICONS } from '../../lib/constants'
+import { GOAL_ICONS, getCategoryIcon } from '../../lib/constants'
 import { formatGoalAmount } from '../../lib/formatters'
 import { hasColumn } from '../../lib/schema'
 import { startOfMonth, startOfWeek, endOfMonth, toDateOnly } from '../../lib/queries'
 import { decomposeMonthly, decomposeWeekly, weeksRemaining, REPO_METRIC } from '../../lib/planning'
+import CategoryPickerList from '../ui/CategoryPickerList'
 
 /**
  * Create or edit a monthly or weekly goal.
@@ -110,8 +111,14 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
   // with a brief shake on the form itself.
   const [formError, setFormError] = useState(null)
   const [shake, setShake] = useState(false)
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false)
 
   useEffect(() => {
+    // Always, not just on open: this component stays mounted while closed
+    // (`if (!open) return null` below, not an unmount), so without this the
+    // picker view from a previous session would still be showing the next
+    // time the sheet opens.
+    setShowCategoryPicker(false)
     if (!open) return
     setForm(
       editing
@@ -185,6 +192,33 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
         onSubmit={handleSubmit}
         className={`p-6 space-y-4 overflow-y-auto ${shake ? 'animate-shake' : ''}`}
       >
+        {/* Swapped in as a view within this same Sheet, rather than a second
+            nested one -- see CategoryPickerList's own comment for why two
+            Sheets open at once is the wrong shape here. */}
+        {showCategoryPicker ? (
+        <>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold text-white">Measured on category</h2>
+          <button
+            type="button"
+            onClick={() => setShowCategoryPicker(false)}
+            className="text-sm font-semibold text-muted hover:text-white min-h-[44px] px-2 flex items-center gap-1"
+          >
+            ← Back
+          </button>
+        </div>
+        <CategoryPickerList
+          value={form.metric_category}
+          onSelect={(metric_category) => {
+            set({ metric_category })
+            setShowCategoryPicker(false)
+          }}
+          allowNone
+          noneLabel="Any category"
+        />
+        </>
+        ) : (
+        <>
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold text-white">{editing ? 'Edit goal' : 'New goal'}</h2>
           <button
@@ -363,22 +397,21 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
             {!isRepo(form.metric) && (
               <>
                 <div>
-                  <label htmlFor="goal-category" className="block text-xs text-muted mb-1.5">
-                    Measured on category
-                  </label>
-                  <select
-                    id="goal-category"
-                    value={form.metric_category}
-                    onChange={(e) => set({ metric_category: e.target.value })}
-                    className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-accent min-h-[48px]"
+                  <label className="block text-xs text-muted mb-1.5">Measured on category</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowCategoryPicker(true)}
+                    className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-accent min-h-[48px] flex items-center gap-2"
                   >
-                    <option value="">— any category —</option>
-                    {ALL_CATEGORIES.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
+                    {form.metric_category ? (
+                      <>
+                        <span className="text-lg" aria-hidden="true">{getCategoryIcon(form.metric_category)}</span>
+                        <span className="truncate">{form.metric_category}</span>
+                      </>
+                    ) : (
+                      <span className="text-muted">— any category —</span>
+                    )}
+                  </button>
                 </div>
 
                 <div>
@@ -427,6 +460,8 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
         >
           {saving ? 'Saving…' : editing ? 'Save changes' : 'Create goal'}
         </button>
+        </>
+        )}
       </form>
     </Sheet>
   )

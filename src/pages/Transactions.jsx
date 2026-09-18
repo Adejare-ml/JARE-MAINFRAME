@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { formatNaira, formatDate, formatTime, getCategoryColor } from '../lib/formatters'
-import { CATEGORIES, getCategoryIcon } from '../lib/constants'
+import { getCategoryIcon } from '../lib/constants'
 import { toast } from '../lib/toast'
 import ErrorState from '../components/ui/ErrorState'
 import EmptyState from '../components/ui/EmptyState'
@@ -23,6 +23,7 @@ import { validateCorrection, isMissingFunctionError } from '../lib/corrections'
 import { hasColumn } from '../lib/schema'
 import { pendingTransactions } from '../lib/pendingTransactions'
 import { confirmBuzz } from '../lib/haptics'
+import CategoryPickerSheet from '../components/ui/CategoryPickerSheet'
 
 /**
  * What a populated list looks like, shown dimmed and inert on a genuinely
@@ -65,6 +66,8 @@ export default function Transactions() {
   const [editAmount, setEditAmount] = useState('')
   const [editDate, setEditDate] = useState('')
   const [updating, setUpdating] = useState(false)
+  const [showEditCategoryPicker, setShowEditCategoryPicker] = useState(false)
+  const [showBulkCategoryPicker, setShowBulkCategoryPicker] = useState(false)
 
   // Rows logged from QuickLog (mounted globally, independent of this page)
   // that have not yet been confirmed by the server or arrived through the
@@ -852,15 +855,14 @@ export default function Transactions() {
                       <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">
                         Category
                       </label>
-                      <select
-                        value={editCategory}
-                        onChange={(e) => setEditCategory(e.target.value)}
-                        className="w-full px-4 py-3 bg-card border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-accent min-h-[48px]"
+                      <button
+                        type="button"
+                        onClick={() => setShowEditCategoryPicker(true)}
+                        className="w-full px-4 py-3 bg-card border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-accent min-h-[48px] flex items-center gap-2"
                       >
-                        {Object.values(CATEGORIES).flat().map(c => (
-                          <option key={c} value={c}>{c}</option>
-                        ))}
-                      </select>
+                        <span className="text-lg" aria-hidden="true">{getCategoryIcon(editCategory)}</span>
+                        <span className="truncate">{editCategory}</span>
+                      </button>
                     </div>
 
                     {/* Note Field */}
@@ -980,15 +982,14 @@ export default function Transactions() {
               </button>
             </div>
             <div className="flex items-center gap-2">
-              <select
-                value={bulkCategory}
-                onChange={(e) => setBulkCategory(e.target.value)}
-                className="flex-1 min-w-0 px-3 py-3 bg-background border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-accent min-h-[48px]"
+              <button
+                type="button"
+                onClick={() => setShowBulkCategoryPicker(true)}
+                className="flex-1 min-w-0 px-3 py-3 bg-background border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-accent min-h-[48px] flex items-center gap-2"
               >
-                {Object.values(CATEGORIES).flat().map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
+                <span className="text-lg" aria-hidden="true">{getCategoryIcon(bulkCategory)}</span>
+                <span className="truncate">{bulkCategory}</span>
+              </button>
               <button
                 onClick={handleBulkCategorize}
                 disabled={updating}
@@ -1000,6 +1001,23 @@ export default function Transactions() {
           </div>
         </div>
       )}
+
+      {/* Neither of these has an ancestor Sheet open, unlike GoalForm and
+          CategoryRules -- safe to use the standalone wrapped picker here. */}
+      <CategoryPickerSheet
+        isOpen={showEditCategoryPicker}
+        onClose={() => setShowEditCategoryPicker(false)}
+        value={editCategory}
+        onChange={setEditCategory}
+        title="Category"
+      />
+      <CategoryPickerSheet
+        isOpen={showBulkCategoryPicker}
+        onClose={() => setShowBulkCategoryPicker(false)}
+        value={bulkCategory}
+        onChange={setBulkCategory}
+        title="Recategorise as"
+      />
     </div>
   )
 }

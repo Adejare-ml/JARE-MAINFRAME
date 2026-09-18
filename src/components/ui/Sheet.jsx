@@ -1,5 +1,8 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { useDismissable } from '../../hooks/useDismissable'
+
+/** Drag the panel down this many pixels and releasing dismisses it. */
+const DISMISS_THRESHOLD = 100
 
 /**
  * A bottom sheet you can back out of.
@@ -27,6 +30,11 @@ import { useDismissable } from '../../hooks/useDismissable'
  * Both off by default so QuickLog's existing always-bottom-anchored
  * behaviour is unchanged.
  *
+ * A drag handle at the top lets a bottom-anchored sheet (`alwaysCenter`
+ * false) be swiped down to dismiss, not just tapped away via the backdrop --
+ * hidden above `sm:` when `desktopCenter` turns it into a centred card,
+ * since dragging a centred dialog down is not the same gesture.
+ *
  * @param {object} props
  * @param {boolean} props.isOpen
  * @param {() => void} props.onClose
@@ -48,7 +56,37 @@ export default function Sheet({
   const panelRef = useRef(null)
   useDismissable(isOpen, onClose, panelRef)
 
+  // Drag-to-dismiss. Only downward movement is tracked -- this is a bottom
+  // sheet, not a draggable window -- and only far enough past
+  // DISMISS_THRESHOLD actually closes it; anything less snaps back, so a
+  // scroll gesture that starts on the handle by mistake does not close the
+  // sheet on a small, accidental movement.
+  const [dragY, setDragY] = useState(0)
+  const [dragging, setDragging] = useState(false)
+  const dragStartY = useRef(0)
+
+  const handleDragStart = (e) => {
+    setDragging(true)
+    dragStartY.current = e.clientY
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+  }
+  const handleDragMove = (e) => {
+    if (!dragging) return
+    const delta = e.clientY - dragStartY.current
+    if (delta > 0) setDragY(delta)
+  }
+  const handleDragEnd = () => {
+    if (!dragging) return
+    setDragging(false)
+    if (dragY > DISMISS_THRESHOLD) onClose()
+    setDragY(0)
+  }
+
   if (!isOpen) return null
+
+  // A centred dialog is not something you drag down to dismiss -- that
+  // gesture belongs to a sheet anchored to an edge.
+  const draggable = !alwaysCenter
 
   return (
     <>
@@ -76,10 +114,29 @@ export default function Sheet({
           aria-modal="true"
           aria-label={title}
           tabIndex={-1}
+          style={
+            dragY
+              ? { transform: `translateY(${dragY}px)`, transition: dragging ? 'none' : 'transform 0.25s ease' }
+              : undefined
+          }
           className={`pointer-events-auto w-full ${maxWidth} bg-card border border-white/10 shadow-2xl overflow-hidden flex flex-col animate-slide-up max-h-[90vh] focus:outline-none ${
             alwaysCenter ? 'rounded-3xl' : desktopCenter ? 'rounded-t-3xl sm:rounded-3xl' : 'rounded-t-3xl'
           }`}
         >
+          {draggable && (
+            <div
+              onPointerDown={handleDragStart}
+              onPointerMove={handleDragMove}
+              onPointerUp={handleDragEnd}
+              onPointerCancel={handleDragEnd}
+              className={`w-full flex justify-center py-2.5 flex-shrink-0 touch-none cursor-grab active:cursor-grabbing ${
+                desktopCenter ? 'sm:hidden' : ''
+              }`}
+              aria-hidden="true"
+            >
+              <span className="w-10 h-1.5 rounded-full bg-white/20" />
+            </div>
+          )}
           {children}
         </div>
       </div>
