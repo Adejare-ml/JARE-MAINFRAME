@@ -9,7 +9,8 @@ import { openQuickLog } from '../components/ui/QuickLog'
 import { formatNaira, timeAgo, formatDate } from '../lib/formatters'
 import { getCategoryIcon } from '../lib/constants'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
-import { summarizeMonth, runway, safeToSpend } from '../lib/summary'
+import ProgressRing from '../components/ui/ProgressRing'
+import { summarizeMonth, runway, safeToSpend, budgetPace } from '../lib/summary'
 import {
   transactionListColumns,
   transactionSummaryColumns,
@@ -188,6 +189,11 @@ export default function Budget() {
   // page does not otherwise need.
   const safeToSpendThisMonth = safeToSpend({ liquidBalance, spent: thisMonthSpent, budgetTarget })
 
+  const today = new Date()
+  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
+  const percentOfBudget = budgetTarget > 0 ? Math.round((thisMonthSpent / budgetTarget) * 100) : null
+  const pace = budgetPace(budgetTarget, thisMonthSpent, today.getDate(), daysInMonth)
+
   const last5Transactions = recentTransactions
 
   const hasSavingsOrInvestments = savingsWallets.length > 0 || investmentWallets.length > 0
@@ -267,9 +273,31 @@ export default function Budget() {
       <div className="bg-card rounded-3xl p-6 border border-white/5">
         <h3 className="text-lg font-bold text-white mb-6">THIS MONTH</h3>
 
-        <div className="mb-6">
-          <p className="text-xs text-muted mb-1">Safe to spend</p>
-          <p className="text-3xl font-bold text-white">{formatNaira(safeToSpendThisMonth)}</p>
+        <div className="flex items-center gap-5 mb-6">
+          {percentOfBudget != null && (
+            <ProgressRing
+              value={percentOfBudget / 100}
+              size={72}
+              strokeWidth={7}
+              color={percentOfBudget >= 100 ? '#ef4444' : pace && !pace.onTrack ? '#f59e0b' : 'var(--color-accent)'}
+            >
+              <span className="text-xs font-bold text-white">{percentOfBudget}%</span>
+            </ProgressRing>
+          )}
+          <div>
+            <p className="text-xs text-muted mb-1">Safe to spend</p>
+            <p className="text-3xl font-bold text-white">{formatNaira(safeToSpendThisMonth)}</p>
+            {percentOfBudget >= 100 && (
+              <p className="text-xs text-red-400 font-semibold mt-1">
+                {formatNaira(thisMonthSpent - budgetTarget)} over budget
+              </p>
+            )}
+            {pace && !pace.onTrack && percentOfBudget < 100 && (
+              <p className="text-xs text-amber-400 font-semibold mt-1">
+                {formatNaira(pace.aheadBy)} ahead of pace for today
+              </p>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-3 gap-4">

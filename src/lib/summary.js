@@ -171,6 +171,31 @@ export function safeToSpend({ liquidBalance, spent = 0, budgetTarget = null, com
   return Math.min(afterGoals, budgetLeft)
 }
 
+/**
+ * How this month's spending compares to where a steady pace through the
+ * month would put it -- the "spending line" a flat percent-of-budget figure
+ * cannot show: 40% spent reads the same on the 5th as on the 25th, and only
+ * one of those is a problem.
+ *
+ * @param {number|null} budgetTarget - null/0/unset reported as no pace to compare against
+ * @param {number} spent - this month so far
+ * @param {number} dayOfMonth - 1-31
+ * @param {number} daysInMonth - the length of the month being evaluated; the
+ *   caller's job, not this function's, to avoid this quietly defaulting to
+ *   "whatever month it happens to be when the code runs" for a figure that
+ *   might be about a different one.
+ * @returns {{expectedByToday: number, aheadBy: number, onTrack: boolean} | null}
+ */
+export function budgetPace(budgetTarget, spent, dayOfMonth, daysInMonth) {
+  if (!budgetTarget || budgetTarget <= 0) return null
+  if (!daysInMonth || daysInMonth <= 0) return null
+
+  const expectedByToday = (budgetTarget / daysInMonth) * Math.min(dayOfMonth, daysInMonth)
+  const aheadBy = (Number(spent) || 0) - expectedByToday
+
+  return { expectedByToday, aheadBy, onTrack: aheadBy <= 0 }
+}
+
 /** True for categories the app knows; used by tests to keep TRANSFER_CATEGORIES honest. */
 export function isKnownCategory(category) {
   return ALL_CATEGORIES.includes(category)

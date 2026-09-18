@@ -4,6 +4,7 @@ import {
   breakdownRows,
   runway,
   safeToSpend,
+  budgetPace,
   isKnownCategory,
   TRANSFER_CATEGORIES,
 } from '../src/lib/summary.js'
@@ -197,6 +198,46 @@ describe('safeToSpend', () => {
   it('survives junk input', () => {
     expect(safeToSpend({ liquidBalance: 'NaN' })).toBe(0)
     expect(safeToSpend({})).toBe(0)
+  })
+})
+
+describe('budgetPace', () => {
+  it('reports no pace when there is no budget target', () => {
+    expect(budgetPace(null, 10000, 10, 30)).toBeNull()
+    expect(budgetPace(0, 10000, 10, 30)).toBeNull()
+  })
+
+  it('reports no pace when daysInMonth is missing or zero', () => {
+    expect(budgetPace(60000, 10000, 10, 0)).toBeNull()
+    expect(budgetPace(60000, 10000, 10, null)).toBeNull()
+  })
+
+  it('is on track when spend matches a straight-line pace through the month', () => {
+    // ₦60,000 budget over 30 days = ₦2,000/day; on day 10, expected ₦20,000.
+    const p = budgetPace(60000, 20000, 10, 30)
+    expect(p.expectedByToday).toBe(20000)
+    expect(p.aheadBy).toBe(0)
+    expect(p.onTrack).toBe(true)
+  })
+
+  it('flags spending ahead of pace, not just over the total budget', () => {
+    // Same budget, but ₦40,000 spent by day 10 -- well under the ₦60,000
+    // total, but already ₦20,000 ahead of where day 10 should be.
+    const p = budgetPace(60000, 40000, 10, 30)
+    expect(p.aheadBy).toBe(20000)
+    expect(p.onTrack).toBe(false)
+  })
+
+  it('reports being under pace as a negative aheadBy, still on track', () => {
+    const p = budgetPace(60000, 5000, 10, 30)
+    expect(p.aheadBy).toBe(-15000)
+    expect(p.onTrack).toBe(true)
+  })
+
+  it('never asks for more days than the month has', () => {
+    // Day 31 of a 30-day month should not extrapolate past the whole budget.
+    const p = budgetPace(30000, 30000, 31, 30)
+    expect(p.expectedByToday).toBe(30000)
   })
 })
 
