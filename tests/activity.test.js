@@ -100,6 +100,43 @@ describe('buildActivityGrid', () => {
     const grid = buildActivityGrid([measured], (t) => isTaskDone(t, txns), { today: TODAY })
     expect(grid.flat().find((c) => c.date === TODAY).ratio).toBe(1)
   })
+
+  describe('unknown days', () => {
+    const pending = (date) => ({ target_date: date, kind: 'pending' })
+    const isUnknown = (t) => t.kind === 'pending'
+
+    it('marks a day unknown when every undone task is still pending a verdict', () => {
+      const grid = buildActivityGrid([pending(TODAY)], done, { today: TODAY, isUnknown })
+      const cell = grid.flat().find((c) => c.date === TODAY)
+      expect(cell.unknown).toBe(true)
+      expect(cell.empty).toBe(false)
+    })
+
+    it('is not unknown once a confirmed miss sits alongside a pending task', () => {
+      const grid = buildActivityGrid(
+        [pending(TODAY), task(TODAY, false)],
+        done,
+        { today: TODAY, isUnknown },
+      )
+      expect(grid.flat().find((c) => c.date === TODAY).unknown).toBe(false)
+    })
+
+    it('is not unknown once every task on the day is actually done', () => {
+      const grid = buildActivityGrid([pending(TODAY)], () => true, { today: TODAY, isUnknown })
+      expect(grid.flat().find((c) => c.date === TODAY).unknown).toBe(false)
+    })
+
+    it('defaults to never-unknown when no isUnknown callback is given', () => {
+      // The existing callers (Goals.jsx's manual-only heatmap) never pass one.
+      const grid = buildActivityGrid([pending(TODAY)], done, { today: TODAY })
+      expect(grid.flat().find((c) => c.date === TODAY).unknown).toBe(false)
+    })
+
+    it('an empty day is empty, never unknown', () => {
+      const grid = buildActivityGrid([], done, { today: TODAY, isUnknown })
+      expect(grid.flat().find((c) => c.date === TODAY).unknown).toBe(false)
+    })
+  })
 })
 
 describe('currentStreak', () => {
