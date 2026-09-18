@@ -55,6 +55,10 @@ export const GATED_COLUMNS = {
   'goals.plan_evidence': '011_month_planner.sql',
   'goals.planned_at': '011_month_planner.sql',
 
+  // A goal card's optional emoji. Cosmetic, but still a column the app must
+  // not ask for before the migration has run -- the same 42703 as any other.
+  'goals.icon': '019_goal_icon.sql',
+
   // A whole table rather than a column, which is why probeSchema had to learn
   // about 42P01 above. One key is enough to make the banner name the file;
   // `free_minutes` is listed too because it is the figure the page actually

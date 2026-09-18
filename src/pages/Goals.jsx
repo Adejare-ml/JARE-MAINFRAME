@@ -15,6 +15,7 @@ import {
 } from '../lib/queries'
 import { hasColumn } from '../lib/schema'
 import { goalProgress } from '../lib/planning'
+import ActivityGrid from '../components/daily/ActivityGrid'
 import GoalForm from '../components/goals/GoalForm'
 import TargetCard from '../components/goals/TargetCard'
 import ProposedPlan from '../components/goals/ProposedPlan'
@@ -459,6 +460,14 @@ export default function Goals() {
           <p className="text-xl font-bold text-white tabular-nums">{perfectDays}</p>
         </div>
       </div>
+
+      {/* Consistency, at a glance -- and the streak, which used to live only
+          on Daily HQ even though this is the page about how you've been
+          doing. Scoped to hand-typed priorities: a measured (metric) goal's
+          doneness for a day outside this month cannot be checked here, since
+          only this month's transactions are loaded -- the same limitation
+          `perfectDays` above already works around, by the same means. */}
+      <ActivityGrid tasks={tickable} isDone={(g) => g.completed} today={today} />
 
       {/* Today */}
       {/* History */}
