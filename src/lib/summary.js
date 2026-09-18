@@ -138,6 +138,39 @@ export function runway(liquidBalance, spent, dayOfMonth) {
   return { dailyBurn, daysOfRunway: Math.min(days, 90), capped: days > 90 }
 }
 
+/**
+ * One number: money actually free to spend right now.
+ *
+ * `runway` above answers "at this rate, how many days until zero" -- a
+ * trend. This answers the different question a budgeting app exists to
+ * answer: not a trend, a number to check before buying something today.
+ *
+ * The tighter of two constraints, never their sum: money already earmarked
+ * for a savings goal is not free even if the month's budget has room left,
+ * and a healthy bank balance does not make an already-blown budget safe to
+ * keep spending against. Never negative -- a number a user would read as "you
+ * owe money to yourself" is not what this is for; `runway`/`dailyBurn`
+ * already carry that signal.
+ *
+ * @param {object} params
+ * @param {number} params.liquidBalance - current total across liquid wallets
+ * @param {number} [params.spent] - this month, transfers already excluded (summarizeMonth().spent)
+ * @param {number|null} [params.budgetTarget] - monthly spending ceiling, or none set
+ * @param {number} [params.committedGoals] - sum of what is still owed toward
+ *   active, unmet savings goals this period -- the caller computes this from
+ *   goalProgress() per goal; kept out of this function so summary.js stays
+ *   decoupled from the goals table.
+ * @returns {number}
+ */
+export function safeToSpend({ liquidBalance, spent = 0, budgetTarget = null, committedGoals = 0 }) {
+  const afterGoals = Math.max(0, (Number(liquidBalance) || 0) - (Number(committedGoals) || 0))
+
+  if (!budgetTarget || budgetTarget <= 0) return afterGoals
+
+  const budgetLeft = Math.max(0, budgetTarget - (Number(spent) || 0))
+  return Math.min(afterGoals, budgetLeft)
+}
+
 /** True for categories the app knows; used by tests to keep TRANSFER_CATEGORIES honest. */
 export function isKnownCategory(category) {
   return ALL_CATEGORIES.includes(category)

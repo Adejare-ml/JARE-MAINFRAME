@@ -7,10 +7,10 @@ import { toast } from '../lib/toast'
 import CashReconciliation from '../components/CashReconciliation'
 import ErrorState from '../components/ui/ErrorState'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
-import { summarizeMonth } from '../lib/summary'
+import { summarizeMonth, safeToSpend } from '../lib/summary'
 import { upcomingDebts } from '../lib/debts'
 import { generateTasks } from '../lib/generateTasks'
-import { isTaskDone, GENERATED_SLOT_BASE } from '../lib/planning'
+import { isTaskDone, goalProgress, GENERATED_SLOT_BASE } from '../lib/planning'
 import { hasColumn } from '../lib/schema'
 import TodayList from '../components/daily/TodayList'
 import DictateDay from '../components/daily/DictateDay'
@@ -449,6 +449,24 @@ export default function DailyHQ() {
   const liquidWalletIds = new Set(liquidWallets.map(w => w.id))
   const monthSummary = summarizeMonth(monthTransactions, liquidWalletIds)
   const totalSpent = monthSummary.spent
+
+  // Money already spoken for: today's and this week's save_at_least targets,
+  // each judged against the same correctly-scoped transactions TodayList and
+  // WeekReview already use for the same goals -- a daily target against a
+  // week of transactions would overcount what is left to save.
+  const committedGoals = [...todayTasks, ...weeklyGoals]
+    .filter((g) => g.metric === 'save_at_least')
+    .reduce((sum, g) => {
+      const progress = goalProgress(g, g.period === 'daily' ? todayTransactions : thisWeekTransactions)
+      return sum + Math.max(0, (progress.target || 0) - (progress.done || 0))
+    }, 0)
+
+  const safeToSpendToday = safeToSpend({
+    liquidBalance,
+    spent: totalSpent,
+    budgetTarget,
+    committedGoals,
+  })
   const percentSpent = budgetTarget > 0
     ? Math.min(Math.round((totalSpent / budgetTarget) * 100), 100)
     : null
@@ -580,6 +598,17 @@ export default function DailyHQ() {
           <p className="text-xs text-muted text-right">
             {formatNaira(totalSpent)} spent
             {percentSpent != null ? ` of ${formatNaira(budgetTarget)}` : ' — set a budget target in Settings'}
+          </p>
+        </section>
+
+        {/* SAFE TO SPEND */}
+        <section className="bg-card rounded-3xl p-6 border border-white/5 space-y-1.5">
+          <span className="text-xs font-semibold text-muted uppercase tracking-wider">Safe to spend</span>
+          <p className="text-3xl font-bold text-white">{formatNaira(safeToSpendToday)}</p>
+          <p className="text-xs text-muted">
+            {committedGoals > 0
+              ? `After ${formatNaira(committedGoals)} still owed to today's and this week's goals.`
+              : 'After the money already spoken for.'}
           </p>
         </section>
 

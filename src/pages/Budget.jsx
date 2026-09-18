@@ -8,7 +8,7 @@ import { openQuickLog } from '../components/ui/QuickLog'
 import { formatNaira, timeAgo, formatDate } from '../lib/formatters'
 import { getCategoryIcon } from '../lib/constants'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
-import { summarizeMonth, runway } from '../lib/summary'
+import { summarizeMonth, runway, safeToSpend } from '../lib/summary'
 import {
   transactionListColumns,
   transactionSummaryColumns,
@@ -24,13 +24,16 @@ export default function Budget() {
   // ledger to render eight numbers.
   const [monthTransactions, setMonthTransactions] = useState([])
   const [recentTransactions, setRecentTransactions] = useState([])
+  // Same default and same key as Daily HQ reads -- one budget target, read the
+  // same way in both places, or the two pages would disagree about it.
+  const [budgetTarget, setBudgetTarget] = useState(85000)
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState(null)
 
   const fetchWalletsAndData = useCallback(async () => {
     try {
       setPageError(null)
-      const [walletsRes, monthRes, recentRes] = await Promise.all([
+      const [walletsRes, monthRes, recentRes, settingsRes] = await Promise.all([
         supabase.from('wallets').select('*').order('name'),
         // Totals are keyed on transaction_date -- the date the bank says the
         // money moved -- not created_at, which is when the sync happened. A
@@ -50,6 +53,7 @@ export default function Budget() {
             .order('created_at', { ascending: false })
             .limit(5),
         ),
+        supabase.from('user_settings').select('key, value').eq('key', 'monthly_budget_target'),
       ])
 
       if (walletsRes.error) throw walletsRes.error
@@ -59,6 +63,14 @@ export default function Budget() {
       setWallets(walletsRes.data || [])
       setMonthTransactions(monthRes.data || [])
       setRecentTransactions(recentRes.data || [])
+
+      // Additive, like Daily HQ's own read of the same key: a missing table or
+      // an unset target leaves the default rather than failing the page.
+      const targetRow = (settingsRes.data || [])[0]
+      if (targetRow) {
+        const parsed = parseFloat(targetRow.value)
+        if (!isNaN(parsed) && parsed >= 0) setBudgetTarget(parsed)
+      }
     } catch (error) {
       console.error('Error fetching data:', error)
       // Without this, a network failure left wallets empty and the setup gate
@@ -157,6 +169,12 @@ export default function Budget() {
   const thisMonthSpent = monthSummary.spent
   const thisMonthRemaining = liquidBalance
   const monthRunway = runway(liquidBalance, thisMonthSpent, new Date().getDate())
+  // Budget-vs-balance only -- unlike Daily HQ's version, this page fetches no
+  // goals, so it cannot net out what is still owed toward one. Deliberate:
+  // Daily HQ is the goals-aware daily decision surface; this is the monthly
+  // overview, and a second goals fetch here would be paying for a figure this
+  // page does not otherwise need.
+  const safeToSpendThisMonth = safeToSpend({ liquidBalance, spent: thisMonthSpent, budgetTarget })
 
   const last5Transactions = recentTransactions
 
@@ -232,6 +250,12 @@ export default function Budget() {
       {/* This Month Summary Card */}
       <div className="bg-card rounded-3xl p-6 border border-white/5">
         <h3 className="text-lg font-bold text-white mb-6">THIS MONTH</h3>
+
+        <div className="mb-6">
+          <p className="text-xs text-muted mb-1">Safe to spend</p>
+          <p className="text-3xl font-bold text-white">{formatNaira(safeToSpendThisMonth)}</p>
+        </div>
+
         <div className="grid grid-cols-3 gap-4">
           <div>
             <p className="text-xs text-muted mb-1">Income</p>
