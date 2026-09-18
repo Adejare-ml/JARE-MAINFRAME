@@ -14,7 +14,7 @@ function Delta({ change, lowerIsBetter }) {
 
   return (
     <span className={`text-xs font-semibold ${good ? 'text-accent' : 'text-orange-400'}`}>
-      {up ? '↑' : '↓'} {formatNaira(Math.abs(change.delta))}
+      {up ? '↑' : '↓'} <span className="money">{formatNaira(Math.abs(change.delta))}</span>
       {/* No percentage when last week was zero -- "up 100%" from nothing is a
           division that completed, not a fact worth printing. */}
       {pct != null && <span className="text-muted font-normal"> ({pct}%)</span>}
@@ -61,7 +61,7 @@ export default function WeekReview({
             <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-1">
               This week
             </p>
-            <p className="text-3xl font-extrabold text-white tabular-nums">
+            <p className="text-3xl font-extrabold text-white tabular-nums money">
               {formatNaira(comparison.spent.now)}
             </p>
           </div>
@@ -71,13 +71,13 @@ export default function WeekReview({
         <div className="grid grid-cols-2 gap-2 pt-3 border-t border-white/5">
           <div className="bg-background/40 p-3 rounded-2xl border border-white/5">
             <p className="text-[10px] text-muted uppercase tracking-wider">In</p>
-            <p className="text-sm font-bold text-white tabular-nums">
+            <p className="text-sm font-bold text-white tabular-nums money">
               {formatNaira(comparison.income.now)}
             </p>
           </div>
           <div className="bg-background/40 p-3 rounded-2xl border border-white/5">
             <p className="text-[10px] text-muted uppercase tracking-wider">Moved aside</p>
-            <p className="text-sm font-bold text-blue-400 tabular-nums">
+            <p className="text-sm font-bold text-blue-400 tabular-nums money">
               {formatNaira(comparison.movedAside.now)}
             </p>
           </div>
@@ -147,7 +147,7 @@ export default function WeekReview({
                   </span>
                   {progress.measured ? (
                     <span
-                      className={`text-xs font-bold tabular-nums flex-shrink-0 ${
+                      className={`text-xs font-bold tabular-nums flex-shrink-0 money ${
                         met ? 'text-accent' : 'text-muted'
                       }`}
                     >

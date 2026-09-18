@@ -30,7 +30,7 @@ export default function CategoryBreakdown({ byCategory }) {
                     {Math.round(row.share * 100)}%
                   </span>
                 </span>
-                <span className="text-sm font-bold text-white flex-shrink-0 tabular-nums">
+                <span className="text-sm font-bold text-white flex-shrink-0 tabular-nums money">
                   {formatNaira(row.total)}
                 </span>
               </div>

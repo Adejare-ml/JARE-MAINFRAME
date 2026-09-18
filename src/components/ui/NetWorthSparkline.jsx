@@ -38,8 +38,8 @@ export default function NetWorthSparkline({ snapshots }) {
         {latest && <circle cx={latest.x} cy={latest.y} r="3" fill="var(--color-accent)" />}
       </svg>
       <div className="flex justify-between text-[10px] text-muted-dim mt-1">
-        <span>{formatDate(snapshots[0].snapshot_date)} · {formatNaira(min)}</span>
-        <span>{formatDate(snapshots[snapshots.length - 1].snapshot_date)} · {formatNaira(max)}</span>
+        <span>{formatDate(snapshots[0].snapshot_date)} · <span className="money">{formatNaira(min)}</span></span>
+        <span>{formatDate(snapshots[snapshots.length - 1].snapshot_date)} · <span className="money">{formatNaira(max)}</span></span>
       </div>
     </div>
   )

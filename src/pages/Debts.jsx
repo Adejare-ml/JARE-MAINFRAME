@@ -249,15 +249,15 @@ export default function Debts() {
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-card rounded-2xl p-4 border border-white/5">
           <p className="text-[10px] text-muted uppercase tracking-wider mb-1">I owe</p>
-          <p className="text-lg font-bold text-red-400 tabular-nums">{formatNaira(totals.iOwe)}</p>
+          <p className="text-lg font-bold text-red-400 tabular-nums money">{formatNaira(totals.iOwe)}</p>
         </div>
         <div className="bg-card rounded-2xl p-4 border border-white/5">
           <p className="text-[10px] text-muted uppercase tracking-wider mb-1">Owed to me</p>
-          <p className="text-lg font-bold text-accent tabular-nums">{formatNaira(totals.owedToMe)}</p>
+          <p className="text-lg font-bold text-accent tabular-nums money">{formatNaira(totals.owedToMe)}</p>
         </div>
         <div className="bg-card rounded-2xl p-4 border border-white/5">
           <p className="text-[10px] text-muted uppercase tracking-wider mb-1">In cycles</p>
-          <p className="text-lg font-bold text-blue-400 tabular-nums">{formatNaira(totals.inCycles)}</p>
+          <p className="text-lg font-bold text-blue-400 tabular-nums money">{formatNaira(totals.inCycles)}</p>
         </div>
       </div>
 
@@ -358,7 +358,7 @@ export default function Debts() {
                         Round {cycle.position} of {cycle.size}
                       </p>
                       <p className="text-xs text-muted tabular-nums">
-                        {formatNaira(cycle.contributed)} in
+                        <span className="money">{formatNaira(cycle.contributed)}</span> in
                       </p>
                     </div>
                     <div className="h-2 bg-white/5 rounded-full overflow-hidden">
@@ -371,19 +371,29 @@ export default function Debts() {
                       {cycle.roundsLeft === 0
                         ? 'Final round'
                         : `${cycle.roundsLeft} round${cycle.roundsLeft === 1 ? '' : 's'} to go`}
-                      {debt.contribution ? ` · ${formatNaira(debt.contribution)} each` : ''}
-                      {cycle.expectedPot ? ` · pot ${formatNaira(cycle.expectedPot)}` : ''}
+                      {debt.contribution && (
+                        <>
+                          {' · '}
+                          <span className="money">{formatNaira(debt.contribution)}</span> each
+                        </>
+                      )}
+                      {cycle.expectedPot && (
+                        <>
+                          {' · pot '}
+                          <span className="money">{formatNaira(cycle.expectedPot)}</span>
+                        </>
+                      )}
                     </p>
                   </div>
                 ) : (
                   <div className="space-y-2">
                     <div className="flex items-baseline justify-between">
-                      <p className="text-lg font-bold text-white tabular-nums">
+                      <p className="text-lg font-bold text-white tabular-nums money">
                         {formatNaira(outstanding(debt))}
                       </p>
                       {Number(debt.principal) > 0 && (
                         <p className="text-xs text-muted tabular-nums">
-                          of {formatNaira(debt.principal)}
+                          of <span className="money">{formatNaira(debt.principal)}</span>
                         </p>
                       )}
                     </div>
@@ -399,13 +409,20 @@ export default function Debts() {
                     )}
                     {!debt.settled && debt.monthly_payment > 0 && (() => {
                       const payoff = payoffProjection(debt, debt.monthly_payment)
-                      return payoff ? (
+                      if (!payoff) return null
+                      return (
                         <p className="text-[11px] text-muted">
-                          {payoff.monthsRemaining === 0
-                            ? 'Paid off'
-                            : `Paid off in ${payoff.monthsRemaining} month${payoff.monthsRemaining === 1 ? '' : 's'} at ${formatNaira(debt.monthly_payment)}/mo · ${formatDate(payoff.payoffDate)}`}
+                          {payoff.monthsRemaining === 0 ? (
+                            'Paid off'
+                          ) : (
+                            <>
+                              Paid off in {payoff.monthsRemaining} month{payoff.monthsRemaining === 1 ? '' : 's'} at{' '}
+                              <span className="money">{formatNaira(debt.monthly_payment)}</span>/mo ·{' '}
+                              {formatDate(payoff.payoffDate)}
+                            </>
+                          )}
                         </p>
-                      ) : null
+                      )
                     })()}
                   </div>
                 )}

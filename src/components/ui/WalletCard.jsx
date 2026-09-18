@@ -36,7 +36,7 @@ export default function WalletCard({ name, type, balance, color }) {
           {typeLabels[type] || type}
         </span>
       </div>
-      <p className="text-2xl font-bold text-white">
+      <p className="text-2xl font-bold text-white money">
         {formatNaira(balance)}
       </p>
     </div>
