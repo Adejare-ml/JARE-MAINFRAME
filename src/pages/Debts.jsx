@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { toast } from '../lib/toast'
 import { formatNaira, formatDate } from '../lib/formatters'
 import ErrorState from '../components/ui/ErrorState'
+import Sheet from '../components/ui/Sheet'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
-import { useDismissable } from '../hooks/useDismissable'
 import {
   DIRECTIONS,
   KINDS,
@@ -37,10 +37,6 @@ export default function Debts() {
   const [tab, setTab] = useState('all')
 
   const [showModal, setShowModal] = useState(false)
-  // The form keeps its own layout -- it is centred on desktop and a sheet on
-  // mobile, which the shared <Sheet> does not do -- but shares the behaviour:
-  // back gesture, Escape, scroll lock, focus in and out.
-  const formRef = useRef(null)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
@@ -70,7 +66,6 @@ export default function Debts() {
   }, [fetchDebts])
 
   useRealtimeRefresh(['debts'], fetchDebts, { channelPrefix: 'debts' })
-  useDismissable(showModal, () => setShowModal(false), formRef)
 
   const totals = useMemo(() => debtTotals(debts), [debts])
 
@@ -424,17 +419,13 @@ export default function Debts() {
       )}
 
       {/* Add / Edit */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <form
-            ref={formRef}
-            onSubmit={handleSave}
-            role="dialog"
-            aria-modal="true"
-            aria-label={editing ? 'Edit debt' : 'New debt'}
-            tabIndex={-1}
-            className="bg-card w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl border border-white/10 p-6 space-y-4 max-h-[90vh] overflow-y-auto focus:outline-none"
-          >
+      <Sheet
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        title={editing ? 'Edit debt' : 'New debt'}
+        desktopCenter
+      >
+        <form onSubmit={handleSave} className="p-6 space-y-4 overflow-y-auto">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-white">{editing ? 'Edit' : 'New'}</h2>
               <button
@@ -611,9 +602,8 @@ export default function Debts() {
             >
               {saving ? 'Saving…' : editing ? 'Save changes' : 'Add'}
             </button>
-          </form>
-        </div>
-      )}
+        </form>
+      </Sheet>
     </div>
   )
 }

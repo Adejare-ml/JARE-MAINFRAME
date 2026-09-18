@@ -3,6 +3,7 @@ import {
   summarizeMonth,
   breakdownRows,
   runway,
+  safeToSpend,
   isKnownCategory,
   TRANSFER_CATEGORIES,
 } from '../src/lib/summary.js'
@@ -144,6 +145,58 @@ describe('runway', () => {
 
   it('never returns negative days', () => {
     expect(runway(-5000, 3000, 10).daysOfRunway).toBe(0)
+  })
+})
+
+describe('safeToSpend', () => {
+  it('is the liquid balance when nothing is committed and no budget is set', () => {
+    expect(safeToSpend({ liquidBalance: 100000 })).toBe(100000)
+  })
+
+  it('subtracts money already earmarked for goals', () => {
+    expect(safeToSpend({ liquidBalance: 100000, committedGoals: 30000 })).toBe(70000)
+  })
+
+  it('never goes negative when goals exceed the liquid balance', () => {
+    expect(safeToSpend({ liquidBalance: 20000, committedGoals: 50000 })).toBe(0)
+  })
+
+  it('takes the tighter of goal-adjusted balance and remaining budget, not their sum', () => {
+    // ₦40k left in the bank after goals, but only ₦10k left in this month's
+    // budget -- the budget is the binding constraint.
+    const tight = safeToSpend({
+      liquidBalance: 70000,
+      committedGoals: 30000,
+      budgetTarget: 60000,
+      spent: 50000,
+    })
+    expect(tight).toBe(10000)
+
+    // ₦70k left in the bank after goals, plenty of budget room left -- the
+    // bank balance is the binding constraint, not the budget.
+    const other = safeToSpend({
+      liquidBalance: 100000,
+      committedGoals: 30000,
+      budgetTarget: 200000,
+      spent: 10000,
+    })
+    expect(other).toBe(70000)
+  })
+
+  it('ignores a budget target of zero or unset, rather than reading it as "nothing left"', () => {
+    expect(safeToSpend({ liquidBalance: 50000, budgetTarget: 0, spent: 10000 })).toBe(50000)
+    expect(safeToSpend({ liquidBalance: 50000, budgetTarget: null, spent: 10000 })).toBe(50000)
+  })
+
+  it('never reports a negative remaining budget as negative safe-to-spend', () => {
+    // Already ₦20k over a ₦50k budget -- budgetLeft floors at 0, and the
+    // tighter-of-two logic then reports 0, not a negative number.
+    expect(safeToSpend({ liquidBalance: 100000, budgetTarget: 50000, spent: 70000 })).toBe(0)
+  })
+
+  it('survives junk input', () => {
+    expect(safeToSpend({ liquidBalance: 'NaN' })).toBe(0)
+    expect(safeToSpend({})).toBe(0)
   })
 })
 

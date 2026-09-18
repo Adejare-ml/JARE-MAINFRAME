@@ -1,5 +1,5 @@
-import { useRef, useState, useEffect } from 'react'
-import { useDismissable } from '../../hooks/useDismissable'
+import { useState, useEffect } from 'react'
+import Sheet from '../ui/Sheet'
 import { toast } from '../../lib/toast'
 import { ALL_CATEGORIES } from '../../lib/constants'
 import { formatGoalAmount } from '../../lib/formatters'
@@ -103,10 +103,7 @@ export function validateGoal(form) {
 }
 
 export default function GoalForm({ open, editing, wallets = [], onClose, onSave, saving }) {
-  const formRef = useRef(null)
   const [form, setForm] = useState(EMPTY)
-
-  useDismissable(open, onClose, formRef)
 
   useEffect(() => {
     if (!open) return
@@ -164,16 +161,8 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
   const preview = buildPreview(form)
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <form
-        ref={formRef}
-        onSubmit={handleSubmit}
-        role="dialog"
-        aria-modal="true"
-        aria-label={editing ? 'Edit goal' : 'New goal'}
-        tabIndex={-1}
-        className="bg-card w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl border border-white/10 p-6 space-y-4 max-h-[90vh] overflow-y-auto focus:outline-none"
-      >
+    <Sheet isOpen={open} onClose={onClose} title={editing ? 'Edit goal' : 'New goal'} desktopCenter>
+      <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold text-white">{editing ? 'Edit goal' : 'New goal'}</h2>
           <button
@@ -353,7 +342,7 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
           {saving ? 'Saving…' : editing ? 'Save changes' : 'Create goal'}
         </button>
       </form>
-    </div>
+    </Sheet>
   )
 }
 
