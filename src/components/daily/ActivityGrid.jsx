@@ -15,14 +15,17 @@ import { formatDate } from '../../lib/formatters'
 function shade(cell) {
   if (cell.isFuture) return 'bg-transparent border border-white/5'
   if (cell.empty) return 'bg-white/[0.03] border border-white/5'
+  // Pending a verdict, not missed -- a dashed outline reads as "not decided
+  // yet" rather than either colour the grid otherwise uses for a real answer.
+  if (cell.unknown) return 'bg-white/[0.06] border border-dashed border-white/25'
   if (cell.ratio >= 1) return 'bg-accent'
   if (cell.ratio >= 0.5) return 'bg-accent/60'
   if (cell.ratio > 0) return 'bg-accent/30'
   return 'bg-white/10'
 }
 
-export default function ActivityGrid({ tasks, isDone, today }) {
-  const grid = buildActivityGrid(tasks, isDone, { today })
+export default function ActivityGrid({ tasks, isDone, today, isUnknown }) {
+  const grid = buildActivityGrid(tasks, isDone, { today, ...(isUnknown ? { isUnknown } : {}) })
   const streak = currentStreak(tasks, isDone, { today })
   const planned = grid.flat().filter((c) => !c.empty && !c.isFuture)
 
@@ -62,7 +65,9 @@ export default function ActivityGrid({ tasks, isDone, today }) {
                     title={
                       cell.empty
                         ? `${formatDate(cell.date)} — nothing planned`
-                        : `${formatDate(cell.date)} — ${cell.done}/${cell.total} done`
+                        : cell.unknown
+                          ? `${formatDate(cell.date)} — not checked yet`
+                          : `${formatDate(cell.date)} — ${cell.done}/${cell.total} done`
                     }
                     className={`w-3 h-3 rounded-sm ${shade(cell)} ${
                       cell.isToday ? 'ring-1 ring-white/40' : ''

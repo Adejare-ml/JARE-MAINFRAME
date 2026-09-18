@@ -31,12 +31,28 @@ export const DEFAULT_WEEKS = 8
  * where nothing got done. Rendering both as "nothing" would say you failed on
  * days you never made a plan for.
  *
+ * A third state sits between "done" and "missed": a day is `unknown` when
+ * every task still open on it is only PENDING a verdict -- a repo goal the
+ * nightly verifier has not checked yet, most commonly today's own cell before
+ * that Action has run -- rather than confirmed incomplete. Conflating pending
+ * with missed would shade today red for a verdict nobody has reached, the
+ * same mistake `checked`/`verified_at` (planning.js) exists to prevent on the
+ * goal card itself; this is that same distinction, extended to the grid.
+ *
  * @param {Array<{target_date: string}>} tasks - daily rows, any date range
  * @param {(task: object) => boolean} isDone - decides doneness per task
- * @param {{weeks?: number, today?: string}} [options]
- * @returns {Array<Array<{date: string, total: number, done: number, ratio: number, empty: boolean, isFuture: boolean, isToday: boolean}>>}
+ * @param {{weeks?: number, today?: string, isUnknown?: (task: object) => boolean}} [options]
+ * @param {(task: object) => boolean} [options.isUnknown] - true for a task
+ *   still awaiting a verdict. Defaults to "never" -- most tasks (manual,
+ *   money-measured) are decided the moment they are read, and only a
+ *   repo-metric goal not yet checked has anything to be unknown about.
+ * @returns {Array<Array<{date: string, total: number, done: number, ratio: number, empty: boolean, unknown: boolean, isFuture: boolean, isToday: boolean}>>}
  */
-export function buildActivityGrid(tasks, isDone, { weeks = DEFAULT_WEEKS, today = toDateOnly(new Date()) } = {}) {
+export function buildActivityGrid(
+  tasks,
+  isDone,
+  { weeks = DEFAULT_WEEKS, today = toDateOnly(new Date()), isUnknown = () => false } = {},
+) {
   const byDate = new Map()
 
   for (const task of tasks || []) {
@@ -63,12 +79,19 @@ export function buildActivityGrid(tasks, isDone, { weeks = DEFAULT_WEEKS, today 
       const total = dayTasks.length
       const done = dayTasks.filter((t) => isDone(t)).length
 
+      // Unknown only when EVERY undone task on the day is pending, not just
+      // some of them -- one confirmed miss sitting alongside a pending one is
+      // still a day with a confirmed miss on it.
+      const notDone = dayTasks.filter((t) => !isDone(t))
+      const unknown = total > 0 && done < total && notDone.every((t) => isUnknown(t))
+
       week.push({
         date,
         total,
         done,
         ratio: total > 0 ? done / total : 0,
         empty: total === 0,
+        unknown,
         isFuture: date > today,
         isToday: date === today,
       })

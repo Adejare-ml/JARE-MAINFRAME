@@ -7,10 +7,12 @@ import { toast } from '../lib/toast'
 import CashReconciliation from '../components/CashReconciliation'
 import ErrorState from '../components/ui/ErrorState'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
-import { summarizeMonth, safeToSpend } from '../lib/summary'
+import { summarizeMonth, safeToSpend, budgetPace } from '../lib/summary'
 import { upcomingDebts } from '../lib/debts'
 import { generateTasks } from '../lib/generateTasks'
-import { isTaskDone, goalProgress, GENERATED_SLOT_BASE } from '../lib/planning'
+import { isTaskDone, goalProgress, GENERATED_SLOT_BASE, REPO_METRIC } from '../lib/planning'
+import { dailyInsight } from '../lib/insight'
+import { currentStreak } from '../lib/activity'
 import { hasColumn } from '../lib/schema'
 import TodayList from '../components/daily/TodayList'
 import DictateDay from '../components/daily/DictateDay'
@@ -446,6 +448,14 @@ export default function DailyHQ() {
   const doneOn = (task) =>
     isTaskDone(task, recentRows.filter((t) => t.transaction_date === task.target_date))
 
+  // A task is "unknown" rather than missed when it is a repo goal the nightly
+  // verifier has not checked yet -- almost always today's own cell, before
+  // that Action has run for the day. See activity.js's buildActivityGrid.
+  const isUnknownTask = (task) =>
+    task.metric === REPO_METRIC && !task.verified_at && !task.completed
+
+  const streak = currentStreak(dayRows, doneOn, { today: todayDate })
+
   const liquidWalletIds = new Set(liquidWallets.map(w => w.id))
   const monthSummary = summarizeMonth(monthTransactions, liquidWalletIds)
   const totalSpent = monthSummary.spent
@@ -471,6 +481,34 @@ export default function DailyHQ() {
     ? Math.min(Math.round((totalSpent / budgetTarget) * 100), 100)
     : null
 
+  // Same shape Budget.jsx already computes independently -- neither page
+  // fetches the other's data, so each works this out from what it has.
+  const now = new Date()
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+  const pace = budgetPace(budgetTarget, totalSpent, now.getDate(), daysInMonth)
+
+  const overdueDebts = dueDebts.filter((d) => d.days < 0)
+
+  const insight = dailyInsight({
+    lowWallets,
+    overdueDebts,
+    totalSpent,
+    budgetTarget,
+    pace,
+    streak,
+    safeToSpendToday,
+  })
+
+  // One word for the money situation, read straight off the same figures
+  // "Safe to spend" and the month-progress bar already show.
+  const statusChip = budgetTarget > 0
+    ? (percentSpent >= 100 || safeToSpendToday <= 0)
+      ? 'Over'
+      : pace && !pace.onTrack
+        ? 'Watch it'
+        : 'On track'
+    : null
+
   // Type icons for dynamic rendering
   const typeIcons = { bank: '🏦', mobile: '📱', cash: '💵', savings: '🐖', investment: '📈' }
 
@@ -479,13 +517,23 @@ export default function DailyHQ() {
       
       {/* Header */}
       <div className="space-y-4">
-        <div>
-          <p className="text-xs font-semibold text-muted tracking-wider uppercase mb-1">
-            {mode === 'day' ? fullDateStr : `Week of ${formatDate(weekStart)}`}
-          </p>
-          <h1 className="text-2xl md:text-3xl font-extrabold text-white">
-            {mode === 'day' ? `${greeting}, Adejare 👋` : 'How the week went'}
-          </h1>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold text-muted tracking-wider uppercase mb-1">
+              {mode === 'day' ? fullDateStr : `Week of ${formatDate(weekStart)}`}
+            </p>
+            <h1 className="text-2xl md:text-3xl font-extrabold text-white">
+              {mode === 'day' ? `${greeting}, Adejare 👋` : 'How the week went'}
+            </h1>
+          </div>
+
+          {/* Prominent, not buried in the activity grid further down --
+              the streak used to be visible only by scrolling past it. */}
+          {mode === 'day' && streak > 0 && (
+            <span className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full bg-accent/10 border border-accent/20 text-accent text-xs font-bold tabular-nums">
+              🔥 {streak}
+            </span>
+          )}
         </div>
 
         {/* Day / Week. A view switch, not navigation -- it changes what this
@@ -517,6 +565,27 @@ export default function DailyHQ() {
 
       {mode === 'day' ? (
         <>
+        {/* One proactive sentence, chosen deterministically from numbers this
+            page already computed -- see src/lib/insight.js. Above DayBrief
+            because it can say something needs a decision today; the brief
+            below is calendar context, not a call to action. */}
+        <div
+          className={`flex items-start gap-2.5 px-4 py-3 rounded-2xl border text-xs font-semibold ${
+            insight.tone === 'warn'
+              ? 'bg-red-500/10 border-red-500/20 text-red-300'
+              : insight.tone === 'watch'
+                ? 'bg-orange-500/10 border-orange-500/20 text-orange-300'
+                : insight.tone === 'good'
+                  ? 'bg-accent/10 border-accent/20 text-accent'
+                  : 'bg-background/40 border-white/10 text-muted'
+          }`}
+        >
+          <span aria-hidden="true">
+            {insight.tone === 'warn' ? '⚠️' : insight.tone === 'watch' ? '👀' : insight.tone === 'good' ? '✨' : '💭'}
+          </span>
+          <span>{insight.text}</span>
+        </div>
+
         {/* What today already has in it. Above everything, because it changes
             what the numbers below are worth asking for. */}
         <DayBrief brief={dayBrief} />
@@ -603,7 +672,22 @@ export default function DailyHQ() {
 
         {/* SAFE TO SPEND */}
         <section className="bg-card rounded-3xl p-6 border border-white/5 space-y-1.5">
-          <span className="text-xs font-semibold text-muted uppercase tracking-wider">Safe to spend</span>
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted uppercase tracking-wider">Safe to spend</span>
+            {statusChip && (
+              <span
+                className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                  statusChip === 'Over'
+                    ? 'bg-red-500/10 text-red-400'
+                    : statusChip === 'Watch it'
+                      ? 'bg-orange-500/10 text-orange-300'
+                      : 'bg-accent/10 text-accent'
+                }`}
+              >
+                {statusChip}
+              </span>
+            )}
+          </div>
           <p className="text-3xl font-bold text-white">{formatNaira(safeToSpendToday)}</p>
           <p className="text-xs text-muted">
             {committedGoals > 0
@@ -726,7 +810,7 @@ export default function DailyHQ() {
           liquidWalletIds={liquidWalletIds}
         />
 
-        <ActivityGrid tasks={dayRows} isDone={doneOn} today={todayDate} />
+        <ActivityGrid tasks={dayRows} isDone={doneOn} today={todayDate} isUnknown={isUnknownTask} />
 
         {/* Recent Transactions */}
         <section className="bg-card rounded-3xl p-6 border border-white/5 space-y-4">
