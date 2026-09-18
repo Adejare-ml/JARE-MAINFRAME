@@ -20,6 +20,7 @@ import DayBrief from '../components/daily/DayBrief'
 import EndOfDay from '../components/daily/EndOfDay'
 import Yesterday from '../components/daily/Yesterday'
 import ActivityGrid from '../components/daily/ActivityGrid'
+import UpcomingBills from '../components/daily/UpcomingBills'
 import WeekReview from '../components/daily/WeekReview'
 import {
   transactionListColumns,
@@ -757,6 +758,10 @@ export default function DailyHQ() {
             </div>
           )}
         </section>
+
+        {/* Bills nobody typed in, found from the pattern alone -- see
+            src/lib/recurring.js. Renders nothing when none are due soon. */}
+        <UpcomingBills />
 
         {/* TODAY'S PRIORITIES */}
         {/* Today — the task list, typed and derived, tickable in place */}

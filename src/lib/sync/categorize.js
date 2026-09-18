@@ -38,16 +38,56 @@ const ATM_PATTERNS = [
 const matchesAny = (patterns, text) => patterns.some((re) => re.test(text))
 
 /**
+ * Check a transaction against the user's own category_rules rows (migration
+ * 020), in priority order.
+ *
+ * Substring matching, case-insensitive, on exactly the field the rule names
+ * -- not the combined description+recipient haystack CHARGE_PATTERNS uses,
+ * because a rule the user wrote for "recipient" should not also fire on a
+ * coincidental word in the description.
+ *
+ * @param {object} txn
+ * @param {Array<{trigger_field: string, trigger_value: string, action_category: string, priority?: number}>} rules
+ * @returns {{category: string, reason: string} | null}
+ */
+function matchCategoryRule(txn, rules) {
+  if (!Array.isArray(rules) || rules.length === 0) return null
+
+  const fields = { description: txn?.description || '', recipient: txn?.recipient || '' }
+  const sorted = rules.filter(Boolean).sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0))
+
+  for (const rule of sorted) {
+    const haystack = fields[rule?.trigger_field]
+    const needle = (rule?.trigger_value || '').trim()
+    if (!haystack || !needle) continue
+    if (haystack.toLowerCase().includes(needle.toLowerCase())) {
+      return {
+        category: rule.action_category,
+        reason: `rule: ${rule.trigger_field} contains "${needle}"`,
+      }
+    }
+  }
+
+  return null
+}
+
+/**
  * Apply the deterministic overrides.
  *
  * @param {object} txn - a parsed transaction ({type, category, description, recipient})
  * @param {object|null} wallet - the wallet it belongs to
+ * @param {Array<object>} [rules] - the user's own category_rules rows, checked
+ *   first -- more specific than any structural fact below, since the user
+ *   wrote each one for a merchant or narration they personally recognise.
  * @returns {{category: string, reason: string|null}} the category to store, and
  *   why it was overridden (null when the model's answer stood)
  */
-export function applyCategoryOverrides(txn, wallet) {
+export function applyCategoryOverrides(txn, wallet, rules = []) {
   const original = txn?.category || 'Uncategorized'
   const haystack = `${txn?.description || ''} ${txn?.recipient || ''}`
+
+  const ruleMatch = matchCategoryRule(txn, rules)
+  if (ruleMatch) return ruleMatch
 
   // Charges first: a stamp duty debit on a savings wallet is still a charge.
   if (matchesAny(CHARGE_PATTERNS, haystack)) {

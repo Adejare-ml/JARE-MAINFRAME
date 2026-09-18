@@ -7,6 +7,7 @@ import { toast } from '../lib/toast'
 import { useAuth } from '../hooks/useAuth'
 import ErrorState from '../components/ui/ErrorState'
 import Sheet from '../components/ui/Sheet'
+import CategoryRules from '../components/settings/CategoryRules'
 
 const WALLET_TYPES = [
   { value: 'bank', label: 'Bank', icon: '🏦' },
@@ -691,6 +692,11 @@ export default function Settings() {
               </div>
             </form>
           </section>
+
+          {/* ════════════════════════════════════════ */}
+          {/* CATEGORY RULES */}
+          {/* ════════════════════════════════════════ */}
+          <CategoryRules />
 
           {/* ════════════════════════════════════════ */}
           {/* ACCOUNT SECTION */}
