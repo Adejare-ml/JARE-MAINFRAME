@@ -61,6 +61,9 @@ export default function DailyHQ() {
   const [warnThreshold, setWarnThreshold] = useState(10000)
   // Default until the user sets one in Settings; the bar hides at 0.
   const [budgetTarget, setBudgetTarget] = useState(85000)
+  // How today's insight (below) is worded, not which fact it picks -- see
+  // src/lib/insight.js. Set in Settings, Cleo-style.
+  const [plannerVoice, setPlannerVoice] = useState('encouraging')
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState(null)
 
@@ -115,7 +118,7 @@ export default function DailyHQ() {
           supabase
             .from('user_settings')
             .select('key, value')
-            .in('key', ['low_balance_threshold', 'monthly_budget_target']),
+            .in('key', ['low_balance_threshold', 'monthly_budget_target', 'planner_tone']),
           // Widened to cover yesterday as well as the month. On the 1st those
           // are different months, so the rows are split apart below rather than
           // summed together -- folding last month's spending into this month's
@@ -170,6 +173,10 @@ export default function DailyHQ() {
       setDailyTasks(goalsRes.data || [])
 
       for (const row of settingsRes.data || []) {
+        if (row.key === 'planner_tone') {
+          if (row.value === 'stern' || row.value === 'encouraging') setPlannerVoice(row.value)
+          continue
+        }
         const parsed = parseFloat(row.value)
         if (isNaN(parsed) || parsed < 0) continue
         if (row.key === 'low_balance_threshold') setWarnThreshold(parsed)
@@ -499,6 +506,7 @@ export default function DailyHQ() {
     pace,
     streak,
     safeToSpendToday,
+    voice: plannerVoice,
   })
 
   // One word for the money situation, read straight off the same figures

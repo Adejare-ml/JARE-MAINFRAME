@@ -39,6 +39,14 @@
   --color-hint: #828282;       /* 4.5:1 on card -- placeholders only */
 }
 
+/* True black, opt-in (Settings → Appearance), applied via a data attribute
+ * on <html> set before first paint by src/main.jsx -- see src/lib/theme.js.
+ * Only the background moves; --color-card stays where it is so a card still
+ * reads as raised against a screen with genuinely nothing behind it. */
+:root[data-oled="true"] {
+  --color-background: #000000;
+}
+
 /* ═══════════════════════════════════════════
    Base Styles
    ═══════════════════════════════════════════ */

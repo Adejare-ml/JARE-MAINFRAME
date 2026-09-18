@@ -91,4 +91,42 @@ describe('dailyInsight', () => {
     })
     expect(result.text).toContain('Opay')
   })
+
+  describe('voice', () => {
+    it('defaults to the encouraging phrasing', () => {
+      const result = dailyInsight({ streak: 5, safeToSpendToday: 10000 })
+      expect(result.text).toBe('5-day streak — keep it going today.')
+    })
+
+    it('picks the stern phrasing for the same fact when asked', () => {
+      const result = dailyInsight({ streak: 5, safeToSpendToday: 10000, voice: 'stern' })
+      expect(result.text).toBe("5-day streak. Don't blow it today.")
+    })
+
+    it('changes only the wording, never which fact fires or its severity', () => {
+      const facts = { lowWallets: [{ name: 'GTBank', balance: 1500 }], streak: 10 }
+      const encouraging = dailyInsight({ ...facts, voice: 'encouraging' })
+      const stern = dailyInsight({ ...facts, voice: 'stern' })
+
+      expect(encouraging.tone).toBe(stern.tone)
+      expect(encouraging.text).toContain('GTBank')
+      expect(stern.text).toContain('GTBank')
+      expect(encouraging.text).not.toBe(stern.text)
+    })
+
+    it('gives every branch a distinct stern line, not a shared fallback', () => {
+      const cases = [
+        { lowWallets: [{ name: 'GTBank', balance: 1500 }] },
+        { overdueDebts: [{ debt: { counterparty: 'Chidi' }, days: -3 }] },
+        { totalSpent: 60000, budgetTarget: 50000, pace: { aheadBy: 0, onTrack: true } },
+        { totalSpent: 40000, budgetTarget: 60000, pace: { aheadBy: 15000, onTrack: false } },
+        { streak: 5, safeToSpendToday: 10000 },
+        { streak: 0, safeToSpendToday: 0 },
+        { budgetTarget: 60000, totalSpent: 20000, pace: { aheadBy: -5000, onTrack: true }, safeToSpendToday: 15000 },
+        { safeToSpendToday: 5000 },
+      ]
+      const texts = cases.map((facts) => dailyInsight({ ...facts, voice: 'stern' }).text)
+      expect(new Set(texts).size).toBe(texts.length)
+    })
+  })
 })
