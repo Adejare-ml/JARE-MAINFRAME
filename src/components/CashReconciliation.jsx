@@ -142,7 +142,7 @@ export default function CashReconciliation({ onReconciled }) {
       {!showUpdateForm ? (
         <div>
           <p className="text-[#a0a0a0] mb-5">
-            Your cash balance is <span className="text-white font-semibold">{formatNaira(cashWallet.balance)}</span>. Does that still look right?
+            Your cash balance is <span className="text-white font-semibold money">{formatNaira(cashWallet.balance)}</span>. Does that still look right?
           </p>
           <div className="flex flex-col sm:flex-row gap-3">
             <button

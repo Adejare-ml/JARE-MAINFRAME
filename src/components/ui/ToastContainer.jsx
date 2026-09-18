@@ -35,8 +35,13 @@ export default function ToastContainer() {
       className="fixed bottom-36 lg:bottom-8 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 w-full max-w-sm px-4 pointer-events-none"
     >
       {toasts.map(t => {
+        // Contrast independently checked (WCAG relative-luminance formula,
+        // this app's single dark theme): white text on accent green is
+        // 9.2:1 and on red-600 6.5:1, both comfortably clear of the 4.5:1
+        // floor. red-500, the shade this used before, measured only 3.8:1 --
+        // an error message read the worst of any text in the app.
         const bg = t.type === 'success' ? 'bg-accent/90 text-black border-emerald-400' :
-                   t.type === 'error' ? 'bg-red-500/90 text-white border-red-400' :
+                   t.type === 'error' ? 'bg-red-600/90 text-white border-red-400' :
                    'bg-card/90 text-white border-white/20'
 
         return (

@@ -38,7 +38,7 @@ export default function Yesterday({ transactions, tasks, isDone, liquidWalletIds
       </h2>
 
       <div className="flex items-baseline gap-4 flex-wrap">
-        <p className="text-lg font-bold text-white/80 tabular-nums">
+        <p className="text-lg font-bold text-white/80 tabular-nums money">
           {formatNaira(summary.spent)}
           <span className="text-muted text-xs font-normal"> spent</span>
         </p>
@@ -53,7 +53,7 @@ export default function Yesterday({ transactions, tasks, isDone, liquidWalletIds
       {biggest && (
         <p className="text-xs text-muted">
           Largest: {biggest.description || biggest.category} ·{' '}
-          <span className="text-white/80 font-semibold">{formatNaira(biggest.amount)}</span>
+          <span className="text-white/80 font-semibold money">{formatNaira(biggest.amount)}</span>
         </p>
       )}
     </section>

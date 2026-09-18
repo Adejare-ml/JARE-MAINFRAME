@@ -75,7 +75,7 @@ export default function UpcomingBills() {
                 {c.overdue ? 'Expected' : 'Due'} {formatDate(c.nextExpected)} · {c.interval}
               </p>
             </div>
-            <span className="flex-shrink-0 font-bold text-white tabular-nums ml-3">
+            <span className="flex-shrink-0 font-bold text-white tabular-nums ml-3 money">
               {formatNaira(c.amount)}
             </span>
           </div>

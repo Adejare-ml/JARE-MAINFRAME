@@ -626,7 +626,7 @@ export default function Settings() {
                         </div>
 
                         <div className="flex items-center gap-3 flex-shrink-0">
-                          <p className="text-sm font-extrabold text-white">{formatNaira(w.balance)}</p>
+                          <p className="text-sm font-extrabold text-white money">{formatNaira(w.balance)}</p>
 
                           {/* Action buttons */}
                           <div className="flex gap-1">

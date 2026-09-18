@@ -595,7 +595,7 @@ export default function Transactions() {
                   <p className="text-xs text-muted mt-0.5">Syncing…</p>
                 </div>
               </div>
-              <span className={`text-sm font-bold flex-shrink-0 ml-3 ${p.type === 'credit' ? 'text-accent' : 'text-white'}`}>
+              <span className={`text-sm font-bold flex-shrink-0 ml-3 money ${p.type === 'credit' ? 'text-accent' : 'text-white'}`}>
                 {p.type === 'credit' ? '+' : '-'}{formatNaira(p.amount)}
               </span>
             </div>
@@ -752,19 +752,28 @@ export default function Transactions() {
                       <p className="text-xs text-muted mt-0.5">
                         {walletName} · {formatDate(t.transaction_date)} {t.transaction_time ? `at ${formatTime(t.transaction_time)}` : ''}
                       </p>
-                      {/* The model's reasoning, shown on unreviewed rows only.
-                          On a settled row it is noise; here it is the whole
-                          point -- it turns reviewing into confirming. */}
-                      {isUnreviewed && t.explanation && (
-                        <p className="text-[11px] text-muted-dim italic mt-1 line-clamp-2">
-                          {t.explanation}
-                        </p>
+                      {/* Why it landed on this category -- the model's own
+                          reasoning, or a rule/structural override's, already
+                          folded into one string by the sync pipeline (see
+                          scripts/gmail-sync.mjs). Shown on every row that has
+                          one, not only unreviewed ones: a category chosen
+                          with high confidence is still a change the AI made,
+                          and "never a silent change" means it stays visible
+                          even once you are not being asked to double-check it. */}
+                      {t.explanation && (
+                        <span
+                          className="inline-flex items-center gap-1 max-w-full mt-1 px-2 py-0.5 rounded-full bg-white/5 text-muted-dim text-[10px] leading-tight"
+                          title={t.explanation}
+                        >
+                          <span aria-hidden="true">💡</span>
+                          <span className="truncate">{t.explanation}</span>
+                        </span>
                       )}
                     </div>
                   </div>
 
                   <div className="text-right ml-3 shrink-0">
-                    <span className={`text-base font-extrabold tabular-nums ${isCredit ? 'text-accent' : 'text-white'}`}>
+                    <span className={`text-base font-extrabold tabular-nums money ${isCredit ? 'text-accent' : 'text-white'}`}>
                       {isCredit ? '+' : '-'}{formatNaira(t.amount)}
                     </span>
                     <p className="text-[10px] text-muted capitalize mt-0.5 flex items-center justify-end gap-1.5">

@@ -142,7 +142,10 @@ export default function TargetCard({ goal, transactions = [], today, onEdit, onD
               </span>
             </ProgressRing>
             <div className="min-w-0 flex-1">
-              <p className="text-lg font-bold text-white tabular-nums">
+              {/* money only when the metric actually is one -- a repo goal's
+                  figure is a commit count, and blurring that under zen mode
+                  would hide a number that was never financial. */}
+              <p className={`text-lg font-bold text-white tabular-nums ${isRepo ? '' : 'money'}`}>
                 {formatGoalAmount(progress.done, goal.metric)}
                 <span className="text-muted text-xs font-normal">
                   {' '}
@@ -193,16 +196,24 @@ export default function TargetCard({ goal, transactions = [], today, onEdit, onD
       )}
 
       {/* What a plan you approved said this period was about. Above `next`,
-          because the words are the plan and the number is only its size. */}
+          because the words are the plan and the number is only its size. The
+          citation is a chip, not a trailing caption, for the same reason a
+          recategorised transaction gets one (Transactions.jsx): a plan item
+          the model wrote is still a change worth being able to check, not
+          just words to take on faith. */}
       {goal.focus && (
-        <p className="text-xs text-white/80 border-t border-white/5 pt-2.5">
-          {goal.focus}
+        <div className="text-xs text-white/80 border-t border-white/5 pt-2.5 space-y-1">
+          <p>{goal.focus}</p>
           {goal.plan_evidence?.cites && (
-            <span className="block text-[10px] text-muted-dim mt-0.5 font-mono">
-              {goal.plan_evidence.cites}
+            <span
+              className="inline-flex items-center gap-1 max-w-full px-2 py-0.5 rounded-full bg-white/5 text-muted-dim text-[10px] font-mono leading-tight"
+              title={goal.plan_evidence.cites}
+            >
+              <span aria-hidden="true">💡</span>
+              <span className="truncate">{goal.plan_evidence.cites}</span>
             </span>
           )}
-        </p>
+        </div>
       )}
 
       {next && (

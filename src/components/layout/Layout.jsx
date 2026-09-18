@@ -4,6 +4,7 @@ import BottomNav from './BottomNav'
 import QuickLog from '../ui/QuickLog'
 import ToastContainer from '../ui/ToastContainer'
 import SchemaBanner from '../ui/SchemaBanner'
+import ZenModeToggle from '../ui/ZenModeToggle'
 
 export default function Layout({ children, onSignOut, pendingMigrations = [] }) {
   return (
@@ -21,13 +22,16 @@ export default function Layout({ children, onSignOut, pendingMigrations = [] }) 
           <span className="text-accent">J</span>are
           <span className="text-muted ml-1 text-xs font-normal">Mainframe</span>
         </h1>
-        <Link
-          to="/settings"
-          className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-lg transition-colors min-h-[48px] min-w-[48px]"
-          aria-label="Settings"
-        >
-          ⚙️
-        </Link>
+        <div className="flex items-center gap-1.5">
+          <ZenModeToggle className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-lg transition-colors min-h-[48px] min-w-[48px]" />
+          <Link
+            to="/settings"
+            className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-lg transition-colors min-h-[48px] min-w-[48px]"
+            aria-label="Settings"
+          >
+            ⚙️
+          </Link>
+        </div>
       </div>
 
       {/* Bottom Nav on Mobile */}

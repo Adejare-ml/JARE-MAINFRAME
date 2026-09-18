@@ -609,7 +609,7 @@ export default function DailyHQ() {
             Wallet Snapshot
           </p>
           <p className="text-3xl sm:text-4xl font-extrabold text-white mb-4">
-            Total: {formatNaira(totalBalance)}
+            Total: <span className="money">{formatNaira(totalBalance)}</span>
           </p>
 
           {/* Layered summary if savings/investment exist */}
@@ -617,15 +617,15 @@ export default function DailyHQ() {
             <div className="grid grid-cols-3 gap-2 mb-3">
               <div className="bg-background/40 p-2 rounded-xl border border-white/5 text-center">
                 <p className="text-[10px] text-muted">💳 Liquid</p>
-                <p className="text-xs font-bold text-white">{formatNaira(liquidBalance)}</p>
+                <p className="text-xs font-bold text-white money">{formatNaira(liquidBalance)}</p>
               </div>
               <div className="bg-background/40 p-2 rounded-xl border border-white/5 text-center">
                 <p className="text-[10px] text-muted">🐖 Savings</p>
-                <p className="text-xs font-bold text-blue-400">{formatNaira(savingsBalance)}</p>
+                <p className="text-xs font-bold text-blue-400 money">{formatNaira(savingsBalance)}</p>
               </div>
               <div className="bg-background/40 p-2 rounded-xl border border-white/5 text-center">
                 <p className="text-[10px] text-muted">📈 Invested</p>
-                <p className="text-xs font-bold text-purple-400">{formatNaira(investmentBalance)}</p>
+                <p className="text-xs font-bold text-purple-400 money">{formatNaira(investmentBalance)}</p>
               </div>
             </div>
           )}
@@ -644,7 +644,7 @@ export default function DailyHQ() {
                   <span>{typeIcons[w.type] || '💰'}</span> {w.name}
                   {w.account_last4 && <span className="text-muted-dim font-mono">••{w.account_last4}</span>}
                 </p>
-                <p className="text-sm font-bold text-white mt-1">
+                <p className="text-sm font-bold text-white mt-1 money">
                   {formatNaira(w.balance)}
                 </p>
               </div>
@@ -675,8 +675,15 @@ export default function DailyHQ() {
           )}
 
           <p className="text-xs text-muted text-right">
-            {formatNaira(totalSpent)} spent
-            {percentSpent != null ? ` of ${formatNaira(budgetTarget)}` : ' — set a budget target in Settings'}
+            <span className="money">{formatNaira(totalSpent)}</span> spent
+            {percentSpent != null ? (
+              <>
+                {' of '}
+                <span className="money">{formatNaira(budgetTarget)}</span>
+              </>
+            ) : (
+              ' — set a budget target in Settings'
+            )}
           </p>
         </section>
 
@@ -698,11 +705,16 @@ export default function DailyHQ() {
               </span>
             )}
           </div>
-          <p className="text-3xl font-bold text-white">{formatNaira(safeToSpendToday)}</p>
+          <p className="text-3xl font-bold text-white money">{formatNaira(safeToSpendToday)}</p>
           <p className="text-xs text-muted">
-            {committedGoals > 0
-              ? `After ${formatNaira(committedGoals)} still owed to today's and this week's goals.`
-              : 'After the money already spoken for.'}
+            {committedGoals > 0 ? (
+              <>
+                After <span className="money">{formatNaira(committedGoals)}</span> still owed to
+                today's and this week's goals.
+              </>
+            ) : (
+              'After the money already spoken for.'
+            )}
           </p>
         </section>
 
@@ -760,7 +772,7 @@ export default function DailyHQ() {
                   key={w.id}
                   className="flex items-center justify-between p-3 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-300 text-xs font-semibold"
                 >
-                  <span>• {w.name} balance low ({formatNaira(w.balance)} &lt; {formatNaira(warnThreshold)})</span>
+                  <span>• {w.name} balance low (<span className="money">{formatNaira(w.balance)}</span> &lt; <span className="money">{formatNaira(warnThreshold)}</span>)</span>
                   <span className="text-red-400 font-bold">Warning</span>
                 </div>
               ))}
@@ -862,7 +874,7 @@ export default function DailyHQ() {
                         </p>
                       </div>
                     </div>
-                    <span className={`text-xs font-bold ${isCredit ? 'text-accent' : 'text-white'}`}>
+                    <span className={`text-xs font-bold money ${isCredit ? 'text-accent' : 'text-white'}`}>
                       {isCredit ? '+' : '-'}{formatNaira(t.amount)}
                     </span>
                   </div>

@@ -225,7 +225,7 @@ export default function Budget() {
           <span className="text-8xl">💰</span>
         </div>
         <p className="text-muted font-medium mb-2">TOTAL NET WORTH</p>
-        <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
+        <h2 className="text-4xl md:text-5xl font-bold text-white mb-4 money">
           {formatNaira(totalNetWorth)}
         </h2>
 
@@ -238,15 +238,15 @@ export default function Budget() {
           <div className="grid grid-cols-3 gap-3 pt-4 border-t border-white/5">
             <div className="bg-background/40 p-3 rounded-2xl border border-white/5">
               <p className="text-[10px] text-muted uppercase tracking-wider mb-1">💳 Liquid</p>
-              <p className="text-sm font-bold text-white">{formatNaira(liquidBalance)}</p>
+              <p className="text-sm font-bold text-white money">{formatNaira(liquidBalance)}</p>
             </div>
             <div className="bg-background/40 p-3 rounded-2xl border border-white/5">
               <p className="text-[10px] text-muted uppercase tracking-wider mb-1">🐖 Savings</p>
-              <p className="text-sm font-bold text-blue-400">{formatNaira(savingsBalance)}</p>
+              <p className="text-sm font-bold text-blue-400 money">{formatNaira(savingsBalance)}</p>
             </div>
             <div className="bg-background/40 p-3 rounded-2xl border border-white/5">
               <p className="text-[10px] text-muted uppercase tracking-wider mb-1">📈 Invested</p>
-              <p className="text-sm font-bold text-purple-400">{formatNaira(investmentBalance)}</p>
+              <p className="text-sm font-bold text-purple-400 money">{formatNaira(investmentBalance)}</p>
             </div>
           </div>
         )}
@@ -286,15 +286,15 @@ export default function Budget() {
           )}
           <div>
             <p className="text-xs text-muted mb-1">Safe to spend</p>
-            <p className="text-3xl font-bold text-white">{formatNaira(safeToSpendThisMonth)}</p>
+            <p className="text-3xl font-bold text-white money">{formatNaira(safeToSpendThisMonth)}</p>
             {percentOfBudget >= 100 && (
               <p className="text-xs text-red-400 font-semibold mt-1">
-                {formatNaira(thisMonthSpent - budgetTarget)} over budget
+                <span className="money">{formatNaira(thisMonthSpent - budgetTarget)}</span> over budget
               </p>
             )}
             {pace && !pace.onTrack && percentOfBudget < 100 && (
               <p className="text-xs text-amber-400 font-semibold mt-1">
-                {formatNaira(pace.aheadBy)} ahead of pace for today
+                <span className="money">{formatNaira(pace.aheadBy)}</span> ahead of pace for today
               </p>
             )}
           </div>
@@ -303,15 +303,18 @@ export default function Budget() {
         <div className="grid grid-cols-3 gap-4">
           <div>
             <p className="text-xs text-muted mb-1">Income</p>
-            <p className="text-lg font-bold text-accent">{formatNaira(thisMonthIncome)}</p>
+            <p className="text-lg font-bold text-accent money">{formatNaira(thisMonthIncome)}</p>
           </div>
           <div>
             <p className="text-xs text-muted mb-1">Spent</p>
-            <p className="text-lg font-bold text-red-500">{formatNaira(thisMonthSpent)}</p>
+            {/* red-400, not red-500: 500 measured only 4.6:1 against this
+                card background, a thin margin above the 4.5:1 floor for
+                text this size; 400 measures 6.3:1. */}
+            <p className="text-lg font-bold text-red-400 money">{formatNaira(thisMonthSpent)}</p>
           </div>
           <div>
             <p className="text-xs text-muted mb-1">Liquid Balance</p>
-            <p className="text-lg font-bold text-white">{formatNaira(thisMonthRemaining)}</p>
+            <p className="text-lg font-bold text-white money">{formatNaira(thisMonthRemaining)}</p>
           </div>
         </div>
 
@@ -320,12 +323,12 @@ export default function Budget() {
             {monthSummary.movedAside > 0 && (
               <p className="text-xs text-muted">
                 Moved to savings / cash:{' '}
-                <span className="text-blue-400 font-semibold">{formatNaira(monthSummary.movedAside)}</span>
+                <span className="text-blue-400 font-semibold money">{formatNaira(monthSummary.movedAside)}</span>
               </p>
             )}
             {monthRunway?.daysOfRunway != null && (
               <p className="text-xs text-muted">
-                At {formatNaira(monthRunway.dailyBurn)}/day, liquid lasts{' '}
+                At <span className="money">{formatNaira(monthRunway.dailyBurn)}</span>/day, liquid lasts{' '}
                 <span className="text-white font-semibold">
                   {monthRunway.capped ? '90+' : monthRunway.daysOfRunway} days
                 </span>
@@ -375,7 +378,7 @@ export default function Budget() {
                     <p className="text-xs text-muted">{formatDate(t.transaction_date)}</p>
                   </div>
                 </div>
-                <div className={`font-bold ${t.type === 'credit' ? 'text-accent' : 'text-white'}`}>
+                <div className={`font-bold money ${t.type === 'credit' ? 'text-accent' : 'text-white'}`}>
                   {t.type === 'credit' ? '+' : '-'}{formatNaira(t.amount)}
                 </div>
               </div>
