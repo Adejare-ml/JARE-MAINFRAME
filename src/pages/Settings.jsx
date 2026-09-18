@@ -9,6 +9,7 @@ import ErrorState from '../components/ui/ErrorState'
 import Sheet from '../components/ui/Sheet'
 import CategoryRules from '../components/settings/CategoryRules'
 import Skeleton from '../components/ui/Skeleton'
+import { isOledEnabled, setOledEnabled } from '../lib/theme'
 
 const WALLET_TYPES = [
   { value: 'bank', label: 'Bank', icon: '🏦' },
@@ -59,6 +60,10 @@ export default function Settings() {
   const [budgetTarget, setBudgetTarget] = useState('85000')
   const [savingBudgetTarget, setSavingBudgetTarget] = useState(false)
 
+  // Appearance & planner voice
+  const [oledEnabled, setOledEnabledState] = useState(isOledEnabled)
+  const [plannerTone, setPlannerTone] = useState('encouraging')
+
   // Account State
   const [userEmail, setUserEmail] = useState('')
 
@@ -76,6 +81,9 @@ export default function Settings() {
     parse_strategy: 'auto',
   })
   const [savingWallet, setSavingWallet] = useState(false)
+  // Progressive disclosure: sync/cosmetic fields collapsed behind this on a
+  // new wallet, expanded already when editing one. See openAddWallet.
+  const [showAdvancedWalletFields, setShowAdvancedWalletFields] = useState(false)
 
   // Delete confirm -- the wallet itself, not just its id, so the modal below
   // can name it. A hard delete (unlike deactivating, which is one click away
@@ -129,11 +137,11 @@ export default function Settings() {
       if (wErr) throw wErr
       setWallets(wData || [])
 
-      // 4. Fetch both money settings in one query
+      // 4. Fetch both money settings, and the planner's voice, in one query
       const { data: settingRows, error: setErr } = await supabase
         .from('user_settings')
         .select('key, value')
-        .in('key', ['low_balance_threshold', 'monthly_budget_target'])
+        .in('key', ['low_balance_threshold', 'monthly_budget_target', 'planner_tone'])
 
       if (setErr) throw setErr
 
@@ -141,6 +149,9 @@ export default function Settings() {
         if (!row.value) continue
         if (row.key === 'low_balance_threshold') setThreshold(row.value)
         if (row.key === 'monthly_budget_target') setBudgetTarget(row.value)
+        if (row.key === 'planner_tone' && (row.value === 'stern' || row.value === 'encouraging')) {
+          setPlannerTone(row.value)
+        }
       }
     } catch (err) {
       console.error('Error loading Settings data:', err)
@@ -225,6 +236,35 @@ export default function Settings() {
     }
   }
 
+  /**
+   * Instant, like a toggle, not a form with a submit button -- one tap and it
+   * takes effect, the same way a wallet's Active switch does. Optimistic:
+   * the tone changes on screen before the write confirms, rolled back if it
+   * fails.
+   */
+  const handleSetPlannerTone = async (tone) => {
+    const previous = plannerTone
+    setPlannerTone(tone)
+
+    try {
+      const now = new Date().toISOString()
+      const { data: existing } = await supabase
+        .from('user_settings')
+        .select('id')
+        .eq('key', 'planner_tone')
+        .maybeSingle()
+
+      const { error } = existing
+        ? await supabase.from('user_settings').update({ value: tone, updated_at: now }).eq('id', existing.id)
+        : await supabase.from('user_settings').insert({ key: 'planner_tone', value: tone, updated_at: now })
+      if (error) throw error
+    } catch (err) {
+      console.error('Error saving planner tone:', err)
+      setPlannerTone(previous)
+      toast.error('Could not save that: ' + (err.message || 'check connection'))
+    }
+  }
+
   const handleSaveThreshold = async (e) => {
     e.preventDefault()
     setSavingThreshold(true)
@@ -253,11 +293,19 @@ export default function Settings() {
       is_active: true,
       parse_strategy: 'auto',
     })
+    // Collapsed for a brand-new wallet: three fields (name, type, opening
+    // balance) are everything the ledger actually needs to start, and every
+    // field behind this defaults to something sane already (auto-detect
+    // parsing, active, accent green). Expanded by default when editing --
+    // see openEditWallet -- since changing an existing wallet's sync setup
+    // is exactly why someone opens that form.
+    setShowAdvancedWalletFields(false)
     setShowWalletModal(true)
   }
 
   const openEditWallet = (wallet) => {
     setEditingWallet(wallet)
+    setShowAdvancedWalletFields(true)
     setWalletForm({
       name: wallet.name || '',
       type: wallet.type || 'bank',
@@ -683,6 +731,73 @@ export default function Settings() {
           </section>
 
           {/* ════════════════════════════════════════ */}
+          {/* APPEARANCE & PLANNER VOICE */}
+          {/* ════════════════════════════════════════ */}
+          <section className="bg-card rounded-3xl p-6 border border-white/10 space-y-5">
+            <h2 className="text-xs font-semibold text-muted uppercase tracking-wider border-b border-white/5 pb-3">
+              Appearance & Planner
+            </h2>
+
+            <div className="flex items-center justify-between p-3 bg-background/50 rounded-xl border border-white/5">
+              <div>
+                <span className="block text-sm font-semibold text-white">True black (OLED)</span>
+                <span className="block text-[11px] text-muted mt-0.5">
+                  A pure black background instead of dark grey. Per device, not synced.
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !oledEnabled
+                  setOledEnabled(next)
+                  setOledEnabledState(next)
+                }}
+                aria-pressed={oledEnabled}
+                className={`flex-shrink-0 w-12 h-7 rounded-full transition-all relative ${
+                  oledEnabled ? 'bg-accent' : 'bg-white/10'
+                }`}
+              >
+                <div
+                  className={`w-5 h-5 bg-white rounded-full absolute top-1 transition-all ${
+                    oledEnabled ? 'left-6' : 'left-1'
+                  }`}
+                />
+              </button>
+            </div>
+
+            <div>
+              <span className="block text-xs text-muted font-semibold mb-1">Planner tone</span>
+              <p className="text-[10px] text-muted-dim mb-2">
+                How Daily HQ's proactive line talks to you about your money -- same facts either
+                way, just said differently.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { value: 'encouraging', label: 'Encouraging', example: '"On pace this month."' },
+                  { value: 'stern', label: 'Tough love', example: '"On pace, for now."' },
+                ].map((t) => (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => handleSetPlannerTone(t.value)}
+                    aria-pressed={plannerTone === t.value}
+                    className={`p-3 rounded-xl border text-left transition-all min-h-[48px] ${
+                      plannerTone === t.value
+                        ? 'border-accent bg-accent/10'
+                        : 'border-white/10 bg-background text-muted hover:border-white/20'
+                    }`}
+                  >
+                    <span className={`block text-sm font-bold ${plannerTone === t.value ? 'text-accent' : 'text-white'}`}>
+                      {t.label}
+                    </span>
+                    <span className="block text-[10px] text-muted-dim mt-0.5">{t.example}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* ════════════════════════════════════════ */}
           {/* CATEGORY RULES */}
           {/* ════════════════════════════════════════ */}
           <CategoryRules />
@@ -789,97 +904,115 @@ export default function Settings() {
                 </div>
               </div>
 
-              {/* Alert Sender Email */}
-              <div>
-                <label className="block text-xs text-muted font-semibold mb-1">
-                  Alert Email Sender
-                </label>
-                <p className="text-[10px] text-muted-dim mb-1.5">
-                  The From address of transaction notification emails (e.g. GeNS@gtbank.com)
-                </p>
-                <input
-                  type="email"
-                  value={walletForm.alert_sender}
-                  onChange={(e) => setWalletForm({ ...walletForm, alert_sender: e.target.value })}
-                  placeholder="alerts@bank.com"
-                  className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm font-mono placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
-                />
-              </div>
+              {/* Everything below is optional: sane defaults already cover it
+                  (auto-detect parsing, active, accent green), so a brand-new
+                  wallet does not have to face all seven fields before it can
+                  be saved. Collapsed on add, expanded on edit -- see
+                  openAddWallet/openEditWallet. */}
+              <button
+                type="button"
+                onClick={() => setShowAdvancedWalletFields((v) => !v)}
+                className="w-full flex items-center justify-between text-xs font-semibold text-muted hover:text-white py-2"
+              >
+                <span>Advanced (sync & appearance)</span>
+                <span aria-hidden="true">{showAdvancedWalletFields ? '−' : '+'}</span>
+              </button>
 
-              {/* Parse Strategy */}
-              <div>
-                <label className="block text-xs text-muted font-semibold mb-1">
-                  How to Read Alerts
-                </label>
-                <p className="text-[10px] text-muted-dim mb-1.5">
-                  {PARSE_STRATEGY_HELP[walletForm.parse_strategy]}
-                </p>
-                <div className="grid grid-cols-3 gap-2">
-                  {PARSE_STRATEGIES.map(s => (
+              {showAdvancedWalletFields && (
+                <>
+                  {/* Alert Sender Email */}
+                  <div>
+                    <label className="block text-xs text-muted font-semibold mb-1">
+                      Alert Email Sender
+                    </label>
+                    <p className="text-[10px] text-muted-dim mb-1.5">
+                      The From address of transaction notification emails (e.g. GeNS@gtbank.com)
+                    </p>
+                    <input
+                      type="email"
+                      value={walletForm.alert_sender}
+                      onChange={(e) => setWalletForm({ ...walletForm, alert_sender: e.target.value })}
+                      placeholder="alerts@bank.com"
+                      className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm font-mono placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+                    />
+                  </div>
+
+                  {/* Parse Strategy */}
+                  <div>
+                    <label className="block text-xs text-muted font-semibold mb-1">
+                      How to Read Alerts
+                    </label>
+                    <p className="text-[10px] text-muted-dim mb-1.5">
+                      {PARSE_STRATEGY_HELP[walletForm.parse_strategy]}
+                    </p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {PARSE_STRATEGIES.map(s => (
+                        <button
+                          key={s.value}
+                          type="button"
+                          onClick={() => setWalletForm({ ...walletForm, parse_strategy: s.value })}
+                          className={`px-3 py-3 rounded-xl border text-xs font-semibold transition-all min-h-[48px] ${
+                            walletForm.parse_strategy === s.value
+                              ? 'border-accent bg-accent/10 text-accent'
+                              : 'border-white/10 bg-background text-muted hover:border-white/20'
+                          }`}
+                        >
+                          {s.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Account Last 4 */}
+                  <div>
+                    <label className="block text-xs text-muted font-semibold mb-1">Account Last 4 Digits</label>
+                    <input
+                      type="text"
+                      maxLength={4}
+                      value={walletForm.account_last4}
+                      onChange={(e) => setWalletForm({ ...walletForm, account_last4: e.target.value.replace(/\D/g, '').slice(0, 4) })}
+                      placeholder="1234"
+                      className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm font-mono placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+                    />
+                  </div>
+
+                  {/* Color Picker */}
+                  <div>
+                    <label className="block text-xs text-muted font-semibold mb-2">Color</label>
+                    <div className="flex flex-wrap gap-2">
+                      {PRESET_COLORS.map(c => (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => setWalletForm({ ...walletForm, color: c })}
+                          className={`w-9 h-9 rounded-full border-2 transition-all ${
+                            walletForm.color === c ? 'border-white scale-110' : 'border-transparent hover:scale-105'
+                          }`}
+                          style={{ backgroundColor: c }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Active toggle */}
+                  <div className="flex items-center justify-between p-3 bg-background/50 rounded-xl border border-white/5">
+                    <span className="text-xs text-muted font-semibold">Active</span>
                     <button
-                      key={s.value}
                       type="button"
-                      onClick={() => setWalletForm({ ...walletForm, parse_strategy: s.value })}
-                      className={`px-3 py-3 rounded-xl border text-xs font-semibold transition-all min-h-[48px] ${
-                        walletForm.parse_strategy === s.value
-                          ? 'border-accent bg-accent/10 text-accent'
-                          : 'border-white/10 bg-background text-muted hover:border-white/20'
+                      onClick={() => setWalletForm({ ...walletForm, is_active: !walletForm.is_active })}
+                      className={`w-12 h-7 rounded-full transition-all relative ${
+                        walletForm.is_active ? 'bg-accent' : 'bg-white/10'
                       }`}
                     >
-                      {s.label}
+                      <div
+                        className={`w-5 h-5 bg-white rounded-full absolute top-1 transition-all ${
+                          walletForm.is_active ? 'left-6' : 'left-1'
+                        }`}
+                      />
                     </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Account Last 4 */}
-              <div>
-                <label className="block text-xs text-muted font-semibold mb-1">Account Last 4 Digits</label>
-                <input
-                  type="text"
-                  maxLength={4}
-                  value={walletForm.account_last4}
-                  onChange={(e) => setWalletForm({ ...walletForm, account_last4: e.target.value.replace(/\D/g, '').slice(0, 4) })}
-                  placeholder="1234"
-                  className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm font-mono placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
-                />
-              </div>
-
-              {/* Color Picker */}
-              <div>
-                <label className="block text-xs text-muted font-semibold mb-2">Color</label>
-                <div className="flex flex-wrap gap-2">
-                  {PRESET_COLORS.map(c => (
-                    <button
-                      key={c}
-                      type="button"
-                      onClick={() => setWalletForm({ ...walletForm, color: c })}
-                      className={`w-9 h-9 rounded-full border-2 transition-all ${
-                        walletForm.color === c ? 'border-white scale-110' : 'border-transparent hover:scale-105'
-                      }`}
-                      style={{ backgroundColor: c }}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              {/* Active toggle */}
-              <div className="flex items-center justify-between p-3 bg-background/50 rounded-xl border border-white/5">
-                <span className="text-xs text-muted font-semibold">Active</span>
-                <button
-                  type="button"
-                  onClick={() => setWalletForm({ ...walletForm, is_active: !walletForm.is_active })}
-                  className={`w-12 h-7 rounded-full transition-all relative ${
-                    walletForm.is_active ? 'bg-accent' : 'bg-white/10'
-                  }`}
-                >
-                  <div
-                    className={`w-5 h-5 bg-white rounded-full absolute top-1 transition-all ${
-                      walletForm.is_active ? 'left-6' : 'left-1'
-                    }`}
-                  />
-                </button>
-              </div>
+                  </div>
+                </>
+              )}
 
               {/* Submit */}
               <button
