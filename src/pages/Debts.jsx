@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { toast } from '../lib/toast'
 import { formatNaira, formatDate } from '../lib/formatters'
 import ErrorState from '../components/ui/ErrorState'
+import EmptyState from '../components/ui/EmptyState'
 import Sheet from '../components/ui/Sheet'
 import Skeleton from '../components/ui/Skeleton'
 import { confirmBuzz } from '../lib/haptics'
@@ -284,13 +285,18 @@ export default function Debts() {
 
       {/* List */}
       {visible.length === 0 ? (
-        <div className="bg-card rounded-3xl p-12 border border-white/5 text-center space-y-3">
-          <span className="text-4xl block" aria-hidden="true">🤝</span>
-          <p className="text-base font-bold text-white">Nothing here yet</p>
-          <p className="text-xs text-muted max-w-xs mx-auto">
-            Track a loan, or an ajo cycle so you know which round you're in and when the
-            pot reaches you.
-          </p>
+        <div className="bg-card rounded-3xl border border-white/5">
+          <EmptyState
+            icon="🤝"
+            title={tab === 'all' ? 'Nothing here yet' : 'Nothing in this tab'}
+            message={
+              tab === 'all'
+                ? "Track a loan, or an ajo cycle so you know which round you're in and when the pot reaches you"
+                : 'Try a different tab, or add a debt'
+            }
+            actionLabel="+ New debt"
+            onAction={openAdd}
+          />
         </div>
       ) : (
         <div className="space-y-3">
