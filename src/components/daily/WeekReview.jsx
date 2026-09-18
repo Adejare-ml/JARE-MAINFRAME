@@ -3,6 +3,7 @@ import { formatNaira, formatDate } from '../../lib/formatters'
 import CategoryBreakdown from '../ui/CategoryBreakdown'
 import { spendByWeekday, compareWeeks, carriedOver } from '../../lib/weekreview'
 import { goalProgress } from '../../lib/planning'
+import WeekRecap from './WeekRecap'
 
 /** A signed change, coloured by whether it is good news rather than by sign. */
 function Delta({ change, lowerIsBetter }) {
@@ -32,6 +33,7 @@ function Delta({ change, lowerIsBetter }) {
 export default function WeekReview({
   weekStart,
   weekEnd,
+  lastWeekStart,
   thisWeekTransactions,
   lastWeekTransactions,
   liquidWalletIds,
@@ -177,6 +179,11 @@ export default function WeekReview({
           </p>
         </section>
       )}
+
+      {/* Written the Monday after this week's predecessor closed -- see
+          src/components/daily/WeekRecap.jsx for why it is always about last
+          week rather than the one the cards above are showing. */}
+      <WeekRecap weekStart={lastWeekStart} />
 
       {/* Carried over — named rather than quietly dropped */}
       {unfinished.length > 0 && (
