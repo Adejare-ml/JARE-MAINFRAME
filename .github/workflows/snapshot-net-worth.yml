@@ -1,0 +1,82 @@
+name: Snapshot Net Worth
+
+on:
+  schedule:
+    # 23:55 Lagos = 22:55 UTC. Last thing at night, after the day's spending
+    # has had every chance to land, so the snapshot reflects the whole day
+    # rather than a balance from the middle of it.
+    - cron: '55 22 * * *'
+  workflow_dispatch:   # manual trigger button
+
+permissions:
+  contents: read
+  issues: write    # so a failed run can tell someone
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - run: npm ci
+      - name: Snapshot net worth
+        run: node scripts/snapshot-net-worth.mjs
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          # Required. The service key bypasses RLS and has no auth.uid(), so a
+          # row written without this is one migration 015 hides from you in the
+          # app, with no error anywhere. The script refuses to start without it.
+          OWNER_USER_ID: ${{ secrets.OWNER_USER_ID }}
+
+      # Same shape as the other four scheduled scripts' failure step: one
+      # issue, reopened and commented on, rather than a new one every night.
+      - name: Report failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = 'Net worth snapshot is failing'
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+            const body = [
+              `The scheduled net worth snapshot failed at ${new Date().toISOString()}.`,
+              '',
+              `Run: ${runUrl}`,
+              '',
+              'Common causes, most likely first:',
+              '- A table error — `supabase/migrations/018_wallet_snapshots.sql` has not been run.',
+              '- A missing secret — check the env block in the run log for a blank value.',
+              '',
+              'While this is failing, the net worth chart simply stops gaining new',
+              'points rather than showing a wrong one -- a missing day reads as a gap,',
+              'not a flat line, so it will not be mistaken for "nothing changed".',
+            ].join('\n')
+
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'all',
+              labels: 'sync-failure',
+              per_page: 10,
+            })
+
+            const open = existing.data.find(i => i.title === title)
+            if (open) {
+              if (open.state === 'closed') {
+                await github.rest.issues.update({
+                  owner: context.repo.owner, repo: context.repo.repo,
+                  issue_number: open.number, state: 'open',
+                })
+              }
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: open.number, body,
+              })
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner, repo: context.repo.repo,
+                title, body, labels: ['sync-failure'],
+              })
+            }

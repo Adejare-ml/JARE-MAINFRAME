@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import WalletCard from '../components/ui/WalletCard'
 import CategoryBreakdown from '../components/ui/CategoryBreakdown'
 import ErrorState from '../components/ui/ErrorState'
+import NetWorthSparkline from '../components/ui/NetWorthSparkline'
 import { openQuickLog } from '../components/ui/QuickLog'
 import { formatNaira, timeAgo, formatDate } from '../lib/formatters'
 import { getCategoryIcon } from '../lib/constants'
@@ -13,6 +14,7 @@ import {
   transactionListColumns,
   transactionSummaryColumns,
   startOfMonth,
+  daysAgo,
   excludeVoided,
 } from '../lib/queries'
 
@@ -24,6 +26,7 @@ export default function Budget() {
   // ledger to render eight numbers.
   const [monthTransactions, setMonthTransactions] = useState([])
   const [recentTransactions, setRecentTransactions] = useState([])
+  const [netWorthHistory, setNetWorthHistory] = useState([])
   // Same default and same key as Daily HQ reads -- one budget target, read the
   // same way in both places, or the two pages would disagree about it.
   const [budgetTarget, setBudgetTarget] = useState(85000)
@@ -33,7 +36,7 @@ export default function Budget() {
   const fetchWalletsAndData = useCallback(async () => {
     try {
       setPageError(null)
-      const [walletsRes, monthRes, recentRes, settingsRes] = await Promise.all([
+      const [walletsRes, monthRes, recentRes, settingsRes, netWorthRes] = await Promise.all([
         supabase.from('wallets').select('*').order('name'),
         // Totals are keyed on transaction_date -- the date the bank says the
         // money moved -- not created_at, which is when the sync happened. A
@@ -54,6 +57,14 @@ export default function Budget() {
             .limit(5),
         ),
         supabase.from('user_settings').select('key, value').eq('key', 'monthly_budget_target'),
+        // Additive, like day_briefs on Daily HQ: a database where 018 has not
+        // run yet must not take down a page that has worked without this
+        // table since before it existed. The sparkline just shows nothing.
+        supabase
+          .from('wallet_snapshots')
+          .select('snapshot_date, total_balance')
+          .gte('snapshot_date', daysAgo(90))
+          .order('snapshot_date', { ascending: true }),
       ])
 
       if (walletsRes.error) throw walletsRes.error
@@ -63,6 +74,7 @@ export default function Budget() {
       setWallets(walletsRes.data || [])
       setMonthTransactions(monthRes.data || [])
       setRecentTransactions(recentRes.data || [])
+      setNetWorthHistory(netWorthRes.error ? [] : netWorthRes.data || [])
 
       // Additive, like Daily HQ's own read of the same key: a missing table or
       // an unset target leaves the default rather than failing the page.
@@ -210,6 +222,10 @@ export default function Budget() {
         <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
           {formatNaira(totalNetWorth)}
         </h2>
+
+        <div className="mb-4">
+          <NetWorthSparkline snapshots={netWorthHistory} />
+        </div>
 
         {/* Layered breakdown */}
         {hasSavingsOrInvestments && (
