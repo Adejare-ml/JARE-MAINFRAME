@@ -77,17 +77,30 @@ export default function TargetCard({ goal, transactions = [], today, onEdit, onD
     return () => clearTimeout(t)
   }, [progress.share, progress.measured])
 
+  // A locked goal's delete needs a second, explicit acknowledgement, not just
+  // the ordinary two-tap confirm every goal already gets. Reset whenever the
+  // confirm panel closes, so re-opening it never starts pre-checked.
+  const [lockAcknowledged, setLockAcknowledged] = useState(false)
+  useEffect(() => {
+    if (!confirmingDelete) setLockAcknowledged(false)
+  }, [confirmingDelete])
+
   return (
     <div
-      className={`bg-background/50 border border-white/5 rounded-2xl p-4 space-y-3 ${
-        celebrate ? 'animate-milestone' : ''
-      }`}
+      className={`bg-background/50 border rounded-2xl p-4 space-y-3 ${
+        goal.locked ? 'border-amber-500/20' : 'border-white/5'
+      } ${celebrate ? 'animate-milestone' : ''}`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-bold text-white truncate flex items-center gap-1.5">
             {goal.icon && <span aria-hidden="true">{goal.icon}</span>}
             <span className="truncate">{goal.title}</span>
+            {goal.locked && (
+              <span aria-label="Locked" title="Locked -- confirms before early deletion" className="flex-shrink-0 text-amber-400">
+                🔒
+              </span>
+            )}
             {goal.generated === true && (
               <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full bg-white/10 text-muted-dim text-[9px] font-semibold uppercase tracking-wider">
                 Derived
@@ -212,15 +225,29 @@ export default function TargetCard({ goal, transactions = [], today, onEdit, onD
       )}
 
       {confirmingDelete && (
-        <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
-          <p className="text-xs text-red-400 mb-2">
-            Delete this goal? Anything it generated goes with it.
+        <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl space-y-2">
+          <p className="text-xs text-red-400">
+            {goal.locked
+              ? 'This goal is locked -- money set aside for it is not meant to come out early.'
+              : 'Delete this goal? Anything it generated goes with it.'}
           </p>
+          {goal.locked && (
+            <label className="flex items-center gap-2 text-[11px] text-red-300">
+              <input
+                type="checkbox"
+                checked={lockAcknowledged}
+                onChange={(e) => setLockAcknowledged(e.target.checked)}
+                className="w-4 h-4 accent-red-500"
+              />
+              I understand, delete it anyway
+            </label>
+          )}
           <div className="flex gap-2">
             <button
               type="button"
               onClick={() => onDelete(goal.id, true)}
-              className="flex-1 py-2.5 bg-red-500 text-white text-xs font-bold rounded-lg min-h-[44px]"
+              disabled={goal.locked && !lockAcknowledged}
+              className="flex-1 py-2.5 bg-red-500 text-white text-xs font-bold rounded-lg min-h-[44px] disabled:opacity-40"
             >
               Delete
             </button>

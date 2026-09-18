@@ -14,7 +14,9 @@ import {
   cycleStatus,
   daysUntil,
   debtTotals,
+  payoffProjection,
 } from '../lib/debts'
+import { hasColumn } from '../lib/schema'
 
 const EMPTY_FORM = {
   direction: 'i_owe',
@@ -27,6 +29,7 @@ const EMPTY_FORM = {
   contribution: '',
   due_date: '',
   payout_date: '',
+  monthly_payment: '',
   notes: '',
 }
 
@@ -94,6 +97,7 @@ export default function Debts() {
       contribution: debt.contribution != null ? String(debt.contribution) : '',
       due_date: debt.due_date || '',
       payout_date: debt.payout_date || '',
+      monthly_payment: debt.monthly_payment != null ? String(debt.monthly_payment) : '',
       notes: debt.notes || '',
     })
     setShowModal(true)
@@ -131,6 +135,12 @@ export default function Debts() {
         contribution: rotating ? num(form.contribution) : null,
         due_date: form.due_date || null,
         payout_date: rotating ? form.payout_date || null : null,
+        // Meaningless on a rotating cycle -- there is no single balance to pay
+        // down, only rounds. Omitted rather than sent as null on a database
+        // behind 021, same reasoning as GoalForm's icon field.
+        ...(hasColumn('debts.monthly_payment')
+          ? { monthly_payment: rotating ? null : num(form.monthly_payment) }
+          : {}),
         notes: form.notes.trim() || null,
         updated_at: new Date().toISOString(),
       }
@@ -357,6 +367,16 @@ export default function Debts() {
                         />
                       </div>
                     )}
+                    {!debt.settled && debt.monthly_payment > 0 && (() => {
+                      const payoff = payoffProjection(debt, debt.monthly_payment)
+                      return payoff ? (
+                        <p className="text-[11px] text-muted">
+                          {payoff.monthsRemaining === 0
+                            ? 'Paid off'
+                            : `Paid off in ${payoff.monthsRemaining} month${payoff.monthsRemaining === 1 ? '' : 's'} at ${formatNaira(debt.monthly_payment)}/mo · ${formatDate(payoff.payoffDate)}`}
+                        </p>
+                      ) : null
+                    })()}
                   </div>
                 )}
 
@@ -570,6 +590,27 @@ export default function Debts() {
                     className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
                   />
                 </div>
+              </div>
+            )}
+
+            {/* Optional, and only for a real balance -- a rotating cycle pays
+                by round, not by a monthly amount toward a total. */}
+            {!rotating && hasColumn('debts.monthly_payment') && (
+              <div>
+                <label className="block text-xs text-muted font-semibold mb-1">
+                  Planned monthly payment (₦, optional)
+                </label>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  value={form.monthly_payment}
+                  onChange={(e) => setForm({ ...form, monthly_payment: e.target.value })}
+                  placeholder="10000"
+                  className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+                />
+                <p className="text-[10px] text-muted-dim mt-1">
+                  Set this to see a projected payoff date on the card below.
+                </p>
               </div>
             )}
 

@@ -7,6 +7,7 @@ import {
   upcomingDebts,
   debtTotals,
   isRotating,
+  payoffProjection,
 } from '../src/lib/debts.js'
 
 const NOW = new Date(2026, 7, 8) // 8 Aug 2026, local
@@ -34,6 +35,48 @@ describe('repaymentProgress', () => {
 
   it('returns null when there is nothing to measure', () => {
     expect(repaymentProgress({ principal: 0, amount_paid: 0 })).toBeNull()
+  })
+})
+
+describe('payoffProjection', () => {
+  it('does not divide by zero on a zero (or missing) payment', () => {
+    expect(payoffProjection({ principal: 50000, amount_paid: 0 }, 0, NOW)).toBeNull()
+    expect(payoffProjection({ principal: 50000, amount_paid: 0 }, null, NOW)).toBeNull()
+    expect(payoffProjection({ principal: 50000, amount_paid: 0 }, undefined, NOW)).toBeNull()
+  })
+
+  it('returns immediately for an already-paid-off debt, regardless of payment', () => {
+    expect(payoffProjection({ principal: 50000, amount_paid: 50000 }, 5000, NOW)).toEqual({
+      monthsRemaining: 0,
+      payoffDate: '2026-08-08',
+    })
+    // Even with no payment supplied -- there is nothing left to project.
+    expect(payoffProjection({ principal: 50000, amount_paid: 50000 }, 0, NOW)).toEqual({
+      monthsRemaining: 0,
+      payoffDate: '2026-08-08',
+    })
+  })
+
+  it('rounds up to the month a partial final payment falls in', () => {
+    // ₦30,000 left at ₦12,000/month: two full months clears ₦24,000, a third
+    // month covers the remaining ₦6,000 -- three months, not two-and-a-half.
+    const result = payoffProjection({ principal: 30000, amount_paid: 0 }, 12000, NOW)
+    expect(result.monthsRemaining).toBe(3)
+  })
+
+  it('projects the calendar date the months land on', () => {
+    const result = payoffProjection({ principal: 30000, amount_paid: 0 }, 10000, NOW)
+    expect(result.monthsRemaining).toBe(3)
+    expect(result.payoffDate).toBe('2026-11-08')
+  })
+
+  it('never goes negative -- an overpaid debt is zero months, not a negative one', () => {
+    expect(payoffProjection({ principal: 10000, amount_paid: 20000 }, 5000, NOW).monthsRemaining).toBe(0)
+  })
+
+  it('survives missing input', () => {
+    expect(payoffProjection({}, 5000, NOW)).toEqual({ monthsRemaining: 0, payoffDate: '2026-08-08' })
+    expect(payoffProjection(null, 5000, NOW)).toEqual({ monthsRemaining: 0, payoffDate: '2026-08-08' })
   })
 })
 
