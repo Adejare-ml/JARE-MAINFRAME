@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { connectGmail, disconnectGmail, syncGmailEmails } from '../lib/gmailSync'
 import { getParseStrategy, sanitizeSlug } from '../lib/sync'
@@ -6,7 +6,7 @@ import { timeAgo, formatNaira, formatDate } from '../lib/formatters'
 import { toast } from '../lib/toast'
 import { useAuth } from '../hooks/useAuth'
 import ErrorState from '../components/ui/ErrorState'
-import { useDismissable } from '../hooks/useDismissable'
+import Sheet from '../components/ui/Sheet'
 
 const WALLET_TYPES = [
   { value: 'bank', label: 'Bank', icon: '🏦' },
@@ -62,9 +62,6 @@ export default function Settings() {
 
   // Add/Edit Wallet Modal
   const [showWalletModal, setShowWalletModal] = useState(false)
-  // Centred rather than a bottom sheet, so it keeps its own layout and shares
-  // only the behaviour: back gesture, Escape, scroll lock, focus in and out.
-  const walletModalRef = useRef(null)
   const [editingWallet, setEditingWallet] = useState(null)
   const [walletForm, setWalletForm] = useState({
     name: '',
@@ -149,8 +146,6 @@ export default function Settings() {
   useEffect(() => {
     loadData()
   }, [])
-
-  useDismissable(showWalletModal, () => setShowWalletModal(false), walletModalRef)
 
   // ── Gmail Handlers ──
 
@@ -726,16 +721,13 @@ export default function Settings() {
       {/* ════════════════════════════════════════ */}
       {/* ADD / EDIT WALLET MODAL */}
       {/* ════════════════════════════════════════ */}
-      {showWalletModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div
-            ref={walletModalRef}
-            role="dialog"
-            aria-modal="true"
-            aria-label={editingWallet ? 'Edit wallet' : 'Add new wallet'}
-            tabIndex={-1}
-            className="bg-card p-6 rounded-3xl w-full max-w-md border border-white/10 relative max-h-[90vh] overflow-y-auto focus:outline-none"
-          >
+      <Sheet
+        isOpen={showWalletModal}
+        onClose={() => setShowWalletModal(false)}
+        title={editingWallet ? 'Edit wallet' : 'Add new wallet'}
+        alwaysCenter
+      >
+        <div className="p-6 relative overflow-y-auto">
             <button
               onClick={() => setShowWalletModal(false)}
               className="absolute top-4 right-4 text-muted hover:text-white w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10"
@@ -903,9 +895,8 @@ export default function Settings() {
                 {savingWallet ? 'Saving...' : editingWallet ? 'Update Wallet' : 'Add Wallet'}
               </button>
             </form>
-          </div>
         </div>
-      )}
+      </Sheet>
     </div>
   )
 }
