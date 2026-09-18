@@ -109,23 +109,36 @@ $$;
 -- this file replaces it in place.
 -- ---------------------------------------------------------------------------
 
+-- Every one of these five also carries a second, older policy named
+-- "authenticated access" — made by hand in the dashboard, present nowhere in
+-- version control, and never touched by any migration. RLS policies are
+-- permissive and OR'd together: dropping only the migration-named policy and
+-- leaving this one in place would tighten nothing, because `using (true)`
+-- still matches every row. Confirmed live: without these five extra drops,
+-- this file's own verify block below catches it and refuses to finish rather
+-- than reporting success over five tables still wide open.
+drop policy if exists "authenticated access" on transactions;
 drop policy if exists transactions_all_authenticated on transactions;
 create policy transactions_all_authenticated on transactions
   for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
+drop policy if exists "authenticated access" on wallets;
 drop policy if exists wallets_all_authenticated on wallets;
 create policy wallets_all_authenticated on wallets
   for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
+drop policy if exists "authenticated access" on user_settings;
 drop policy if exists user_settings_all_authenticated on user_settings;
 create policy user_settings_all_authenticated on user_settings
   for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 -- The one holding a live Google access token.
+drop policy if exists "authenticated access" on integrations;
 drop policy if exists integrations_all_authenticated on integrations;
 create policy integrations_all_authenticated on integrations
   for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
+drop policy if exists "authenticated access" on goals;
 drop policy if exists goals_all_authenticated on goals;
 create policy goals_all_authenticated on goals
   for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
@@ -151,6 +164,50 @@ create policy knowledge_gaps_all_authenticated on knowledge_gaps
 drop policy if exists day_briefs_all_authenticated on day_briefs;
 create policy day_briefs_all_authenticated on day_briefs
   for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+
+-- ---------------------------------------------------------------------------
+-- 2b. Four more tables, found live and not in the ten above
+--
+-- `milestones`, `monthly_budgets`, `projects` and `repairs` exist in the
+-- database, made by hand in the dashboard like the rest of this file's stray
+-- policies, but appear in no migration and are read or written by no code in
+-- this repository (`Projects.jsx` and `Repairs.jsx` are inert placeholder
+-- pages behind `hidden: true`, per the product roadmap). They also have no
+-- `user_id` column, so they cannot take the `auth.uid() = user_id` policy the
+-- other ten just got — there is nothing to match on, and adding the column
+-- for tables nothing populates would be inventing a feature to close a gap.
+--
+-- Since nothing in the app touches them, the correct fix is not "add
+-- ownership" but "remove the standing permissive access" — same conclusion
+-- Stage 11's audit reached about `integrations`, applied here before these
+-- four become the next thing that sits open and undocumented for months.
+-- ---------------------------------------------------------------------------
+
+-- Guarded, unlike the ten above: those are declared by 013 and guaranteed to
+-- exist by the time this file runs. These four are not declared anywhere, so
+-- a database built from this repository's migrations alone — the fresh-project
+-- case 009's plan called out — would not have them, and an unguarded `create
+-- policy ... on milestones` would abort the whole migration on a table this
+-- repo has no opinion about.
+do $$
+declare
+  t text;
+begin
+  foreach t in array array['milestones', 'monthly_budgets', 'projects', 'repairs']
+  loop
+    if exists (select 1 from information_schema.tables
+                where table_schema = 'public' and table_name = t) then
+      execute format('drop policy if exists %I on %I', 'authenticated access', t);
+      execute format('drop policy if exists %I on %I', t || '_no_access', t);
+      execute format(
+        'create policy %I on %I for all to authenticated using (false) with check (false)',
+        t || '_no_access', t
+      );
+    end if;
+  end loop;
+end
+$$;
 
 
 -- ---------------------------------------------------------------------------
@@ -196,6 +253,19 @@ begin
   end if;
 
   raise notice 'all ten policies now match on auth.uid() = user_id, for both using and with check';
+
+  -- Same check for the four orphan tables, only among those that exist —
+  -- any surviving `true` there is exactly the gap this section exists to close.
+  select string_agg(format('%s.%s', tablename, policyname), ', ')
+    into still_open
+    from pg_policies
+   where schemaname = 'public'
+     and tablename in ('milestones','monthly_budgets','projects','repairs')
+     and coalesce(qual, 'true') <> 'false';
+
+  if still_open is not null then
+    raise exception 'these orphan-table policies are still permissive: %', still_open;
+  end if;
 end
 $$;
 
@@ -204,5 +274,6 @@ select tablename, policyname, qual as using_clause, with_check
   from pg_policies
  where schemaname = 'public'
    and tablename in ('transactions','wallets','user_settings','integrations','goals',
-                     'debts','category_corrections','sync_failures','knowledge_gaps','day_briefs')
+                     'debts','category_corrections','sync_failures','knowledge_gaps','day_briefs',
+                     'milestones','monthly_budgets','projects','repairs')
  order by tablename;

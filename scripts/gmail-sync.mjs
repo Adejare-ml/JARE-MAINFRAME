@@ -39,6 +39,7 @@ import {
 } from '../src/lib/sync/index.js'
 import { extractTransaction, categorizeBatch, hasAnyProvider, LLM_CONFIG } from './llm.mjs'
 import { getAccessToken as refreshGoogleToken } from './google.mjs'
+import { assertProgress } from './lib/assertProgress.mjs'
 
 // ───────────────────────────────────────────────────────────────
 // 1. Credentials
@@ -920,6 +921,14 @@ function printRunReport(startTime) {
 
   console.log('════════════════════════════════════════\n')
   console.log(`✅ Synced ${stats.newTransactions} new transactions`)
+
+  // Printed above, but never turned into an exit code until now: a batch of
+  // errors sat in the log while `if: failure()` in the workflow only ever
+  // looks at the exit code, so a run that hit every single one of these still
+  // read green in Actions.
+  assertProgress([
+    { ok: stats.errors.length === 0, reason: `${stats.errors.length} error(s) during this run (see above)` },
+  ])
 }
 
 run().catch((err) => {

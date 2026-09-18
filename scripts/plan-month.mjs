@@ -41,6 +41,7 @@ import { reviewPlan, planWeeks, PLAN_STATUS } from '../src/lib/planReview.js'
 import { GENERATED_SLOT_BASE, REPO_METRIC } from '../src/lib/planning.js'
 import { startOfMonth, startOfWeek, endOfMonth, toDateOnly } from '../src/lib/queries.js'
 import { callModel, hasAnyProvider, LLM_CONFIG } from './llm.mjs'
+import { assertProgress } from './lib/assertProgress.mjs'
 
 // ───────────────────────────────────────────────────────────────
 // 1. Configuration
@@ -176,6 +177,7 @@ async function main() {
   console.log(`   ${weeks.length} week(s) to plan, ${gaps.length} open gap(s)\n`)
 
   let written = 0
+  let noAnswer = 0
 
   for (const goal of goals) {
     console.log(`── ${goal.title} ──`)
@@ -186,6 +188,12 @@ async function main() {
     )
 
     if (!answer) {
+      // callModel returns null only when every configured provider failed --
+      // not when the model legitimately declined, which reviewPlan's rejection
+      // path below handles instead. Counted separately so a total outage can
+      // be told apart from the grounding filter correctly finding nothing to
+      // keep.
+      noAnswer++
       console.log('   no answer from any provider; nothing drafted\n')
       continue
     }
@@ -247,6 +255,17 @@ async function main() {
     console.log('   These are proposals. They appear on /goals for you to approve or')
     console.log('   discard, and nothing derives from them until you do.')
   }
+
+  // A goal reviewPlan legitimately rejected everything for is not a failure --
+  // that is the grounding filter doing its job, and it is not this check's
+  // business. A goal that got no answer from either provider at all is: that
+  // is Ollama and NVIDIA both down or misconfigured, not a quiet month.
+  assertProgress([
+    {
+      ok: noAnswer < goals.length,
+      reason: `no LLM provider answered for any of ${goals.length} active coding goal(s) -- Ollama and NVIDIA may both be down or misconfigured`,
+    },
+  ])
 }
 
 main().catch((err) => {
