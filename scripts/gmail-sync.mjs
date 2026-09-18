@@ -269,6 +269,8 @@ async function run() {
   const { data: wallets, error: wErr } = await supabase.from('wallets').select('*')
   if (wErr) throw new Error(`Failed to fetch wallets: ${wErr.message}`)
 
+  const categoryRules = await fetchCategoryRules(supabase)
+
   // Senders are data, read from the wallets table, so adding a bank is a
   // Settings edit rather than a deploy.
   const walletIndex = buildWalletIndex(wallets)
@@ -551,7 +553,7 @@ async function run() {
 
   await flushFailureLedger(supabase, ledger)
 
-  await categorizeInserted(supabase, pending, corrections)
+  await categorizeInserted(supabase, pending, corrections, categoryRules)
 
   await applyBalances(supabase, latestBalances, wallets)
   await advanceLastSync(supabase, integration, {
@@ -638,7 +640,27 @@ async function loadCorrections(supabase) {
  * marked reviewed and never reaches the review queue. Everything else does,
  * carrying the model's best guess and its reasoning so confirming it is one tap.
  */
-async function categorizeInserted(supabase, pending, corrections) {
+/**
+ * The user's own category_rules rows (migration 020), read once per run.
+ *
+ * Additive, like debts and day_briefs elsewhere in this script: a database
+ * behind the migration has no such table, and that must cost this feature
+ * its rules, not the sync run.
+ */
+async function fetchCategoryRules(supabase) {
+  const { data, error } = await supabase
+    .from('category_rules')
+    .select('trigger_field, trigger_value, action_category, priority')
+  if (error) {
+    if (!/relation .* does not exist|could not find the table/i.test(error.message || '')) {
+      stats.warnings.push(`Category rules unavailable: ${error.message}`)
+    }
+    return []
+  }
+  return data || []
+}
+
+async function categorizeInserted(supabase, pending, corrections, categoryRules = []) {
   if (pending.length === 0) return
 
   for (const batch of chunk(pending)) {
@@ -675,6 +697,7 @@ async function categorizeInserted(supabase, pending, corrections) {
       const override = applyCategoryOverrides(
         { ...txn, category: result?.category || 'Uncategorized' },
         wallet,
+        categoryRules,
       )
       if (override.reason) stats.categorizedBy.override++
 

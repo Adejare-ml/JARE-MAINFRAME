@@ -59,6 +59,13 @@ export const GATED_COLUMNS = {
   // not ask for before the migration has run -- the same 42703 as any other.
   'goals.icon': '019_goal_icon.sql',
 
+  // A whole new table -- the user-editable half of categorization. Two keys
+  // rather than one: 'trigger_field' is what the Settings screen selects on,
+  // 'priority' is what the sync scripts order by, and either alone reaching a
+  // database behind 020 is the same 42703/42P01 the rest of this file guards.
+  'category_rules.trigger_field': '020_category_rules.sql',
+  'category_rules.priority': '020_category_rules.sql',
+
   // A whole table rather than a column, which is why probeSchema had to learn
   // about 42P01 above. One key is enough to make the banner name the file;
   // `free_minutes` is listed too because it is the figure the page actually

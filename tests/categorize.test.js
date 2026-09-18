@@ -98,6 +98,76 @@ describe('applyCategoryOverrides', () => {
     expect(applyCategoryOverrides({}, null).category).toBe('Uncategorized')
     expect(applyCategoryOverrides(null, null).category).toBe('Uncategorized')
   })
+
+  describe('user-defined category rules', () => {
+    it('applies a matching rule', () => {
+      const rules = [{ trigger_field: 'recipient', trigger_value: 'Netflix', action_category: 'Subscriptions' }]
+      const result = applyCategoryOverrides(
+        { type: 'debit', category: 'Uncategorized', recipient: 'NETFLIX.COM' },
+        { type: 'bank' },
+        rules,
+      )
+      expect(result).toEqual({ category: 'Subscriptions', reason: 'rule: recipient contains "Netflix"' })
+    })
+
+    it('matches case-insensitively, as a substring', () => {
+      const rules = [{ trigger_field: 'description', trigger_value: 'dstv', action_category: 'Entertainment' }]
+      expect(
+        applyCategoryOverrides({ type: 'debit', description: 'DSTV SUBSCRIPTION RENEWAL' }, null, rules)
+          .category,
+      ).toBe('Entertainment')
+    })
+
+    it('only matches the field the rule names, not the combined haystack', () => {
+      // A rule written for "recipient" must not fire on a coincidental word
+      // sitting in the description instead.
+      const rules = [{ trigger_field: 'recipient', trigger_value: 'Netflix', action_category: 'Subscriptions' }]
+      const result = applyCategoryOverrides(
+        { type: 'debit', category: 'Entertainment', description: 'Netflix mentioned here', recipient: 'Someone Else' },
+        null,
+        rules,
+      )
+      expect(result.category).toBe('Entertainment')
+      expect(result.reason).toBeNull()
+    })
+
+    it('outranks the structural overrides -- a user rule is the more specific signal', () => {
+      const rules = [{ trigger_field: 'description', trigger_value: 'stamp duty', action_category: 'Rent' }]
+      // Would ordinarily become Bank Charges via CHARGE_PATTERNS.
+      const result = applyCategoryOverrides(
+        { type: 'debit', description: 'Stamp Duty on rent transfer' },
+        { type: 'bank' },
+        rules,
+      )
+      expect(result.category).toBe('Rent')
+    })
+
+    it('checks rules in priority order and stops at the first match', () => {
+      const rules = [
+        { trigger_field: 'description', trigger_value: 'Uber', action_category: 'Wrong', priority: 5 },
+        { trigger_field: 'description', trigger_value: 'Uber', action_category: 'Transport', priority: 1 },
+      ]
+      expect(
+        applyCategoryOverrides({ type: 'debit', description: 'Uber Eats' }, null, rules).category,
+      ).toBe('Transport')
+    })
+
+    it('falls through to the structural overrides when no rule matches', () => {
+      const rules = [{ trigger_field: 'recipient', trigger_value: 'Netflix', action_category: 'Subscriptions' }]
+      expect(
+        applyCategoryOverrides({ type: 'debit', description: 'ATM WITHDRAWAL' }, { type: 'bank' }, rules)
+          .category,
+      ).toBe('Cash Withdrawal')
+    })
+
+    it('ignores a malformed rule instead of throwing', () => {
+      const rules = [{ trigger_field: 'nonsense', trigger_value: '', action_category: '' }, null]
+      expect(
+        applyCategoryOverrides({ type: 'debit', category: 'Transport', description: 'Bolt' }, null, rules)
+          .category,
+      ).toBe('Transport')
+    })
+  })
 })
 
 describe('coerceCategory', () => {
