@@ -6,6 +6,7 @@ import { CATEGORIES, getCategoryIcon } from '../lib/constants'
 import { toast } from '../lib/toast'
 import ErrorState from '../components/ui/ErrorState'
 import EmptyState from '../components/ui/EmptyState'
+import Skeleton, { SkeletonRows } from '../components/ui/Skeleton'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import { groupByDate } from '../lib/transactionGroups'
 import {
@@ -19,6 +20,8 @@ import {
 } from '../lib/queries'
 import { validateCorrection, isMissingFunctionError } from '../lib/corrections'
 import { hasColumn } from '../lib/schema'
+import { pendingTransactions } from '../lib/pendingTransactions'
+import { confirmBuzz } from '../lib/haptics'
 
 export default function Transactions() {
   const [transactions, setTransactions] = useState([])
@@ -49,7 +52,12 @@ export default function Transactions() {
   const [editAmount, setEditAmount] = useState('')
   const [editDate, setEditDate] = useState('')
   const [updating, setUpdating] = useState(false)
-  const [confirmVoidId, setConfirmVoidId] = useState(null)
+
+  // Rows logged from QuickLog (mounted globally, independent of this page)
+  // that have not yet been confirmed by the server or arrived through the
+  // realtime refetch -- see lib/pendingTransactions.js.
+  const [pending, setPending] = useState([])
+  useEffect(() => pendingTransactions.subscribe(setPending), [])
 
   // Two pieces of state for one box: `search` is what the field shows, and
   // `activeSearch` is what has actually been sent. Without the split, every
@@ -379,6 +387,12 @@ export default function Transactions() {
    * the sync re-inserting an email it has already read, so a hard-deleted
    * synced row would come straight back on the next run. A delete that silently
    * undoes itself is worse than none.
+   *
+   * Acts on the first tap now, backed by a 5-second Undo toast rather than a
+   * confirm-then-void two-tap sequence -- one less decision for something
+   * this reversible, and undoing it is the exact same write with `voided`
+   * flipped back, already proven correct by handleSaveChanges' own
+   * un-voiding-on-edit path.
    */
   const handleVoid = async (txn) => {
     setUpdating(true)
@@ -396,15 +410,38 @@ export default function Transactions() {
         voided: true,
       })
 
-      toast.success('Transaction voided')
+      confirmBuzz()
+      toast.success('Transaction voided', {
+        duration: 5000,
+        action: { label: 'Undo', onClick: () => handleUnvoid(txn) },
+      })
       setExpandedId(null)
-      setConfirmVoidId(null)
       fetchData()
     } catch (err) {
       console.error('Error voiding transaction:', err)
       toast.error('Failed to void: ' + (err.message || 'check connection'))
     } finally {
       setUpdating(false)
+    }
+  }
+
+  /** The Undo action on a "Transaction voided" toast -- the same write, `voided` flipped back. */
+  const handleUnvoid = async (txn) => {
+    try {
+      await writeCorrection(txn.id, {
+        type: txn.type || 'debit',
+        amount: Number(txn.amount) || 0.01,
+        date: txn.transaction_date,
+        category: txn.category || 'Uncategorized',
+        note: txn.note,
+        wantOrNeed: txn.want_or_need,
+        voided: false,
+      })
+      toast.success('Restored')
+      fetchData()
+    } catch (err) {
+      console.error('Error restoring transaction:', err)
+      toast.error('Could not restore: ' + (err.message || 'check connection'))
     }
   }
 
@@ -444,12 +481,10 @@ export default function Transactions() {
   if (loading) {
     return (
       <div className="space-y-4 animate-pulse">
-        <div className="h-8 bg-white/5 rounded-xl w-48" />
-        <div className="h-12 bg-card rounded-2xl border border-white/5" />
+        <Skeleton className="h-8 bg-white/5 rounded-xl w-48" />
+        <Skeleton className="h-12 bg-card rounded-2xl border border-white/5" />
         <div className="space-y-2">
-          {[1, 2, 3, 4, 5].map(n => (
-            <div key={n} className="h-16 bg-card rounded-2xl border border-white/5" />
-          ))}
+          <SkeletonRows count={5} className="h-16 bg-card rounded-2xl border border-white/5" />
         </div>
       </div>
     )
@@ -523,6 +558,34 @@ export default function Transactions() {
           )
         })}
       </div>
+
+      {/* Rows logged this session, shown before the server (or the realtime
+          refetch behind it) has confirmed them -- see
+          lib/pendingTransactions.js. Only on the default, unfiltered view:
+          a pending row is not yet a real transaction to filter or search. */}
+      {filter === 'All' && !activeSearch && pending.length > 0 && (
+        <div className="space-y-2 mb-3">
+          {pending.map((p) => (
+            <div
+              key={p.id}
+              className="bg-card/60 rounded-2xl border border-dashed border-white/10 p-4 flex items-center justify-between animate-pulse"
+            >
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="w-11 h-11 rounded-2xl bg-background flex items-center justify-center text-xl border border-white/5">
+                  {getCategoryIcon(p.category)}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-white truncate">{p.description || p.category}</p>
+                  <p className="text-xs text-muted mt-0.5">Syncing…</p>
+                </div>
+              </div>
+              <span className={`text-sm font-bold flex-shrink-0 ml-3 ${p.type === 'credit' ? 'text-accent' : 'text-white'}`}>
+                {p.type === 'credit' ? '+' : '-'}{formatNaira(p.amount)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Transaction List */}
       {pageError ? (
@@ -787,10 +850,11 @@ export default function Transactions() {
                       </button>
                     </div>
 
-                    {/* Void, behind a second tap. Not a delete: the unique
-                        index on (source, transaction_id) is what stops the sync
-                        re-importing an email, so a hard-deleted synced row
-                        would return on the next run.
+                    {/* One tap, backed by a 5-second Undo toast rather than a
+                        second confirm tap -- see handleVoid. Not a delete:
+                        the unique index on (source, transaction_id) is what
+                        stops the sync re-importing an email, so a
+                        hard-deleted synced row would return on the next run.
 
                         Hidden entirely until migration 006 has run. Offering a
                         button that cannot work, and reporting a Postgres error
@@ -798,36 +862,17 @@ export default function Transactions() {
                         banner already explains what to run. */}
                     {hasColumn('transactions.voided') && (
                     <div className="pt-1">
-                      {confirmVoidId === t.id ? (
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => handleVoid(t)}
-                              disabled={updating}
-                              className="flex-1 py-3 bg-red-500/15 border border-red-500/40 text-red-300 font-bold text-sm rounded-xl hover:bg-red-500/25 transition-all min-h-[48px] disabled:opacity-50"
-                            >
-                              {updating ? 'Voiding…' : 'Yes, void it'}
-                            </button>
-                            <button
-                              onClick={() => setConfirmVoidId(null)}
-                              className="px-4 py-3 bg-white/5 text-muted hover:text-white text-sm font-semibold rounded-xl min-h-[48px]"
-                            >
-                              Keep
-                            </button>
-                          </div>
-                          <p className="text-[11px] text-muted leading-relaxed">
-                            Hides it from every list and every total. Nothing is deleted — the
-                            record is what stops the sync importing this email again.
-                          </p>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => setConfirmVoidId(t.id)}
-                          className="w-full py-2.5 text-xs font-semibold text-muted hover:text-red-300 transition-colors min-h-[44px]"
-                        >
-                          Void this transaction
-                        </button>
-                      )}
+                      <button
+                        onClick={() => handleVoid(t)}
+                        disabled={updating}
+                        className="w-full py-2.5 text-xs font-semibold text-muted hover:text-red-300 transition-colors min-h-[44px] disabled:opacity-50"
+                      >
+                        {updating ? 'Voiding…' : 'Void this transaction'}
+                      </button>
+                      <p className="text-[11px] text-muted-dim leading-relaxed">
+                        Hides it from every list and every total -- undo from the toast for
+                        the next five seconds, or reopen and edit it any time after.
+                      </p>
                     </div>
                     )}
 

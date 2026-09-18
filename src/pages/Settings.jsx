@@ -8,6 +8,7 @@ import { useAuth } from '../hooks/useAuth'
 import ErrorState from '../components/ui/ErrorState'
 import Sheet from '../components/ui/Sheet'
 import CategoryRules from '../components/settings/CategoryRules'
+import Skeleton from '../components/ui/Skeleton'
 
 const WALLET_TYPES = [
   { value: 'bank', label: 'Bank', icon: '🏦' },
@@ -380,9 +381,9 @@ export default function Settings() {
 
       {isLoading ? (
         <div className="space-y-4 animate-pulse">
-          <div className="h-40 bg-card rounded-3xl border border-white/5" />
-          <div className="h-40 bg-card rounded-3xl border border-white/5" />
-          <div className="h-28 bg-card rounded-3xl border border-white/5" />
+          <Skeleton className="h-40 bg-card rounded-3xl border border-white/5" />
+          <Skeleton className="h-40 bg-card rounded-3xl border border-white/5" />
+          <Skeleton className="h-28 bg-card rounded-3xl border border-white/5" />
         </div>
       ) : pageError ? (
         <ErrorState message={pageError} onRetry={loadData} />

@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import Sheet from '../ui/Sheet'
-import { toast } from '../../lib/toast'
 import { ALL_CATEGORIES, GOAL_ICONS } from '../../lib/constants'
 import { formatGoalAmount } from '../../lib/formatters'
 import { hasColumn } from '../../lib/schema'
@@ -70,9 +69,10 @@ const EMPTY = {
  * refuse the same row anyway -- but as SQLSTATE 23514 naming a constraint,
  * which is not an error message, it is a stack trace wearing one.
  *
- * Returns a string rather than a list because that is how this app reports
- * validation everywhere else: one `toast.error` and an early return, phrased as
- * a question. See Debts' "Who is this with?".
+ * Returns a string rather than a list because this asks one question at a
+ * time: the first thing wrong, not everything wrong at once. Shown inline
+ * next to the field it concerns, phrased as a question. See Debts' "Who is
+ * this with?".
  *
  * @returns {string|null}
  */
@@ -106,6 +106,10 @@ export function validateGoal(form) {
 
 export default function GoalForm({ open, editing, wallets = [], onClose, onSave, saving }) {
   const [form, setForm] = useState(EMPTY)
+  // Inline, next to the field, instead of a full-width toast banner -- paired
+  // with a brief shake on the form itself.
+  const [formError, setFormError] = useState(null)
+  const [shake, setShake] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -127,16 +131,22 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
 
   if (!open) return null
 
-  const set = (patch) => setForm((prev) => ({ ...prev, ...patch }))
+  const set = (patch) => {
+    setForm((prev) => ({ ...prev, ...patch }))
+    if (formError) setFormError(null)
+  }
 
   const handleSubmit = (e) => {
     e.preventDefault()
 
     const problem = validateGoal(form)
     if (problem) {
-      toast.error(problem)
+      setFormError(problem)
+      setShake(true)
+      setTimeout(() => setShake(false), 400)
       return
     }
+    setFormError(null)
 
     onSave({
       title: form.title.trim(),
@@ -171,7 +181,10 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
 
   return (
     <Sheet isOpen={open} onClose={onClose} title={editing ? 'Edit goal' : 'New goal'} desktopCenter>
-      <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
+      <form
+        onSubmit={handleSubmit}
+        className={`p-6 space-y-4 overflow-y-auto ${shake ? 'animate-shake' : ''}`}
+      >
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold text-white">{editing ? 'Edit goal' : 'New goal'}</h2>
           <button
@@ -188,6 +201,11 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
           <label htmlFor="goal-title" className="block text-xs text-muted mb-1.5">
             What is it?
           </label>
+          {formError && (
+            <p role="alert" className="text-xs text-red-400 font-medium mb-1.5">
+              {formError}
+            </p>
+          )}
           <input
             id="goal-title"
             type="text"

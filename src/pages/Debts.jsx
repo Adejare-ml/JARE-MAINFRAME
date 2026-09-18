@@ -4,6 +4,8 @@ import { toast } from '../lib/toast'
 import { formatNaira, formatDate } from '../lib/formatters'
 import ErrorState from '../components/ui/ErrorState'
 import Sheet from '../components/ui/Sheet'
+import Skeleton from '../components/ui/Skeleton'
+import { confirmBuzz } from '../lib/haptics'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import {
   DIRECTIONS,
@@ -44,6 +46,10 @@ export default function Debts() {
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
+  // Inline, next to the field, instead of a full-width toast banner.
+  const [formError, setFormError] = useState(null)
+  const [shake, setShake] = useState(false)
+  const [justSaved, setJustSaved] = useState(false)
 
   const fetchDebts = useCallback(async () => {
     try {
@@ -81,11 +87,13 @@ export default function Debts() {
   const openAdd = () => {
     setEditing(null)
     setForm(EMPTY_FORM)
+    setFormError(null)
     setShowModal(true)
   }
 
   const openEdit = (debt) => {
     setEditing(debt)
+    setFormError(null)
     setForm({
       direction: debt.direction,
       kind: debt.kind,
@@ -103,10 +111,16 @@ export default function Debts() {
     setShowModal(true)
   }
 
+  const fail = (message) => {
+    setFormError(message)
+    setShake(true)
+    setTimeout(() => setShake(false), 400)
+  }
+
   const handleSave = async (e) => {
     e.preventDefault()
     if (!form.counterparty.trim()) {
-      toast.error('Who is this with?')
+      fail('Who is this with?')
       return
     }
 
@@ -115,11 +129,12 @@ export default function Debts() {
 
     if (rotating && form.cycle_size !== '' && form.cycle_position !== '') {
       if (Number(form.cycle_position) > Number(form.cycle_size)) {
-        toast.error(`Round ${form.cycle_position} is past the end of a ${form.cycle_size}-round cycle`)
+        fail(`Round ${form.cycle_position} is past the end of a ${form.cycle_size}-round cycle`)
         return
       }
     }
 
+    setFormError(null)
     setSaving(true)
     try {
       const payload = {
@@ -150,9 +165,17 @@ export default function Debts() {
         : await supabase.from('debts').insert(payload)
       if (error) throw error
 
+      confirmBuzz()
       toast.success(editing ? 'Updated ✓' : 'Added ✓')
-      setShowModal(false)
       fetchDebts()
+
+      // A brief checkmark before the sheet closes, rather than it vanishing
+      // the instant the request resolves.
+      setJustSaved(true)
+      setTimeout(() => {
+        setShowModal(false)
+        setJustSaved(false)
+      }, 220)
     } catch (err) {
       console.error('Error saving debt:', err)
       toast.error('Failed to save: ' + (err.message || 'check connection'))
@@ -169,6 +192,7 @@ export default function Debts() {
 
     if (error) toast.error('Failed to update: ' + error.message)
     else {
+      if (!debt.settled) confirmBuzz()
       toast.success(debt.settled ? 'Reopened' : 'Marked settled ✓')
       fetchDebts()
     }
@@ -187,9 +211,9 @@ export default function Debts() {
   if (loading) {
     return (
       <div className="space-y-6 animate-pulse">
-        <div className="h-10 bg-white/5 rounded-xl w-48" />
-        <div className="h-24 bg-card rounded-3xl border border-white/5" />
-        <div className="h-44 bg-card rounded-3xl border border-white/5" />
+        <Skeleton className="h-10 bg-white/5 rounded-xl w-48" />
+        <Skeleton className="h-24 bg-card rounded-3xl border border-white/5" />
+        <Skeleton className="h-44 bg-card rounded-3xl border border-white/5" />
       </div>
     )
   }
@@ -445,7 +469,10 @@ export default function Debts() {
         title={editing ? 'Edit debt' : 'New debt'}
         desktopCenter
       >
-        <form onSubmit={handleSave} className="p-6 space-y-4 overflow-y-auto">
+        <form
+          onSubmit={handleSave}
+          className={`p-6 space-y-4 overflow-y-auto ${shake ? 'animate-shake' : ''}`}
+        >
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-white">{editing ? 'Edit' : 'New'}</h2>
               <button
@@ -457,6 +484,12 @@ export default function Debts() {
                 ✕
               </button>
             </div>
+
+            {formError && (
+              <p role="alert" className="text-xs text-red-400 font-medium">
+                {formError}
+              </p>
+            )}
 
             {/* Kind */}
             <div>
@@ -638,10 +671,18 @@ export default function Debts() {
 
             <button
               type="submit"
-              disabled={saving}
-              className="w-full py-3.5 bg-accent text-black font-bold text-sm rounded-xl min-h-[48px] disabled:opacity-50"
+              disabled={saving || justSaved}
+              className="w-full py-3.5 bg-accent text-black font-bold text-sm rounded-xl min-h-[48px] disabled:opacity-50 flex items-center justify-center"
             >
-              {saving ? 'Saving…' : editing ? 'Save changes' : 'Add'}
+              {justSaved ? (
+                <span className="inline-block text-lg animate-check-pop" aria-hidden="true">✓</span>
+              ) : saving ? (
+                'Saving…'
+              ) : editing ? (
+                'Save changes'
+              ) : (
+                'Add'
+              )}
             </button>
         </form>
       </Sheet>
