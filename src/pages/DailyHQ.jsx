@@ -888,6 +888,7 @@ export default function DailyHQ() {
         <WeekReview
           weekStart={weekStart}
           weekEnd={weekEnd}
+          lastWeekStart={lastWeekStart}
           thisWeekTransactions={thisWeekTransactions}
           lastWeekTransactions={lastWeekTransactions}
           liquidWalletIds={liquidWalletIds}

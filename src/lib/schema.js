@@ -78,6 +78,13 @@ export const GATED_COLUMNS = {
   // renders, so a partially-applied 012 is caught rather than assumed away.
   'day_briefs.brief_date': '012_day_brief.sql',
   'day_briefs.free_minutes': '012_day_brief.sql',
+
+  // The weekly recap's storage. Same reasoning as day_briefs above: the
+  // browser cannot re-derive `sentences` (a model wrote them, offline, and
+  // they already passed src/lib/recapReview.js), so a database behind 023
+  // must cost the recap card, not the whole week view.
+  'week_recaps.week_start': '023_week_recaps.sql',
+  'week_recaps.sentences': '023_week_recaps.sql',
 }
 
 /**
