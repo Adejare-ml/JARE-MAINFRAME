@@ -2,7 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { toast } from '../../lib/toast';
 import { CATEGORIES, getCategoryIcon } from '../../lib/constants';
+import { getCategoryColor } from '../../lib/formatters';
 import { toDateOnly } from '../../lib/queries';
+import { pendingTransactions } from '../../lib/pendingTransactions';
+import { confirmBuzz } from '../../lib/haptics';
 import Sheet from './Sheet';
 
 const STEPS = {
@@ -42,6 +45,9 @@ export default function QuickLog() {
   const [wallets, setWallets] = useState([]);
   const [isLoadingWallets, setIsLoadingWallets] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Briefly true right after a successful write, so the submit button can
+  // morph into a checkmark instead of the sheet just vanishing.
+  const [justLogged, setJustLogged] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -91,6 +97,7 @@ export default function QuickLog() {
     setNote('');
     setWantOrNeed('');
     setIsSubmitting(false);
+    setJustLogged(false);
   };
 
   const handleNext = () => setStep((s) => s + 1);
@@ -103,6 +110,20 @@ export default function QuickLog() {
     }
 
     setIsSubmitting(true);
+
+    // Shown in Transactions.jsx the instant this fires, not once the round
+    // trip completes. Self-clears on its own after a few seconds even if
+    // this function never reaches its finally block, so a dropped connection
+    // cannot leave a phantom "syncing" row behind forever -- see
+    // lib/pendingTransactions.js.
+    pendingTransactions.add({
+      id: submissionId,
+      type,
+      amount: parseFloat(amount) || 0,
+      category,
+      description: note.trim() || null,
+    });
+
     try {
       const numAmount = parseFloat(amount);
       if (isNaN(numAmount) || numAmount <= 0) {
@@ -134,11 +155,27 @@ export default function QuickLog() {
 
       if (error) throw error;
 
-      toast.success(`₦${numAmount.toLocaleString()} logged ✓`);
-      setIsOpen(false);
+      // The real row is in the database now, and the realtime subscription
+      // Transactions.jsx already holds will pick it up -- remove the
+      // placeholder immediately rather than leaving both visible until the
+      // TTL catches up.
+      pendingTransactions.remove(submissionId);
+
+      confirmBuzz();
+      toast.success(`₦${numAmount.toLocaleString()} logged ✓`, { color: getCategoryColor(category) });
+
+      // A brief checkmark before the sheet closes, rather than it just
+      // vanishing -- long enough to read as a confirmation, short enough to
+      // still feel instant.
+      setJustLogged(true);
+      setTimeout(() => {
+        setIsOpen(false);
+        setJustLogged(false);
+      }, 220);
     } catch (err) {
       console.error('Error logging transaction:', err);
       toast.error('Failed to log: ' + (err.message || 'check connection and retry'));
+      pendingTransactions.remove(submissionId);
     } finally {
       setIsSubmitting(false);
     }
@@ -391,12 +428,14 @@ export default function QuickLog() {
       </div>
 
       <div className="pt-2 mt-auto">
-        <button 
+        <button
           onClick={handleSubmit}
-          disabled={isSubmitting}
+          disabled={isSubmitting || justLogged}
           className="w-full bg-accent text-black rounded-xl font-extrabold text-base py-4 hover:bg-accent/90 transition-all shadow-lg shadow-accent/20 disabled:opacity-50 min-h-[48px] flex items-center justify-center gap-2"
         >
-          {isSubmitting ? (
+          {justLogged ? (
+            <span className="inline-block text-xl animate-check-pop" aria-hidden="true">✓</span>
+          ) : isSubmitting ? (
             <span className="inline-block w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
           ) : (
             'Log It ✓'

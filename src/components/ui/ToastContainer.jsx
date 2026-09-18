@@ -44,14 +44,33 @@ export default function ToastContainer() {
             key={t.id}
             className={`pointer-events-auto flex items-center justify-between gap-3 px-4 py-3 rounded-xl border backdrop-blur-md shadow-lg text-sm font-medium transition-all duration-300 animate-slide-up ${bg}`}
           >
-            <span>{t.message}</span>
-            <button
-              onClick={() => removeToast(t.id)}
-              aria-label="Dismiss notification"
-              className="text-xs opacity-70 hover:opacity-100 p-1 min-w-[24px] min-h-[24px] flex items-center justify-center"
-            >
-              ✕
-            </button>
+            <span className="flex items-center gap-2 min-w-0">
+              {/* The category colour of what was just logged -- a dot, never
+                  the toast's own background, so a category that happens to
+                  map to red cannot read as an error. */}
+              {t.color && <span className={`w-2 h-2 rounded-full flex-shrink-0 ${t.color}`} aria-hidden="true" />}
+              <span className="truncate">{t.message}</span>
+            </span>
+            <span className="flex items-center gap-1 flex-shrink-0">
+              {t.action && (
+                <button
+                  onClick={() => {
+                    t.action.onClick()
+                    removeToast(t.id)
+                  }}
+                  className="text-xs font-bold underline underline-offset-2 px-1 min-h-[24px]"
+                >
+                  {t.action.label}
+                </button>
+              )}
+              <button
+                onClick={() => removeToast(t.id)}
+                aria-label="Dismiss notification"
+                className="text-xs opacity-70 hover:opacity-100 p-1 min-w-[24px] min-h-[24px] flex items-center justify-center"
+              >
+                ✕
+              </button>
+            </span>
           </div>
         )
       })}
