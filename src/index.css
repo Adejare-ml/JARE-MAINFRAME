@@ -156,6 +156,25 @@ textarea:focus-visible,
   animation: slideUp 0.4s ease-out;
 }
 
+/* A goal card crossing 25/50/75/100% funded. Scale only, no colour mixing --
+ * the accent ring already carries the colour, this just makes the moment a
+ * moment. */
+@keyframes milestonePulse {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.02);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.animate-milestone {
+  animation: milestonePulse 0.6s ease-out;
+}
+
 /* Used by the horizontally-scrolling filter chip rows. Was referenced before
    it existed, so the scrollbar showed through under the chips on desktop. */
 .scrollbar-none {

@@ -281,6 +281,48 @@ export function pace(goal, progress, periods) {
 }
 
 /**
+ * Where the current pace, not the required pace, points -- the date this
+ * goal would be fully funded if the rest of the period continued exactly
+ * like the part already lived. `pace()` above answers "what do you need to
+ * do from here"; this answers "what are you actually doing, extrapolated
+ * forward" -- a different, descriptive question.
+ *
+ * Held back for the first two days of a period for the same reason
+ * `runway()` (src/lib/summary.js) is: one contribution on day one reads as a
+ * blistering daily rate and produces a nonsense date. Capped at a year out,
+ * because past that the number has stopped being information a person can
+ * use and started being noise.
+ *
+ * Not offered for a `spend_under` cap: there is nothing to "finish" about
+ * staying under a monthly limit, only a running total to stay beneath.
+ *
+ * @param {object} goal
+ * @param {{measured: boolean, met: boolean, done: number, target: number}} progress
+ * @param {string} [today]
+ * @returns {string|null} an ISO date, or null when there is nothing sound to
+ *   extrapolate from -- unmeasured, a cap, already met, too early, or stalled
+ */
+export function projectedCompletion(goal, progress, today = toDateOnly(new Date())) {
+  if (!progress?.measured || progress.met) return null
+  if (goal?.metric === 'spend_under') return null
+  if (!goal?.target_date) return null
+
+  const daysElapsed = daysBetween(goal.target_date, today)
+  if (daysElapsed < 3) return null
+
+  const dailyRate = progress.done / daysElapsed
+  if (dailyRate <= 0) return null
+
+  const remaining = Math.max(0, (Number(progress.target) || 0) - (Number(progress.done) || 0))
+  const daysNeeded = Math.ceil(remaining / dailyRate)
+  if (daysNeeded > 365) return null
+
+  const projected = new Date(`${today}T00:00:00`)
+  projected.setDate(projected.getDate() + daysNeeded)
+  return toDateOnly(projected)
+}
+
+/**
  * Break a monthly goal into the weekly goal for the week containing `today`.
  *
  * One week at a time, not all of them at once: next week's number depends on

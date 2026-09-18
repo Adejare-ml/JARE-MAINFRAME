@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import Sheet from '../ui/Sheet'
 import { toast } from '../../lib/toast'
-import { ALL_CATEGORIES } from '../../lib/constants'
+import { ALL_CATEGORIES, GOAL_ICONS } from '../../lib/constants'
 import { formatGoalAmount } from '../../lib/formatters'
 import { hasColumn } from '../../lib/schema'
 import { startOfMonth, startOfWeek, endOfMonth, toDateOnly } from '../../lib/queries'
@@ -59,6 +59,7 @@ const EMPTY = {
   target_amount: '',
   metric_category: 'Savings',
   metric_wallet_id: '',
+  icon: '',
 }
 
 /**
@@ -116,6 +117,7 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
             target_amount: editing.target_amount == null ? '' : String(editing.target_amount),
             metric_category: editing.metric_category || '',
             metric_wallet_id: editing.metric_wallet_id || '',
+            icon: editing.icon || '',
           }
         : EMPTY,
     )
@@ -154,6 +156,10 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
       metric_wallet_id:
         form.metric === 'manual' || isRepo(form.metric) ? null : form.metric_wallet_id || null,
       generated: false,
+      // Omitted rather than sent as null on a database behind 019: PostgREST
+      // rejects an insert/update naming a column it does not have (PGRST204)
+      // for the whole row, not just this field.
+      ...(hasColumn('goals.icon') ? { icon: form.icon || null } : {}),
       ...(editing ? { id: editing.id } : {}),
     })
   }
@@ -188,6 +194,43 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
             className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
           />
         </div>
+
+        {hasColumn('goals.icon') && (
+          <div>
+            <span className="block text-xs text-muted mb-1.5">Icon (optional)</span>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => set({ icon: '' })}
+                aria-pressed={!form.icon}
+                aria-label="No icon"
+                className={`w-11 h-11 flex items-center justify-center rounded-xl border text-xs transition-colors ${
+                  !form.icon
+                    ? 'bg-accent/10 border-accent text-accent'
+                    : 'bg-background border-white/10 text-muted hover:border-white/20'
+                }`}
+              >
+                None
+              </button>
+              {GOAL_ICONS.map((icon) => (
+                <button
+                  key={icon}
+                  type="button"
+                  onClick={() => set({ icon })}
+                  aria-pressed={form.icon === icon}
+                  aria-label={`Icon ${icon}`}
+                  className={`w-11 h-11 flex items-center justify-center rounded-xl border text-lg transition-colors ${
+                    form.icon === icon
+                      ? 'bg-accent/10 border-accent'
+                      : 'bg-background border-white/10 hover:border-white/20'
+                  }`}
+                >
+                  {icon}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div>
           <span className="block text-xs text-muted mb-1.5">How often?</span>

@@ -1,12 +1,18 @@
-import { formatGoalAmount } from '../../lib/formatters'
+import { useEffect, useRef, useState } from 'react'
+import { formatGoalAmount, formatDate } from '../../lib/formatters'
 import {
   goalProgress,
   weeksRemaining,
   decomposeMonthly,
   decomposeWeekly,
+  projectedCompletion,
   REPO_METRIC,
 } from '../../lib/planning'
 import { endOfMonth } from '../../lib/queries'
+import ProgressRing from '../ui/ProgressRing'
+
+/** Funded fractions that get a brief celebration when crossed during a session. */
+const MILESTONES = [0.25, 0.5, 0.75, 1]
 
 /** Commit subjects shown as evidence. Enough to recognise the work, not a log. */
 const EVIDENCE_SHOWN = 3
@@ -39,24 +45,55 @@ export default function TargetCard({ goal, transactions = [], today, onEdit, onD
   const isCap = goal.metric === 'spend_under'
   const isRepo = goal.metric === REPO_METRIC
   const commits = isRepo && Array.isArray(goal.evidence?.commits) ? goal.evidence.commits : []
+  const projectedDate = projectedCompletion(goal, progress, today)
 
   // A cap is healthy while it is low and a savings goal while it is high, so
   // the same percentage means opposite things and cannot share a colour rule.
-  // A repo goal nobody has checked yet gets neither: an accent bar at 0% would
-  // be the app asserting a result it has not got.
-  const barColor = !progress.measured
-    ? 'bg-white/20'
+  // A repo goal nobody has checked yet gets neither: a filled ring at 0% would
+  // be the app asserting a result it has not got. Hex literals rather than
+  // Tailwind classes because ProgressRing paints its arc as an inline SVG
+  // stroke -- Budget.jsx's donut (Stage H) sets the same precedent.
+  const ringColor = !progress.measured
+    ? 'rgba(255,255,255,0.2)'
     : !progress.checked
-      ? 'bg-white/10'
+      ? 'rgba(255,255,255,0.1)'
       : isCap
-        ? progress.share > 1 ? 'bg-red-500' : progress.share > 0.8 ? 'bg-yellow-500' : 'bg-accent'
-        : progress.met ? 'bg-accent' : 'bg-accent/60'
+        ? progress.share > 1 ? '#ef4444' : progress.share > 0.8 ? '#eab308' : 'var(--color-accent)'
+        : progress.met ? 'var(--color-accent)' : 'rgba(34,197,94,0.6)'
+
+  // A brief pulse the moment funding crosses 25/50/75/100% -- during THIS
+  // session only. Seeded from the value already on screen at mount, so
+  // opening a card that is already 80% funded does not celebrate; only
+  // watching it move past a line does.
+  const [celebrate, setCelebrate] = useState(false)
+  const prevShare = useRef(progress.share)
+  useEffect(() => {
+    const crossed = progress.measured
+      && MILESTONES.some((m) => prevShare.current < m && progress.share >= m)
+    prevShare.current = progress.share
+    if (!crossed) return
+    setCelebrate(true)
+    const t = setTimeout(() => setCelebrate(false), 900)
+    return () => clearTimeout(t)
+  }, [progress.share, progress.measured])
 
   return (
-    <div className="bg-background/50 border border-white/5 rounded-2xl p-4 space-y-3">
+    <div
+      className={`bg-background/50 border border-white/5 rounded-2xl p-4 space-y-3 ${
+        celebrate ? 'animate-milestone' : ''
+      }`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-bold text-white truncate">{goal.title}</p>
+          <p className="text-sm font-bold text-white truncate flex items-center gap-1.5">
+            {goal.icon && <span aria-hidden="true">{goal.icon}</span>}
+            <span className="truncate">{goal.title}</span>
+            {goal.generated === true && (
+              <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full bg-white/10 text-muted-dim text-[9px] font-semibold uppercase tracking-wider">
+                Derived
+              </span>
+            )}
+          </p>
           <p className="text-[11px] text-muted mt-0.5">
             {goal.period === 'monthly' ? 'This month' : 'This week'}
             {periodsLeft != null && ` · ${periodsLeft} week${periodsLeft === 1 ? '' : 's'} left`}
@@ -85,28 +122,29 @@ export default function TargetCard({ goal, transactions = [], today, onEdit, onD
 
       {progress.measured ? (
         <>
-          <div className="flex items-baseline justify-between gap-2">
-            <p className="text-lg font-bold text-white tabular-nums">
-              {formatGoalAmount(progress.done, goal.metric)}
-              <span className="text-muted text-xs font-normal">
-                {' '}
-                of {formatGoalAmount(progress.target, goal.metric)}
+          <div className="flex items-center gap-4">
+            <ProgressRing value={progress.share} size={64} strokeWidth={6} color={ringColor}>
+              <span className={`text-xs font-bold tabular-nums ${progress.met ? 'text-accent' : 'text-white'}`}>
+                {Math.round(Math.min(100, progress.share * 100))}%
               </span>
-            </p>
-            <p className={`text-xs font-bold tabular-nums ${progress.met ? 'text-accent' : 'text-muted'}`}>
-              {Math.round(progress.share * 100)}%
-            </p>
+            </ProgressRing>
+            <div className="min-w-0 flex-1">
+              <p className="text-lg font-bold text-white tabular-nums">
+                {formatGoalAmount(progress.done, goal.metric)}
+                <span className="text-muted text-xs font-normal">
+                  {' '}
+                  of {formatGoalAmount(progress.target, goal.metric)}
+                </span>
+              </p>
+              {/* Where the number came from. Without this it is just a number. */}
+              <p className="text-[10px] text-muted-dim mt-0.5">{progress.source}</p>
+              {projectedDate && (
+                <p className="text-[10px] text-muted-dim mt-0.5">
+                  At this pace: {formatDate(projectedDate)}
+                </p>
+              )}
+            </div>
           </div>
-
-          <div className="h-2 bg-white/5 rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all ${barColor}`}
-              style={{ width: `${Math.min(100, Math.round(progress.share * 100))}%` }}
-            />
-          </div>
-
-          {/* Where the number came from. Without this it is just a number. */}
-          <p className="text-[10px] text-muted-dim">{progress.source}</p>
 
           {/* The commits themselves. This is the difference between a claim and
               a receipt: the figure above was written by a scheduled job the

@@ -5,6 +5,7 @@ import {
   weeksRemaining,
   goalProgress,
   pace,
+  projectedCompletion,
   decomposeMonthly,
   decomposeWeekly,
 
@@ -167,6 +168,66 @@ describe('pace', () => {
   it('survives a zero or missing period count', () => {
     expect(pace({ target_amount: 100 }, { done: 0 }, 0).perPeriod).toBe(100)
     expect(Number.isFinite(pace({ target_amount: 100 }, { done: 0 }, undefined).perPeriod)).toBe(true)
+  })
+})
+
+describe('projectedCompletion', () => {
+  const saving = { period: 'monthly', metric: 'save_at_least', target_date: '2026-08-01' }
+
+  it('is null for an unmeasured (manual) goal', () => {
+    expect(
+      projectedCompletion({ metric: 'manual' }, { measured: false }, '2026-08-10'),
+    ).toBeNull()
+  })
+
+  it('is null once the goal is already met -- nothing left to project', () => {
+    expect(
+      projectedCompletion(saving, { measured: true, met: true, done: 150000, target: 150000 }, '2026-08-10'),
+    ).toBeNull()
+  })
+
+  it('offers no completion date for a spending cap', () => {
+    // There is nothing to "finish" about staying under a monthly limit.
+    const cap = { period: 'monthly', metric: 'spend_under', target_date: '2026-08-01' }
+    expect(
+      projectedCompletion(cap, { measured: true, met: false, done: 5000, target: 20000 }, '2026-08-10'),
+    ).toBeNull()
+  })
+
+  it('holds back for the first two days, same guard as runway', () => {
+    // One deposit on day one reads as a blistering daily rate.
+    expect(
+      projectedCompletion(saving, { measured: true, met: false, done: 5000, target: 150000 }, '2026-08-01'),
+    ).toBeNull()
+    expect(
+      projectedCompletion(saving, { measured: true, met: false, done: 5000, target: 150000 }, '2026-08-02'),
+    ).toBeNull()
+  })
+
+  it('projects forward from the actual daily rate so far', () => {
+    // ₦30,000 done in 10 days (2026-08-01 through 2026-08-10 inclusive) is
+    // ₦3,000/day; ₦120,000 left needs 40 more days from the 10th.
+    const date = projectedCompletion(
+      saving,
+      { measured: true, met: false, done: 30000, target: 150000 },
+      '2026-08-10',
+    )
+    const expected = new Date('2026-08-10T00:00:00')
+    expected.setDate(expected.getDate() + 40)
+    expect(date).toBe(expected.toISOString().slice(0, 10))
+  })
+
+  it('is null when nothing has been contributed yet -- no rate to extrapolate', () => {
+    expect(
+      projectedCompletion(saving, { measured: true, met: false, done: 0, target: 150000 }, '2026-08-10'),
+    ).toBeNull()
+  })
+
+  it('is null when the projection lands more than a year out', () => {
+    // ₦10 done in 10 days against a ₦150,000 target is nowhere near soon.
+    expect(
+      projectedCompletion(saving, { measured: true, met: false, done: 10, target: 150000 }, '2026-08-10'),
+    ).toBeNull()
   })
 })
 

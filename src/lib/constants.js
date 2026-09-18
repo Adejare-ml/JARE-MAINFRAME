@@ -91,3 +91,12 @@ export const ALL_CATEGORIES = Object.values(CATEGORIES).flat()
 export function getCategoryIcon(category) {
   return CATEGORY_ICONS[category] || '📦'
 }
+
+/**
+ * Curated icon choices for a goal card. Kept separate from CATEGORY_ICONS --
+ * a goal names an aim ("Laptop fund", "Ship commits"), not a spending
+ * category, so the two lists have no reason to line up.
+ */
+export const GOAL_ICONS = [
+  '🎯', '💰', '🏠', '🚗', '✈️', '🎓', '💻', '📱', '🛡️', '🎉', '🐖', '📈',
+]
