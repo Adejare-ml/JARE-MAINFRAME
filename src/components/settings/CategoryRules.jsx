@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { toast } from '../../lib/toast'
 import { hasColumn } from '../../lib/schema'
-import { ALL_CATEGORIES } from '../../lib/constants'
+import { ALL_CATEGORIES, getCategoryIcon } from '../../lib/constants'
 import Sheet from '../ui/Sheet'
+import CategoryPickerList from '../ui/CategoryPickerList'
 
 /**
  * The user-editable half of categorization (migration 020).
@@ -29,6 +30,7 @@ export default function CategoryRules() {
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false)
 
   const available = hasColumn('category_rules.trigger_field')
 
@@ -52,6 +54,13 @@ export default function CategoryRules() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  /** Closes the form Sheet and resets it back to its normal (not the
+   *  category-picker) view, so reopening it later never starts mid-pick. */
+  const closeForm = () => {
+    setShowForm(false)
+    setShowCategoryPicker(false)
+  }
+
   const handleSave = async (e) => {
     e.preventDefault()
     const trigger_value = form.trigger_value.trim()
@@ -74,7 +83,7 @@ export default function CategoryRules() {
       return
     }
     toast.success('Rule added ✓')
-    setShowForm(false)
+    closeForm()
     setForm(EMPTY_FORM)
     load()
   }
@@ -152,13 +161,41 @@ export default function CategoryRules() {
         </ul>
       )}
 
-      <Sheet isOpen={showForm} onClose={() => setShowForm(false)} title="New category rule" desktopCenter>
+      <Sheet
+        isOpen={showForm}
+        onClose={closeForm}
+        title={showCategoryPicker ? 'File it under' : 'New category rule'}
+        desktopCenter
+      >
+        {/* Swapped in as a view within this same Sheet, rather than a second
+            nested one -- see CategoryPickerList's own comment for why. */}
+        {showCategoryPicker ? (
+          <div className="p-6 space-y-4 overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-white">File it under</h2>
+              <button
+                type="button"
+                onClick={() => setShowCategoryPicker(false)}
+                className="text-sm font-semibold text-muted hover:text-white min-h-[44px] px-2 flex items-center gap-1"
+              >
+                ← Back
+              </button>
+            </div>
+            <CategoryPickerList
+              value={form.action_category}
+              onSelect={(action_category) => {
+                setForm((f) => ({ ...f, action_category }))
+                setShowCategoryPicker(false)
+              }}
+            />
+          </div>
+        ) : (
         <form onSubmit={handleSave} className="p-6 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-white">New category rule</h2>
             <button
               type="button"
-              onClick={() => setShowForm(false)}
+              onClick={closeForm}
               aria-label="Close"
               className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-white/10 text-muted hover:text-white"
             >
@@ -202,21 +239,15 @@ export default function CategoryRules() {
           </div>
 
           <div>
-            <label htmlFor="rule-category" className="block text-xs text-muted mb-1.5">
-              file it under
-            </label>
-            <select
-              id="rule-category"
-              value={form.action_category}
-              onChange={(e) => setForm((f) => ({ ...f, action_category: e.target.value }))}
-              className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-accent min-h-[48px]"
+            <label className="block text-xs text-muted mb-1.5">file it under</label>
+            <button
+              type="button"
+              onClick={() => setShowCategoryPicker(true)}
+              className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-accent min-h-[48px] flex items-center gap-2"
             >
-              {ALL_CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
+              <span className="text-lg" aria-hidden="true">{getCategoryIcon(form.action_category)}</span>
+              <span className="truncate">{form.action_category}</span>
+            </button>
           </div>
 
           <div>
@@ -240,6 +271,7 @@ export default function CategoryRules() {
             {saving ? 'Saving…' : 'Add rule'}
           </button>
         </form>
+        )}
       </Sheet>
     </section>
   )

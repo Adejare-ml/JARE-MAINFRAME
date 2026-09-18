@@ -77,8 +77,13 @@ export default function Settings() {
   })
   const [savingWallet, setSavingWallet] = useState(false)
 
-  // Delete confirm
-  const [deletingWalletId, setDeletingWalletId] = useState(null)
+  // Delete confirm -- the wallet itself, not just its id, so the modal below
+  // can name it. A hard delete (unlike deactivating, which is one click away
+  // right next to it) removes the row every past transaction's wallet_id
+  // points at, permanently -- the one genuinely irreversible action on this
+  // page, and the only one that gets a full blocking modal rather than an
+  // inline confirm.
+  const [deletingWallet, setDeletingWallet] = useState(null)
 
   const loadData = async () => {
     try {
@@ -347,7 +352,7 @@ export default function Settings() {
         .eq('id', walletId)
       if (error) throw error
       toast.success('Wallet deleted')
-      setDeletingWalletId(null)
+      setDeletingWallet(null)
       await loadData()
     } catch (err) {
       toast.error('Failed to delete wallet: ' + (err.message || 'Unknown error'))
@@ -595,30 +600,13 @@ export default function Settings() {
                             >
                               {isInactive ? '✅' : '⏸️'}
                             </button>
-                            {deletingWalletId === w.id ? (
-                              <div className="flex gap-1">
-                                <button
-                                  onClick={() => handleDeleteWallet(w.id)}
-                                  className="px-2 py-1 bg-red-500/20 text-red-400 rounded-lg text-[10px] font-bold hover:bg-red-500/30 min-h-[36px]"
-                                >
-                                  Confirm
-                                </button>
-                                <button
-                                  onClick={() => setDeletingWalletId(null)}
-                                  className="px-2 py-1 bg-white/5 text-muted rounded-lg text-[10px] font-bold hover:bg-white/10 min-h-[36px]"
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => setDeletingWalletId(w.id)}
-                                className="w-9 h-9 flex items-center justify-center rounded-lg bg-white/5 hover:bg-red-500/10 text-muted hover:text-red-400 transition-colors text-xs"
-                                title="Delete"
-                              >
-                                🗑️
-                              </button>
-                            )}
+                            <button
+                              onClick={() => setDeletingWallet(w)}
+                              className="w-9 h-9 flex items-center justify-center rounded-lg bg-white/5 hover:bg-red-500/10 text-muted hover:text-red-400 transition-colors text-xs"
+                              title="Delete"
+                            >
+                              🗑️
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -902,6 +890,61 @@ export default function Settings() {
                 {savingWallet ? 'Saving...' : editingWallet ? 'Update Wallet' : 'Add Wallet'}
               </button>
             </form>
+        </div>
+      </Sheet>
+
+      {/* Deleting a wallet, unlike everything else on this page, cannot be
+          undone -- deactivating (one tap, right next to this button) already
+          covers "I don't use this anymore" without losing the row every past
+          transaction's wallet_id points at. A full blocking modal, not the
+          inline two-button confirm every lower-stakes action on this app
+          uses, because this is the one action here that actually earns it. */}
+      <Sheet
+        isOpen={Boolean(deletingWallet)}
+        onClose={() => setDeletingWallet(null)}
+        title={`Delete ${deletingWallet?.name || 'wallet'}?`}
+        alwaysCenter
+      >
+        <div className="p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-white">Delete this wallet?</h2>
+            <button
+              type="button"
+              onClick={() => setDeletingWallet(null)}
+              aria-label="Close"
+              className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-white/10 text-muted hover:text-white"
+            >
+              ✕
+            </button>
+          </div>
+
+          <p className="text-sm text-white/90">
+            <span className="font-bold">{deletingWallet?.name}</span> and its balance history
+            will be gone permanently. Transactions already logged against it stay in the
+            ledger, but nothing will point back to it.
+          </p>
+
+          <p className="text-xs text-muted leading-relaxed">
+            If you just don't use this wallet anymore, deactivating it instead keeps
+            everything intact and simply hides it from the wallet snapshot.
+          </p>
+
+          <div className="flex gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => handleDeleteWallet(deletingWallet.id)}
+              className="flex-1 py-3 bg-red-500 text-white text-sm font-bold rounded-xl min-h-[48px]"
+            >
+              Delete permanently
+            </button>
+            <button
+              type="button"
+              onClick={() => setDeletingWallet(null)}
+              className="flex-1 py-3 bg-white/5 text-muted hover:text-white text-sm font-semibold rounded-xl min-h-[48px]"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       </Sheet>
     </div>
