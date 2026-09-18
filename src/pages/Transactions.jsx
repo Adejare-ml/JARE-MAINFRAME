@@ -7,6 +7,7 @@ import { toast } from '../lib/toast'
 import ErrorState from '../components/ui/ErrorState'
 import EmptyState from '../components/ui/EmptyState'
 import Skeleton, { SkeletonRows } from '../components/ui/Skeleton'
+import { openQuickLog } from '../components/ui/QuickLog'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import { groupByDate } from '../lib/transactionGroups'
 import {
@@ -22,6 +23,18 @@ import { validateCorrection, isMissingFunctionError } from '../lib/corrections'
 import { hasColumn } from '../lib/schema'
 import { pendingTransactions } from '../lib/pendingTransactions'
 import { confirmBuzz } from '../lib/haptics'
+
+/**
+ * What a populated list looks like, shown dimmed and inert on a genuinely
+ * empty ledger -- not filtered to zero, never synced or logged anything at
+ * all. A first-time visitor cannot tell from an icon and a sentence what
+ * this screen is FOR; three rows of the real shape answer that at a glance.
+ */
+const SAMPLE_TRANSACTIONS = [
+  { id: 'sample-1', type: 'credit', amount: 150000, category: 'Uncategorized', description: 'Salary' },
+  { id: 'sample-2', type: 'debit', amount: 12000, category: 'Feeding / Groceries', description: 'Market run' },
+  { id: 'sample-3', type: 'debit', amount: 3500, category: 'Transport', description: 'Bolt ride' },
+]
 
 export default function Transactions() {
   const [transactions, setTransactions] = useState([])
@@ -591,15 +604,69 @@ export default function Transactions() {
       {pageError ? (
         <ErrorState message={pageError} onRetry={fetchData} />
       ) : filteredTransactions.length === 0 ? (
-        <EmptyState
-          icon={activeSearch ? '🔍' : '💳'}
-          title={activeSearch ? `Nothing matches "${activeSearch}"` : 'No transactions found'}
-          message={
-            activeSearch
-              ? 'Searched description, recipient, note and exact amount'
-              : 'Try selecting a different filter or log a transaction'
-          }
-        />
+        activeSearch ? (
+          <EmptyState
+            icon="🔍"
+            title={`Nothing matches "${activeSearch}"`}
+            message="Searched description, recipient, note and exact amount"
+            actionLabel="Clear search"
+            onAction={() => {
+              setSearch('')
+              setActiveSearch('')
+            }}
+          />
+        ) : filter !== 'All' ? (
+          <EmptyState
+            icon="💳"
+            title="Nothing in this filter"
+            message="Try a different filter, or log a transaction"
+            actionLabel="Clear filter"
+            onAction={() => setFilter('All')}
+          />
+        ) : (
+          <div className="space-y-5">
+            <EmptyState
+              icon="💳"
+              title="No transactions yet"
+              message="Log one by hand, or connect Gmail in Settings to import bank alerts automatically"
+              actionLabel="Log a transaction"
+              onAction={() => openQuickLog('debit')}
+            />
+            <div className="opacity-40 pointer-events-none select-none space-y-2" aria-hidden="true">
+              <p className="text-[10px] text-muted uppercase tracking-wider text-center">
+                Preview — what this looks like once you have some
+              </p>
+              {SAMPLE_TRANSACTIONS.map((t) => {
+                const isCredit = t.type === 'credit'
+                return (
+                  <div
+                    key={t.id}
+                    className="bg-card rounded-2xl border border-white/5 p-4 flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="relative">
+                        <div
+                          className={`w-11 h-11 rounded-2xl bg-background flex items-center justify-center text-xl border ${
+                            isCredit ? 'border-accent/40' : 'border-white/5'
+                          }`}
+                        >
+                          {getCategoryIcon(t.category)}
+                        </div>
+                        <span
+                          className={`absolute -bottom-0.5 -left-0.5 w-2.5 h-2.5 rounded-full border border-card ${getCategoryColor(t.category)}`}
+                        />
+                      </div>
+                      <p className="text-sm font-bold text-white truncate">{t.description}</p>
+                    </div>
+                    <span className={`text-sm font-bold ${isCredit ? 'text-accent' : 'text-white'}`}>
+                      {isCredit ? '+' : '-'}{formatNaira(t.amount)}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )
       ) : (
         <div className="space-y-5">
           {groupedTransactions.map((group) => (

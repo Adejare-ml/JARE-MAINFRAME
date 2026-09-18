@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { toast } from '../lib/toast'
 import { formatDate } from '../lib/formatters'
 import ErrorState from '../components/ui/ErrorState'
+import EmptyState from '../components/ui/EmptyState'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import {
   toDateOnly,
@@ -402,13 +403,16 @@ export default function Goals() {
             priorities below are unaffected.
           </p>
         ) : targets.length === 0 ? (
-          <div className="text-center py-6 space-y-2">
-            <span className="text-3xl block" aria-hidden="true">🎯</span>
-            <p className="text-sm text-muted max-w-xs mx-auto">
-              Set a target for the month and it will work out what that means each week
-              and each day — and read its own progress from your transactions.
-            </p>
-          </div>
+          <EmptyState
+            icon="🎯"
+            title="No targets set"
+            message="Set a target for the month and it will work out what that means each week and each day — and read its own progress from your transactions"
+            actionLabel="+ New target"
+            onAction={() => {
+              setEditing(null)
+              setShowForm(true)
+            }}
+          />
         ) : (
           <div className="space-y-3">
             {targets.map((goal) => (

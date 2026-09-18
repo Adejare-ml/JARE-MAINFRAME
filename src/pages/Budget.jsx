@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import WalletCard from '../components/ui/WalletCard'
 import CategoryBreakdown from '../components/ui/CategoryBreakdown'
 import ErrorState from '../components/ui/ErrorState'
+import EmptyState from '../components/ui/EmptyState'
 import NetWorthSparkline from '../components/ui/NetWorthSparkline'
 import Skeleton, { SkeletonRows } from '../components/ui/Skeleton'
 import { openQuickLog } from '../components/ui/QuickLog'
@@ -347,8 +348,14 @@ export default function Budget() {
         </div>
         
         {last5Transactions.length === 0 ? (
-          <div className="bg-card rounded-2xl p-8 text-center border border-white/5">
-            <p className="text-muted">No transactions found.</p>
+          <div className="bg-card rounded-2xl border border-white/5">
+            <EmptyState
+              icon="💳"
+              title="No transactions yet"
+              message="Log one to start seeing your spending here"
+              actionLabel="Log a transaction"
+              onAction={() => openQuickLog('debit')}
+            />
           </div>
         ) : (
           <div className="bg-card rounded-2xl border border-white/5 overflow-hidden">
