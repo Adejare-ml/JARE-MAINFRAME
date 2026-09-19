@@ -99,9 +99,15 @@ const OTHER_THRESHOLD = 0.03
  * Shape category totals for a proportional-bar breakdown.
  *
  * @param {Array<{category: string, total: number}>} byCategory - from summarizeMonth
- * @returns {Array<{category: string, total: number, share: number}>}
+ * @param {Record<string, number>} [budgetByCategory] - category -> monthly
+ *   target, from category_budgets. A row whose category has a target gains
+ *   `target`/`overBudget`; every other row is unchanged, so a caller that
+ *   passes nothing (every one before this stage) sees identical output.
+ *   "Other" never gets one -- it is several categories folded together, and
+ *   there is no single target to measure it against.
+ * @returns {Array<{category: string, total: number, share: number, target?: number, overBudget?: boolean}>}
  */
-export function breakdownRows(byCategory) {
+export function breakdownRows(byCategory, budgetByCategory = {}) {
   const grandTotal = (byCategory || []).reduce((sum, c) => sum + c.total, 0)
   if (grandTotal <= 0) return []
 
@@ -109,12 +115,55 @@ export function breakdownRows(byCategory) {
   let other = 0
 
   for (const c of byCategory) {
-    if (c.total / grandTotal < OTHER_THRESHOLD) other += c.total
-    else rows.push({ ...c, share: c.total / grandTotal })
+    if (c.total / grandTotal < OTHER_THRESHOLD) {
+      other += c.total
+      continue
+    }
+    const row = { ...c, share: c.total / grandTotal }
+    const target = budgetByCategory?.[c.category]
+    if (target != null && target > 0) {
+      row.target = target
+      row.overBudget = c.total > target
+    }
+    rows.push(row)
   }
 
   if (other > 0) rows.push({ category: 'Other', total: other, share: other / grandTotal })
   return rows
+}
+
+/**
+ * How much a category has actually cost, averaged across a window of past
+ * months -- "you usually spend about this much here," to read beside this
+ * month's own figure.
+ *
+ * Absent months count as zero for a category, not as "no data": a category
+ * that only appears in one of three months genuinely averaged less over that
+ * window, and dividing by the months that mentioned it would inflate every
+ * irregular expense into looking routine.
+ *
+ * @param {Array<Array<object>>} monthsOfTransactions - one array of
+ *   transactions per past month, already scoped by the caller (this function
+ *   does no date math -- summarizeMonth's own "caller scopes the rows"
+ *   convention, so this stays decoupled from how "a month" gets bucketed)
+ * @param {Set<string>} liquidWalletIds
+ * @returns {Array<{category: string, average: number}>}
+ */
+export function categoryAverages(monthsOfTransactions, liquidWalletIds) {
+  const months = Array.isArray(monthsOfTransactions) ? monthsOfTransactions : []
+  if (months.length === 0) return []
+
+  const totals = new Map()
+  for (const monthRows of months) {
+    const { byCategory } = summarizeMonth(monthRows, liquidWalletIds)
+    for (const { category, total } of byCategory) {
+      totals.set(category, (totals.get(category) || 0) + total)
+    }
+  }
+
+  return [...totals.entries()]
+    .map(([category, sum]) => ({ category, average: sum / months.length }))
+    .sort((a, b) => b.average - a.average)
 }
 
 /**

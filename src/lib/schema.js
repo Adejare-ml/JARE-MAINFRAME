@@ -85,6 +85,12 @@ export const GATED_COLUMNS = {
   // must cost the recap card, not the whole week view.
   'week_recaps.week_start': '023_week_recaps.sql',
   'week_recaps.sentences': '023_week_recaps.sql',
+
+  // Per-category budget targets. A database behind 024 must cost only the
+  // envelope bars and the averages beside them, not the category breakdown
+  // Budget.jsx already renders without either.
+  'category_budgets.category': '024_category_budgets.sql',
+  'category_budgets.target_amount': '024_category_budgets.sql',
 }
 
 /**

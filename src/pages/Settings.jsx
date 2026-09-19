@@ -8,6 +8,7 @@ import { useAuth } from '../hooks/useAuth'
 import ErrorState from '../components/ui/ErrorState'
 import Sheet from '../components/ui/Sheet'
 import CategoryRules from '../components/settings/CategoryRules'
+import CategoryBudgets from '../components/settings/CategoryBudgets'
 import { SettingsSkeleton } from '../components/ui/PageSkeleton'
 import { isOledEnabled, setOledEnabled } from '../lib/theme'
 
@@ -797,6 +798,11 @@ export default function Settings() {
           {/* CATEGORY RULES */}
           {/* ════════════════════════════════════════ */}
           <CategoryRules />
+
+          {/* ════════════════════════════════════════ */}
+          {/* CATEGORY BUDGETS */}
+          {/* ════════════════════════════════════════ */}
+          <CategoryBudgets />
 
           {/* ════════════════════════════════════════ */}
           {/* ACCOUNT SECTION */}
