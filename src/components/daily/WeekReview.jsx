@@ -105,7 +105,11 @@ export default function WeekReview({
                     // visible bar rather than nothing; a day with genuinely
                     // nothing stays at zero, because those differ.
                     style={{ height: day.spent > 0 ? `${Math.max(2, (day.spent / peak) * 100)}%` : '0%' }}
-                    title={`${day.label} — ${formatNaira(day.spent)}`}
+                    // The label only, not the amount: a native `title` is
+                    // browser-rendered text a CSS rule can't reach, so a
+                    // figure here would stay readable with Zen mode on --
+                    // the one thing on this page that must not.
+                    title={day.label}
                   />
                 </div>
                 <span
