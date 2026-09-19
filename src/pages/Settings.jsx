@@ -8,7 +8,7 @@ import { useAuth } from '../hooks/useAuth'
 import ErrorState from '../components/ui/ErrorState'
 import Sheet from '../components/ui/Sheet'
 import CategoryRules from '../components/settings/CategoryRules'
-import Skeleton from '../components/ui/Skeleton'
+import { SettingsSkeleton } from '../components/ui/PageSkeleton'
 import { isOledEnabled, setOledEnabled } from '../lib/theme'
 
 const WALLET_TYPES = [
@@ -433,11 +433,7 @@ export default function Settings() {
       </div>
 
       {isLoading ? (
-        <div className="space-y-4 animate-pulse">
-          <Skeleton className="h-40 bg-card rounded-3xl border border-white/5" />
-          <Skeleton className="h-40 bg-card rounded-3xl border border-white/5" />
-          <Skeleton className="h-28 bg-card rounded-3xl border border-white/5" />
-        </div>
+        <SettingsSkeleton />
       ) : pageError ? (
         <ErrorState message={pageError} onRetry={loadData} />
       ) : (

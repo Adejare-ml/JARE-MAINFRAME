@@ -5,7 +5,7 @@ import { formatNaira, formatDate } from '../lib/formatters'
 import ErrorState from '../components/ui/ErrorState'
 import EmptyState from '../components/ui/EmptyState'
 import Sheet from '../components/ui/Sheet'
-import Skeleton from '../components/ui/Skeleton'
+import { DebtsSkeleton } from '../components/ui/PageSkeleton'
 import { confirmBuzz } from '../lib/haptics'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import {
@@ -210,13 +210,7 @@ export default function Debts() {
   }
 
   if (loading) {
-    return (
-      <div className="space-y-6 animate-pulse">
-        <Skeleton className="h-10 bg-white/5 rounded-xl w-48" />
-        <Skeleton className="h-24 bg-card rounded-3xl border border-white/5" />
-        <Skeleton className="h-44 bg-card rounded-3xl border border-white/5" />
-      </div>
-    )
+    return <DebtsSkeleton />
   }
 
   if (pageError) {

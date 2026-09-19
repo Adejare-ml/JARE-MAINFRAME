@@ -17,7 +17,7 @@ import {
 import { hasColumn } from '../lib/schema'
 import { goalProgress } from '../lib/planning'
 import ActivityGrid from '../components/daily/ActivityGrid'
-import Skeleton from '../components/ui/Skeleton'
+import { GoalsSkeleton } from '../components/ui/PageSkeleton'
 import GoalForm from '../components/goals/GoalForm'
 import TargetCard from '../components/goals/TargetCard'
 import ProposedPlan from '../components/goals/ProposedPlan'
@@ -305,13 +305,7 @@ export default function Goals() {
   useRealtimeRefresh(['goals'], fetchGoals, { channelPrefix: 'goals' })
 
   if (loading) {
-    return (
-      <div className="space-y-6 animate-pulse">
-        <Skeleton className="h-10 bg-white/5 rounded-xl w-48" />
-        <Skeleton className="h-24 bg-card rounded-3xl border border-white/5" />
-        <Skeleton className="h-44 bg-card rounded-3xl border border-white/5" />
-      </div>
-    )
+    return <GoalsSkeleton />
   }
 
   if (pageError) {

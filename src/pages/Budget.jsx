@@ -6,7 +6,7 @@ import CategoryBreakdown from '../components/ui/CategoryBreakdown'
 import ErrorState from '../components/ui/ErrorState'
 import EmptyState from '../components/ui/EmptyState'
 import NetWorthSparkline from '../components/ui/NetWorthSparkline'
-import Skeleton, { SkeletonRows } from '../components/ui/Skeleton'
+import { BudgetSkeleton } from '../components/ui/PageSkeleton'
 import { openQuickLog } from '../components/ui/QuickLog'
 import { formatNaira, timeAgo, formatDate } from '../lib/formatters'
 import { getCategoryIcon } from '../lib/constants'
@@ -105,15 +105,7 @@ export default function Budget() {
   })
 
   if (loading) {
-    return (
-      <div className="p-4 md:p-8 animate-pulse space-y-6">
-        <Skeleton className="h-10 bg-white/5 rounded w-1/3" />
-        <Skeleton className="h-32 bg-white/5 rounded-2xl" />
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <SkeletonRows count={3} className="h-24 bg-white/5 rounded-2xl" />
-        </div>
-      </div>
-    )
+    return <BudgetSkeleton />
   }
 
   if (pageError) {
