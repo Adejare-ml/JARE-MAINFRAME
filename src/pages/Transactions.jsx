@@ -6,7 +6,7 @@ import { getCategoryIcon } from '../lib/constants'
 import { toast } from '../lib/toast'
 import ErrorState from '../components/ui/ErrorState'
 import EmptyState from '../components/ui/EmptyState'
-import Skeleton, { SkeletonRows } from '../components/ui/Skeleton'
+import { TransactionsSkeleton } from '../components/ui/PageSkeleton'
 import { openQuickLog } from '../components/ui/QuickLog'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import { groupByDate } from '../lib/transactionGroups'
@@ -495,15 +495,7 @@ export default function Transactions() {
   }
 
   if (loading) {
-    return (
-      <div className="space-y-4 animate-pulse">
-        <Skeleton className="h-8 bg-white/5 rounded-xl w-48" />
-        <Skeleton className="h-12 bg-card rounded-2xl border border-white/5" />
-        <div className="space-y-2">
-          <SkeletonRows count={5} className="h-16 bg-card rounded-2xl border border-white/5" />
-        </div>
-      </div>
-    )
+    return <TransactionsSkeleton />
   }
 
   return (

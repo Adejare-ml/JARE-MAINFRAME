@@ -21,7 +21,7 @@ import EndOfDay from '../components/daily/EndOfDay'
 import Yesterday from '../components/daily/Yesterday'
 import ActivityGrid from '../components/daily/ActivityGrid'
 import UpcomingBills from '../components/daily/UpcomingBills'
-import Skeleton from '../components/ui/Skeleton'
+import { DailyHQSkeleton } from '../components/ui/PageSkeleton'
 import WeekReview from '../components/daily/WeekReview'
 import {
   transactionListColumns,
@@ -385,14 +385,7 @@ export default function DailyHQ() {
   }
 
   if (loading) {
-    return (
-      <div className="space-y-6 animate-pulse">
-        <Skeleton className="h-10 bg-white/5 rounded-xl w-64" />
-        <Skeleton className="h-32 bg-card rounded-3xl border border-white/5" />
-        <Skeleton className="h-28 bg-card rounded-3xl border border-white/5" />
-        <Skeleton className="h-44 bg-card rounded-3xl border border-white/5" />
-      </div>
-    )
+    return <DailyHQSkeleton />
   }
 
   if (pageError) {
