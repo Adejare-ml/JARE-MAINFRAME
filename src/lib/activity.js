@@ -114,9 +114,22 @@ export function buildActivityGrid(
  * Today is allowed to be incomplete without breaking the streak: the day is not
  * over. It only counts toward the streak once it is actually finished.
  *
+ * That forgiveness is keyed on `today` being the live, still-in-progress day
+ * -- which is true for every caller in this app except one. A recap written
+ * about a week that already closed (scripts/weekly-recap.mjs) passes its
+ * last day as `today` purely as a starting point to count backward from, not
+ * because that day is still open, and a real miss on it should break the
+ * streak like any other day. `liveToday: false` says exactly that: this
+ * reference day is also resolved, so do not excuse it.
+ *
+ * @param {{today?: string, liveToday?: boolean}} [options]
+ * @param {boolean} [options.liveToday] - true (default) when `today` is the
+ *   actual current day and an incomplete one should be forgiven because it
+ *   is not over yet; false when `today` is a historical day being used only
+ *   as the count's starting point, so an incomplete one is a confirmed miss.
  * @returns {number}
  */
-export function currentStreak(tasks, isDone, { today = toDateOnly(new Date()) } = {}) {
+export function currentStreak(tasks, isDone, { today = toDateOnly(new Date()), liveToday = true } = {}) {
   const byDate = new Map()
   for (const task of tasks || []) {
     if (!task?.target_date) continue
@@ -138,10 +151,11 @@ export function currentStreak(tasks, isDone, { today = toDateOnly(new Date()) } 
       const allDone = dayTasks.every((t) => isDone(t))
       if (allDone) {
         streak++
-      } else if (date !== today) {
+      } else if (date !== today || !liveToday) {
         break
       }
-      // An unfinished TODAY neither counts nor breaks -- the day is still going.
+      // An unfinished TODAY neither counts nor breaks -- but only while it is
+      // still live. A closed "today" (liveToday: false) gets no such pass.
     }
 
     cursor.setDate(cursor.getDate() - 1)

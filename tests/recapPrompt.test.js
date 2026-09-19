@@ -101,6 +101,41 @@ describe('buildWeekFacts', () => {
     expect(buildWeekFacts({})).toEqual([])
     expect(buildWeekFacts()).toEqual([])
   })
+
+  it('omits spent and income when nothing was spent or earned, not just when the whole comparison is missing', () => {
+    // A zero-value fact ("spent ₦0.00 this week") is filler no different
+    // from what the movedAside guard already catches -- without this, a
+    // genuinely quiet week never actually produced an empty facts array,
+    // which left the "nothing measurable" fast path in weekly-recap.mjs dead.
+    const facts = buildWeekFacts({
+      comparison: {
+        spent: { now: 0, before: 0, delta: 0, share: null },
+        income: { now: 0, before: 0, delta: 0, share: null },
+        movedAside: { now: 0, before: 0, delta: 0, share: null },
+        byCategory: [],
+      },
+      streak: 0,
+    })
+    expect(facts).toEqual([])
+  })
+
+  it('says "same as last week" rather than "up 0%" when spend is unchanged', () => {
+    const facts = buildWeekFacts({
+      comparison: { ...comparison, spent: { now: 40384, before: 40384, delta: 0, share: 0 } },
+    })
+    const spent = facts.find((f) => f.key === 'spent')
+    expect(spent.text).toContain('same as last week')
+    expect(spent.text).not.toContain('up 0%')
+  })
+
+  it('says "same as last week" rather than "up 0%" when income is unchanged', () => {
+    // The default fixture's income (now: before: 150000) already exercises
+    // this path -- assert it directly rather than incidentally.
+    const facts = buildWeekFacts({ comparison })
+    const income = facts.find((f) => f.key === 'income')
+    expect(income.text).toContain('same as last week')
+    expect(income.text).not.toContain('up 0%')
+  })
 })
 
 describe('buildRecapPrompt', () => {

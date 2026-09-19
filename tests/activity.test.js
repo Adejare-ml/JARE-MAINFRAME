@@ -169,6 +169,29 @@ describe('currentStreak', () => {
     expect(currentStreak(tasks, done, { today: TODAY })).toBe(2)
   })
 
+  it('does break the streak on an unfinished reference day when it is not live', () => {
+    // scripts/weekly-recap.mjs's use: `today` here is a Sunday that already
+    // closed by the time the Monday cron runs, so an unfinished one is a
+    // confirmed miss, not a day still in progress -- liveToday: false says
+    // so, and the default (unfinished today counts as "not over yet") must
+    // not apply.
+    const tasks = [
+      task('2026-08-11', true),
+      task('2026-08-12', true),
+      task(TODAY, false),
+    ]
+    expect(currentStreak(tasks, done, { today: TODAY, liveToday: false })).toBe(0)
+  })
+
+  it('keeps counting fully-done days when liveToday is false', () => {
+    const tasks = [
+      task('2026-08-11', true),
+      task('2026-08-12', true),
+      task(TODAY, true),
+    ]
+    expect(currentStreak(tasks, done, { today: TODAY, liveToday: false })).toBe(3)
+  })
+
   it('treats a day with no tasks as neither success nor failure', () => {
     // 12 Aug has nothing planned; it should not break the run, nor pad it.
     const tasks = [

@@ -110,13 +110,16 @@ async function main() {
       .lte('transaction_date', weekEnd),
     supabase
       .from('goals')
-      .select('id, title, period, target_date, metric, target_amount, metric_category, metric_wallet_id, completed')
+      // verified_at/evidence included: without them a repo-commit goal's
+      // progress (repoProgress() in planning.js) reads as unchecked/zero
+      // regardless of what the nightly verifier actually found.
+      .select('id, title, period, target_date, metric, target_amount, metric_category, metric_wallet_id, completed, verified_at, evidence')
       .eq('period', 'daily')
       .gte('target_date', daysAgo(STREAK_LOOKBACK_DAYS, now))
       .lte('target_date', weekEnd),
     supabase
       .from('goals')
-      .select('id, title, period, target_date, metric, target_amount, metric_category, metric_wallet_id, completed')
+      .select('id, title, period, target_date, metric, target_amount, metric_category, metric_wallet_id, completed, verified_at, evidence')
       .eq('period', 'weekly')
       .eq('target_date', weekStart),
   ])
@@ -137,10 +140,14 @@ async function main() {
   const comparison = compareWeeks(thisWeekTx, lastWeekTx, liquidWalletIds)
 
   // Streak as of the end of the recapped week, not today -- a recap written
-  // days late must still describe the week it is about.
+  // days late must still describe the week it is about. `liveToday: false`
+  // is what makes that safe: currentStreak's own "today" is forgiven if
+  // incomplete because the day is still in progress, but weekEnd is a
+  // Sunday that has already closed by the time this Monday cron runs -- a
+  // real miss on it must break the streak, not be silently excused.
   const dailyTasks = dailyRes.data || []
   const doneOn = (task) => isTaskDone(task, transactions.filter((t) => t.transaction_date === task.target_date))
-  const streak = currentStreak(dailyTasks, doneOn, { today: weekEnd })
+  const streak = currentStreak(dailyTasks, doneOn, { today: weekEnd, liveToday: false })
 
   const weeklyGoals = (weeklyGoalsRes.data || []).map((goal) => {
     const progress = goalProgress(goal, thisWeekTx)
