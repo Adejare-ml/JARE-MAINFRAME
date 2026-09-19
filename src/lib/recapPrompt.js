@@ -64,32 +64,45 @@ function pctOf(share) {
 export function buildWeekFacts({ comparison, streak = 0, weeklyGoals = [] } = {}) {
   const facts = []
 
-  if (comparison?.spent) {
-    const now = round2(comparison.spent.now)
+  // Only worth a sentence when there was actually something spent/earned --
+  // a zero-value fact that reads "spent ₦0.00 this week" is filler, the same
+  // reasoning movedAside below already applied. Without this guard,
+  // `facts` was never actually empty for a real week, which left the
+  // "nothing measurable" fast path in weekly-recap.mjs dead.
+  const spentNow = round2(comparison?.spent?.now)
+  if (spentNow > 0) {
     const before = round2(comparison.spent.before)
-    const numbers = [now]
-    let text = `Spent ${formatNaira(now)} this week.`
+    const numbers = [spentNow]
+    let text = `Spent ${formatNaira(spentNow)} this week.`
     if (before > 0) {
-      const p = pctOf(comparison.spent.share)
-      numbers.push(before)
-      if (p != null) numbers.push(p)
-      const dir = now >= before ? 'up' : 'down'
-      text = `Spent ${formatNaira(now)} this week, ${dir} ${p}% from ${formatNaira(before)} last week.`
+      if (spentNow === before) {
+        text = `Spent ${formatNaira(spentNow)} this week, same as last week.`
+      } else {
+        const p = pctOf(comparison.spent.share)
+        numbers.push(before)
+        if (p != null) numbers.push(p)
+        const dir = spentNow > before ? 'up' : 'down'
+        text = `Spent ${formatNaira(spentNow)} this week, ${dir} ${p}% from ${formatNaira(before)} last week.`
+      }
     }
     facts.push({ key: 'spent', numbers, text })
   }
 
-  if (comparison?.income) {
-    const now = round2(comparison.income.now)
+  const incomeNow = round2(comparison?.income?.now)
+  if (incomeNow > 0) {
     const before = round2(comparison.income.before)
-    const numbers = [now]
-    let text = `Took in ${formatNaira(now)} this week.`
+    const numbers = [incomeNow]
+    let text = `Took in ${formatNaira(incomeNow)} this week.`
     if (before > 0) {
-      const p = pctOf(comparison.income.share)
-      numbers.push(before)
-      if (p != null) numbers.push(p)
-      const dir = now >= before ? 'up' : 'down'
-      text = `Took in ${formatNaira(now)} this week, ${dir} ${p}% from ${formatNaira(before)} last week.`
+      if (incomeNow === before) {
+        text = `Took in ${formatNaira(incomeNow)} this week, same as last week.`
+      } else {
+        const p = pctOf(comparison.income.share)
+        numbers.push(before)
+        if (p != null) numbers.push(p)
+        const dir = incomeNow > before ? 'up' : 'down'
+        text = `Took in ${formatNaira(incomeNow)} this week, ${dir} ${p}% from ${formatNaira(before)} last week.`
+      }
     }
     facts.push({ key: 'income', numbers, text })
   }
