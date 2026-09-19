@@ -12,7 +12,7 @@ import { formatNaira, timeAgo, formatDate } from '../lib/formatters'
 import { getCategoryIcon } from '../lib/constants'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import ProgressRing from '../components/ui/ProgressRing'
-import { summarizeMonth, runway, safeToSpend, budgetPace } from '../lib/summary'
+import { summarizeMonth, runway, safeToSpend, budgetPace, categoryAverages } from '../lib/summary'
 import {
   transactionListColumns,
   transactionSummaryColumns,
@@ -20,6 +20,25 @@ import {
   daysAgo,
   excludeVoided,
 } from '../lib/queries'
+
+/** Past calendar months of history read for the category-average figures --
+ *  long enough for one bad month not to dominate the average, short enough
+ *  to stay one cheap query. */
+const AVERAGE_MONTHS = 3
+
+/** Split a flat row of transactions into one array per calendar month, so
+ *  categoryAverages() -- which does no date math of its own, by design --
+ *  gets pre-bucketed input. Local to this page: nothing else needs it yet. */
+function bucketByMonth(transactions) {
+  const byMonth = new Map()
+  for (const t of transactions || []) {
+    const key = (t.transaction_date || '').slice(0, 7)
+    if (!key) continue
+    if (!byMonth.has(key)) byMonth.set(key, [])
+    byMonth.get(key).push(t)
+  }
+  return [...byMonth.values()]
+}
 
 export default function Budget() {
   const [wallets, setWallets] = useState([])
@@ -30,6 +49,12 @@ export default function Budget() {
   const [monthTransactions, setMonthTransactions] = useState([])
   const [recentTransactions, setRecentTransactions] = useState([])
   const [netWorthHistory, setNetWorthHistory] = useState([])
+  // Per-category targets (migration 024) and the prior months' transactions
+  // the average figure is computed from -- both additive, like
+  // netWorthHistory above: a database behind 024, or simply no history yet,
+  // must not take down a page that has worked without either.
+  const [categoryBudgets, setCategoryBudgets] = useState([])
+  const [averageWindowTransactions, setAverageWindowTransactions] = useState([])
   // Same default and same key as Daily HQ reads -- one budget target, read the
   // same way in both places, or the two pages would disagree about it.
   const [budgetTarget, setBudgetTarget] = useState(85000)
@@ -39,7 +64,10 @@ export default function Budget() {
   const fetchWalletsAndData = useCallback(async () => {
     try {
       setPageError(null)
-      const [walletsRes, monthRes, recentRes, settingsRes, netWorthRes] = await Promise.all([
+      const now = new Date()
+      const averageWindowStart = startOfMonth(new Date(now.getFullYear(), now.getMonth() - AVERAGE_MONTHS, 1))
+
+      const [walletsRes, monthRes, recentRes, settingsRes, netWorthRes, categoryBudgetsRes, averageWindowRes] = await Promise.all([
         supabase.from('wallets').select('*').order('name'),
         // Totals are keyed on transaction_date -- the date the bank says the
         // money moved -- not created_at, which is when the sync happened. A
@@ -68,6 +96,20 @@ export default function Budget() {
           .select('snapshot_date, total_balance')
           .gte('snapshot_date', daysAgo(90))
           .order('snapshot_date', { ascending: true }),
+        // Additive, same reasoning as wallet_snapshots above: a database
+        // behind 024 must cost only the envelope bars, not this page.
+        supabase.from('category_budgets').select('category, target_amount'),
+        // Prior months only, excluding the current one -- this month is
+        // already shown as its own figure, and folding a partial month into
+        // an "average" would understate every other month it's compared
+        // against.
+        excludeVoided(
+          supabase
+            .from('transactions')
+            .select(transactionSummaryColumns())
+            .gte('transaction_date', averageWindowStart)
+            .lt('transaction_date', startOfMonth()),
+        ),
       ])
 
       if (walletsRes.error) throw walletsRes.error
@@ -78,6 +120,8 @@ export default function Budget() {
       setMonthTransactions(monthRes.data || [])
       setRecentTransactions(recentRes.data || [])
       setNetWorthHistory(netWorthRes.error ? [] : netWorthRes.data || [])
+      setCategoryBudgets(categoryBudgetsRes.error ? [] : categoryBudgetsRes.data || [])
+      setAverageWindowTransactions(averageWindowRes.error ? [] : averageWindowRes.data || [])
 
       // Additive, like Daily HQ's own read of the same key: a missing table or
       // an unset target leaves the default rather than failing the page.
@@ -169,6 +213,17 @@ export default function Budget() {
   // twice. The math lives in src/lib/summary.js with tests.
   const liquidWalletIds = new Set(liquidWallets.map(w => w.id))
   const monthSummary = summarizeMonth(monthTransactions, liquidWalletIds)
+
+  // category -> target, and category -> historical average, both optional
+  // lookups CategoryBreakdown defaults to {} for when 024 has not run or
+  // there is not yet enough history -- see that component's own comment.
+  const budgetByCategory = Object.fromEntries(
+    categoryBudgets.map((b) => [b.category, Number(b.target_amount) || 0]),
+  )
+  const averageByCategory = Object.fromEntries(
+    categoryAverages(bucketByMonth(averageWindowTransactions), liquidWalletIds)
+      .map((a) => [a.category, a.average]),
+  )
 
   const thisMonthIncome = monthSummary.income
   const thisMonthSpent = monthSummary.spent
@@ -331,7 +386,11 @@ export default function Budget() {
       </div>
 
       {/* Category Breakdown */}
-      <CategoryBreakdown byCategory={monthSummary.byCategory} />
+      <CategoryBreakdown
+        byCategory={monthSummary.byCategory}
+        budgetByCategory={budgetByCategory}
+        averageByCategory={averageByCategory}
+      />
 
       {/* Last 5 Transactions */}
       <div>

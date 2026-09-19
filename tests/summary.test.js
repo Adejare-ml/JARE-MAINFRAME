@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   summarizeMonth,
   breakdownRows,
+  categoryAverages,
   runway,
   safeToSpend,
   budgetPace,
@@ -116,6 +117,85 @@ describe('breakdownRows', () => {
   it('returns nothing for an empty month', () => {
     expect(breakdownRows([])).toEqual([])
     expect(breakdownRows(null)).toEqual([])
+  })
+
+  it('attaches a target and overBudget to a row whose category has one', () => {
+    const rows = breakdownRows(
+      [
+        { category: 'Rent', total: 70 },
+        { category: 'Transport', total: 28 },
+      ],
+      { Transport: 20 },
+    )
+
+    const rent = rows.find((r) => r.category === 'Rent')
+    const transport = rows.find((r) => r.category === 'Transport')
+    expect(rent.target).toBeUndefined()
+    expect(transport.target).toBe(20)
+    expect(transport.overBudget).toBe(true)
+  })
+
+  it('marks a row under its target as not over budget', () => {
+    const rows = breakdownRows([{ category: 'Rent', total: 70 }, { category: 'Transport', total: 28 }], {
+      Rent: 100,
+    })
+    expect(rows.find((r) => r.category === 'Rent').overBudget).toBe(false)
+  })
+
+  it('never attaches a target to the folded-together Other row', () => {
+    const rows = breakdownRows(
+      [
+        { category: 'Rent', total: 70 },
+        { category: 'Transport', total: 28 },
+        { category: 'Bank Charges', total: 2 }, // folds into Other
+      ],
+      { Other: 5 },
+    )
+    expect(rows.find((r) => r.category === 'Other').target).toBeUndefined()
+  })
+
+  it('is unaffected when no budget map is given -- every existing caller', () => {
+    const withDefault = breakdownRows([{ category: 'Rent', total: 70 }, { category: 'Transport', total: 28 }])
+    const withEmpty = breakdownRows(
+      [{ category: 'Rent', total: 70 }, { category: 'Transport', total: 28 }],
+      {},
+    )
+    expect(withDefault).toEqual(withEmpty)
+    expect(withDefault.some((r) => 'target' in r)).toBe(false)
+  })
+})
+
+describe('categoryAverages', () => {
+  it('averages a category across every month given, including a month it did not appear in', () => {
+    const months = [
+      [{ type: 'debit', amount: 3000, category: 'Transport', wallet_id: 'gt' }],
+      [{ type: 'debit', amount: 9000, category: 'Transport', wallet_id: 'gt' }],
+      [{ type: 'debit', amount: 900, category: 'Rent', wallet_id: 'gt' }], // no Transport this month
+    ]
+    const averages = categoryAverages(months, LIQUID)
+    // (3000 + 9000 + 0) / 3 -- absent counts as zero, not as excluded from the divisor.
+    expect(averages.find((a) => a.category === 'Transport').average).toBe(4000)
+  })
+
+  it('sorts by average descending', () => {
+    const months = [
+      [
+        { type: 'debit', amount: 1000, category: 'Transport', wallet_id: 'gt' },
+        { type: 'debit', amount: 9000, category: 'Rent', wallet_id: 'gt' },
+      ],
+    ]
+    const averages = categoryAverages(months, LIQUID)
+    expect(averages.map((a) => a.category)).toEqual(['Rent', 'Transport'])
+  })
+
+  it('excludes transfers from the average the same way summarizeMonth does', () => {
+    const months = [[{ type: 'debit', amount: 50000, category: 'Savings Transfer', wallet_id: 'gt' }]]
+    expect(categoryAverages(months, LIQUID)).toEqual([])
+  })
+
+  it('returns nothing for no months of history', () => {
+    expect(categoryAverages([], LIQUID)).toEqual([])
+    expect(categoryAverages(null, LIQUID)).toEqual([])
   })
 })
 
