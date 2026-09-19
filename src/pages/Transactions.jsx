@@ -23,6 +23,7 @@ import { validateCorrection, isMissingFunctionError } from '../lib/corrections'
 import { hasColumn } from '../lib/schema'
 import { pendingTransactions } from '../lib/pendingTransactions'
 import { confirmBuzz } from '../lib/haptics'
+import { resolveSwipe } from '../lib/swipeGesture'
 import CategoryPickerSheet from '../components/ui/CategoryPickerSheet'
 
 /**
@@ -47,6 +48,11 @@ export default function Transactions() {
   const initialCategory = searchParams.get('category')
   const [filter, setFilter] = useState(initialCategory ? `category:${initialCategory}` : 'All')
   const [expandedId, setExpandedId] = useState(null)
+  // The id of the row currently showing its swiped-open Void button, or
+  // null. One at a time, same reasoning as expandedId -- a second row
+  // sliding open mid-swipe on another would be confusing, not helpful.
+  const [revealedId, setRevealedId] = useState(null)
+  const swipeStart = useRef(null)
   const [hasMore, setHasMore] = useState(false)
   const [unreviewedCount, setUnreviewedCount] = useState(0)
   const [pageError, setPageError] = useState(null)
@@ -298,6 +304,14 @@ export default function Transactions() {
   }
 
   const handleRowClick = (txn) => {
+    // A tap while the row is swiped open closes it rather than expanding the
+    // editor -- the same "one tap to back out" a swipe-open row should have
+    // everywhere else, and it means an accidental tap on a revealed row can
+    // never fire the wrong action.
+    if (revealedId === txn.id) {
+      setRevealedId(null)
+      return
+    }
     if (selectMode) {
       toggleSelected(txn.id)
       return
@@ -317,8 +331,33 @@ export default function Transactions() {
       setEditType(txn.type || 'debit')
       setEditAmount(txn.amount != null ? String(txn.amount) : '')
       setEditDate(txn.transaction_date || '')
-      setConfirmVoidId(null)
     }
+  }
+
+  /**
+   * Swipe-left reveals the row's Void button; swipe-right (or a tap, see
+   * handleRowClick) closes it again. Resolved once on release rather than
+   * dragged live -- src/lib/swipeGesture.js's own thresholds are what keep
+   * this from firing on a scroll or the tap-to-expand gesture, and a
+   * two-state reveal (shown/not shown) needs no live tracking to get that
+   * right.
+   *
+   * Inert whenever another gesture already owns the row: select mode (row
+   * taps toggle selection instead) and an expanded row (its own buttons and
+   * inputs must get every pointer event, not a swipe layered underneath).
+   */
+  const handleSwipeStart = (e) => {
+    if (selectMode) return
+    swipeStart.current = { x: e.clientX, y: e.clientY, t: e.timeStamp }
+  }
+  const handleSwipeEnd = (txn) => (e) => {
+    const start = swipeStart.current
+    swipeStart.current = null
+    if (!start || selectMode || expandedId === txn.id) return
+
+    const direction = resolveSwipe(start, { x: e.clientX, y: e.clientY, t: e.timeStamp })
+    if (direction === 'left') setRevealedId(txn.id)
+    else if (direction === 'right' && revealedId === txn.id) setRevealedId(null)
   }
 
   /**
@@ -678,10 +717,12 @@ export default function Transactions() {
             const walletName = getWalletName(t.wallet_id, t.source)
             const isUnreviewed = needsReview(t)
 
+            const isRevealed = revealedId === t.id && !selectMode
+
             return (
               <div
                 key={t.id}
-                className={`bg-card rounded-2xl border transition-all overflow-hidden ${
+                className={`relative bg-card rounded-2xl border transition-all overflow-hidden ${
                   isSelected
                     ? 'border-accent bg-accent/5'
                     : isExpanded
@@ -689,10 +730,38 @@ export default function Transactions() {
                       : 'border-white/5 hover:border-white/10'
                 }`}
               >
+                {/* Sits behind the Main Row, exposed only once that row has
+                    been swiped left -- see handleSwipeStart/End. A tap here
+                    reuses the exact same one-tap-plus-Undo-toast handleVoid
+                    every other Void button in this page already calls, so a
+                    false-positive swipe costs nothing worse than an easily
+                    undone void. */}
+                {!selectMode && hasColumn('transactions.voided') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleVoid(t)
+                      setRevealedId(null)
+                    }}
+                    disabled={updating}
+                    aria-hidden={!isRevealed}
+                    tabIndex={isRevealed ? 0 : -1}
+                    className="absolute inset-y-0 right-0 w-20 flex items-center justify-center bg-red-500/90 text-white text-xs font-bold disabled:opacity-50"
+                  >
+                    Void
+                  </button>
+                )}
+
                 {/* Main Row */}
                 <div
                   onClick={() => handleRowClick(t)}
-                  className="p-4 flex items-center justify-between cursor-pointer min-h-[56px]"
+                  onPointerDown={handleSwipeStart}
+                  onPointerUp={handleSwipeEnd(t)}
+                  style={{
+                    transform: isRevealed ? 'translateX(-5rem)' : undefined,
+                    transition: 'transform 0.2s ease',
+                  }}
+                  className="relative bg-card p-4 flex items-center justify-between cursor-pointer min-h-[56px]"
                 >
                   <div className="flex items-center gap-3.5 min-w-0">
                     {selectMode && (
