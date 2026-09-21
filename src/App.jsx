@@ -19,6 +19,7 @@ const Goals = lazy(() => import('./pages/Goals'))
 const Projects = lazy(() => import('./pages/Projects'))
 const Debts = lazy(() => import('./pages/Debts'))
 const Repairs = lazy(() => import('./pages/Repairs'))
+const Ask = lazy(() => import('./pages/Ask'))
 
 function App() {
   const { session, loading, signIn, signOut } = useAuth()
@@ -57,6 +58,7 @@ function App() {
         <Route path="/projects" element={<Projects />} />
         <Route path="/debts" element={<Debts />} />
         <Route path="/repairs" element={<Repairs />} />
+        <Route path="/ask" element={<Ask />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
         </Suspense>
