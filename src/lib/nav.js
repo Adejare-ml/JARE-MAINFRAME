@@ -22,6 +22,7 @@ export const NAV_ITEMS = [
 
   { path: '/projects', label: 'Projects', icon: '🛠️', hidden: true },
   { path: '/repairs', label: 'Repairs', icon: '🔧', hidden: true },
+  { path: '/ask', label: 'Ask', icon: '💬', hidden: true },
 ]
 
 /** Items for the desktop sidebar. */
