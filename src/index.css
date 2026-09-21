@@ -39,11 +39,43 @@
   --color-hint: #828282;       /* 4.5:1 on card -- placeholders only */
 }
 
+/* Light theme, opt-in (Settings → Appearance), applied via a data attribute
+ * on <html> set before first paint by src/main.jsx -- see src/lib/theme.js's
+ * getThemeMode/resolveTheme/applyThemePreference. Every value below is
+ * checked against AA_TEXT_MINIMUM (4.5:1) by tests/contrast.test.js, not
+ * eyeballed -- see src/lib/contrast.js.
+ *
+ * --color-accent is chosen for its TEXT role (7.1:1 on card, 6.5:1 on
+ * background) -- the more pervasive of its two uses across this app (money
+ * figures, streak badges, safe-to-spend). Its other role, a bg-accent fill
+ * behind black button text, was the dark theme's accent for free (a bright
+ * green is both legible AS text on near-black AND light enough FOR black
+ * text on it) but the two roles pull in opposite directions once the
+ * background is light -- no single hex satisfies both here. Deliberately
+ * left for the follow-up per-page visual pass this stage's own PR
+ * describes as deferred; this first slice ships the mechanism and a
+ * correct, verified palette for text, not full parity on every button.
+ */
+:root[data-theme="light"] {
+  --color-background: #f5f5f5;
+  --color-card: #ffffff;
+  --color-foreground: #18181b;
+  --color-muted: #52525b;
+  --color-accent: #166534;
+  --color-border: rgba(0, 0, 0, 0.08);
+  --color-muted-dim: #595966;  /* 6.9:1 on card, 6.3:1 on background */
+  --color-hint: #6e6e78;       /* 5.0:1 on card -- placeholders only, matching the dark theme's own convention for this token */
+}
+
 /* True black, opt-in (Settings → Appearance), applied via a data attribute
  * on <html> set before first paint by src/main.jsx -- see src/lib/theme.js.
  * Only the background moves; --color-card stays where it is so a card still
- * reads as raised against a screen with genuinely nothing behind it. */
-:root[data-oled="true"] {
+ * reads as raised against a screen with genuinely nothing behind it.
+ *
+ * Scoped to dark theme explicitly: without this, a light-mode user who had
+ * OLED on from before would get a black page background under a white
+ * card, rather than OLED simply not applying outside dark mode. */
+:root[data-theme="dark"][data-oled="true"] {
   --color-background: #000000;
 }
 

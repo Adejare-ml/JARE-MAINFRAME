@@ -10,7 +10,7 @@ import Sheet from '../components/ui/Sheet'
 import CategoryRules from '../components/settings/CategoryRules'
 import CategoryBudgets from '../components/settings/CategoryBudgets'
 import { SettingsSkeleton } from '../components/ui/PageSkeleton'
-import { isOledEnabled, setOledEnabled } from '../lib/theme'
+import { isOledEnabled, setOledEnabled, getThemeMode, setThemeMode } from '../lib/theme'
 
 const WALLET_TYPES = [
   { value: 'bank', label: 'Bank', icon: '🏦' },
@@ -63,6 +63,7 @@ export default function Settings() {
 
   // Appearance & planner voice
   const [oledEnabled, setOledEnabledState] = useState(isOledEnabled)
+  const [themeMode, setThemeModeState] = useState(getThemeMode)
   const [plannerTone, setPlannerTone] = useState('encouraging')
 
   // Account State
@@ -734,6 +735,37 @@ export default function Settings() {
             <h2 className="text-xs font-semibold text-muted uppercase tracking-wider border-b border-white/5 pb-3">
               Appearance & Planner
             </h2>
+
+            <div>
+              <span className="block text-xs text-muted font-semibold mb-1">Theme</span>
+              <p className="text-[10px] text-muted-dim mb-2">
+                "System" follows your device. Per device, not synced.
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { value: 'dark', label: 'Dark' },
+                  { value: 'light', label: 'Light' },
+                  { value: 'system', label: 'System' },
+                ].map((m) => (
+                  <button
+                    key={m.value}
+                    type="button"
+                    onClick={() => {
+                      setThemeMode(m.value)
+                      setThemeModeState(m.value)
+                    }}
+                    aria-pressed={themeMode === m.value}
+                    className={`py-3 rounded-xl text-sm font-bold text-center min-h-[48px] transition-colors ${
+                      themeMode === m.value
+                        ? 'bg-accent text-black'
+                        : 'bg-background border border-white/10 text-muted hover:text-white'
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             <div className="flex items-center justify-between p-3 bg-background/50 rounded-xl border border-white/5">
               <div>
