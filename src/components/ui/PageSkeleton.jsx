@@ -95,6 +95,19 @@ export function ProjectsSkeleton() {
   )
 }
 
+export function RepairsSkeleton() {
+  return (
+    <div className="space-y-6 animate-pulse">
+      <Skeleton className="h-10 bg-white/5 rounded-xl w-48" />
+      <Skeleton className="h-12 bg-card rounded-2xl border border-white/5" />
+      <Skeleton className="h-20 bg-card rounded-2xl border border-white/5" />
+      <div className="space-y-3">
+        <SkeletonRows count={3} className="h-24 bg-card rounded-2xl border border-white/5" />
+      </div>
+    </div>
+  )
+}
+
 export function TransactionsSkeleton() {
   return (
     <div className="space-y-4 animate-pulse">

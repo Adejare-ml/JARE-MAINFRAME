@@ -249,7 +249,14 @@ export default function Budget() {
     <div className="p-4 md:p-8 space-y-8 max-w-5xl mx-auto">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h1 className="text-3xl font-bold text-white tracking-tight">Budget 💰</h1>
+        <div>
+          <h1 className="text-3xl font-bold text-white tracking-tight">Budget 💰</h1>
+          <p className="text-muted text-sm mt-0.5">
+            <Link to="/repairs" className="text-accent hover:underline">
+              Repairs & maintenance →
+            </Link>
+          </p>
+        </div>
         <div className="flex gap-2">
           <button
             onClick={() => openQuickLog('debit')}

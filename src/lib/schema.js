@@ -103,6 +103,10 @@ export const GATED_COLUMNS = {
   // behind it shows the page a "run 026" notice rather than a locked table.
   'projects.user_id': '026_projects.sql',
   'milestones.user_id': '026_projects.sql',
+
+  // The Repairs module, same story as 026: a hand-made table with no owner
+  // column until the migration runs.
+  'repairs.user_id': '027_repairs.sql',
 }
 
 /**

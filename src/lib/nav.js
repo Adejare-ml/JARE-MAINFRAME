@@ -24,7 +24,7 @@ export const NAV_ITEMS = [
   { path: '/settings', label: 'Settings', icon: '⚙️', desktopOnly: true },
 
   { path: '/projects', label: 'Projects', icon: '🛠️', desktopOnly: true, secondary: true },
-  { path: '/repairs', label: 'Repairs', icon: '🔧', hidden: true },
+  { path: '/repairs', label: 'Repairs', icon: '🔧', desktopOnly: true, secondary: true },
   { path: '/ask', label: 'Ask', icon: '💬', hidden: true },
 ]
 
