@@ -18,7 +18,8 @@ on:
         default: 'false'
 
 permissions:
-  contents: write   # deleting a ref is a Git-database write; nothing else is touched
+  contents: write       # deleting a ref is a Git-database write
+  pull-requests: read   # the open-PR guard; free on a public repo, required the day this one isn't
 
 jobs:
   delete:
@@ -73,8 +74,11 @@ jobs:
               } catch (err) {
                 // "Reference does not exist" is the outcome we wanted, already
                 // true: GitHub removes a branch itself when its PR closes with
-                // auto-delete on, and Palette prunes its own sometimes.
-                if (err.status === 422 || err.status === 404) {
+                // auto-delete on, and Palette prunes its own sometimes. Matched
+                // on the message, not just the status -- a branch protection or
+                // ruleset refusing the delete is also a 422, and that one must
+                // read as a failure, not as done.
+                if (err.status === 404 || (err.status === 422 && /does not exist/i.test(err.message))) {
                   skipped.push(`${name}: already gone`)
                 } else {
                   failed.push(`${name}: HTTP ${err.status ?? '?'} ${err.message}`)
