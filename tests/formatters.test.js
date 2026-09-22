@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatGoalAmount, formatNaira } from '../src/lib/formatters.js'
+import { formatGoalAmount, formatNaira, displayName } from '../src/lib/formatters.js'
 
 /**
  * Until goals started counting commits, every figure in this app was money and
@@ -42,5 +42,22 @@ describe('formatGoalAmount', () => {
   it('survives junk instead of a number', () => {
     expect(formatGoalAmount(null, 'repo_commits')).toBe('0 commits')
     expect(formatGoalAmount('abc', 'repo_commits')).toBe('0 commits')
+  })
+})
+
+describe('displayName', () => {
+  it('prefers a first name from the account metadata', () => {
+    expect(displayName({ user_metadata: { name: 'Adejare Adelugba' } })).toBe('Adejare')
+    expect(displayName({ user_metadata: { full_name: 'Ade Lugba' }, email: 'x@y.z' })).toBe('Ade')
+  })
+
+  it('falls back to the email, capitalised and cut at the first separator', () => {
+    expect(displayName({ email: 'adejare.adelugba@gmail.com' })).toBe('Adejare')
+    expect(displayName({ email: 'ade_l@x.com' })).toBe('Ade')
+  })
+
+  it('still has something to say for nobody at all', () => {
+    expect(displayName(null)).toBe('there')
+    expect(displayName({})).toBe('there')
   })
 })

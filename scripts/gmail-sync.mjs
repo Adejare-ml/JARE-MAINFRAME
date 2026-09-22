@@ -41,6 +41,7 @@ import { extractTransaction, categorizeBatch, hasAnyProvider, LLM_CONFIG } from 
 import { getAccessToken as refreshGoogleToken } from './google.mjs'
 import { assertProgress } from './lib/assertProgress.mjs'
 import { resolveOwnerUserId } from './lib/ownerId.mjs'
+import { recordRun } from './lib/recordRun.mjs'
 
 // ───────────────────────────────────────────────────────────────
 // 1. Credentials
@@ -65,6 +66,9 @@ const {
  * every scheduled job died on it.
  */
 let OWNER_USER_ID = process.env.OWNER_USER_ID
+
+const JOB = 'gmail-sync'
+const RUN_STARTED_AT = new Date()
 
 const missingVars = [
   ['GOOGLE_CLIENT_ID', GOOGLE_CLIENT_ID],
@@ -338,6 +342,7 @@ async function run() {
       loopFailed: false,
     })
     printRunReport(startTime)
+    await recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: startTime, ok: true, summary: 'no new mail' })
     return
   }
 
@@ -563,6 +568,13 @@ async function run() {
   })
 
   printRunReport(startTime)
+  await recordRun(supabase, {
+    job: JOB,
+    userId: OWNER_USER_ID,
+    startedAt: startTime,
+    ok: stats.errors.length === 0,
+    summary: `${stats.newTransactions} new, ${stats.needsReview} to review, ${stats.errors.length} error(s)`,
+  })
 }
 
 /**
@@ -953,7 +965,14 @@ function printRunReport(startTime) {
   ])
 }
 
-run().catch((err) => {
+run().catch(async (err) => {
   console.error('❌ Gmail Sync script failed:', err)
+  // The client lives inside run(); a throw before or during it still
+  // deserves a note where the app can see it.
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+    auth: { persistSession: false },
+    realtime: { disabled: true },
+  })
+  await recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: false, summary: err?.message || String(err) })
   process.exit(1)
 })

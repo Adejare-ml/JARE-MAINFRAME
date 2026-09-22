@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { formatNaira, formatDate } from '../../lib/formatters'
-import { excludeVoided, daysAgo, transactionSummaryColumns, toDateOnly } from '../../lib/queries'
+import { excludeVoided, daysAgo, transactionRecurrenceColumns, toDateOnly } from '../../lib/queries'
 import { daysUntil } from '../../lib/debts'
 import { detectRecurring } from '../../lib/recurring'
 
@@ -30,7 +30,7 @@ export default function UpcomingBills() {
     excludeVoided(
       supabase
         .from('transactions')
-        .select(transactionSummaryColumns())
+        .select(transactionRecurrenceColumns())
         .gte('transaction_date', daysAgo(LOOKBACK_DAYS)),
     ).then(({ data, error }) => {
       if (cancelled) return

@@ -108,6 +108,15 @@ export function transactionSummaryColumns() {
   return available(BASE_SUMMARY_COLUMNS)
 }
 
+/**
+ * The summary list plus who the money went to -- what recurring.js groups
+ * on. UpcomingBills selected the summary list for its first months in
+ * production and detected nothing, because every payee read as blank.
+ */
+export function transactionRecurrenceColumns() {
+  return available([...BASE_SUMMARY_COLUMNS, 'recipient', 'description'])
+}
+
 export const PAGE_SIZE = 50
 
 /**
@@ -149,6 +158,19 @@ export function excludeVoided(query) {
   // would otherwise have caused a second time.
   if (!hasColumn('transactions.voided')) return query
   return query.eq('voided', false)
+}
+
+/**
+ * The opposite view: only what has been voided, for the Ledger's Voided
+ * chip -- the one way back for a void whose Undo toast has already gone.
+ * Nothing before 006 can be voided, so the chip does not exist then either.
+ *
+ * @param {object} query - a supabase query builder on `transactions`
+ * @returns {object}
+ */
+export function voidedOnly(query) {
+  if (!hasColumn('transactions.voided')) return query
+  return query.eq('voided', true)
 }
 
 /**
@@ -410,5 +432,6 @@ export function buildFilterOptions(wallets = []) {
     { id: 'Needs', label: 'Needs' },
     { id: 'Wants', label: 'Wants' },
     { id: 'Uncategorized', label: 'Uncategorized' },
+    ...(hasColumn('transactions.voided') ? [{ id: 'Voided', label: 'Voided' }] : []),
   ]
 }

@@ -88,6 +88,25 @@ export function timeAgo(timestamp) {
 }
 
 /**
+ * What to call the signed-in person. Daily HQ's greeting used to hardcode a
+ * name, which is the kind of thing that makes a system feel unfinished the
+ * moment anyone else signs in.
+ *
+ * @param {{email?: string, user_metadata?: {name?: string, full_name?: string}}|null} user
+ * @returns {string}
+ */
+export function displayName(user) {
+  const meta = user?.user_metadata || {}
+  const named = String(meta.name || meta.full_name || '').trim()
+  if (named) return named.split(/\s+/)[0]
+
+  const local = String(user?.email || '').split('@')[0].trim()
+  if (!local) return 'there'
+  const word = local.split(/[._-]/)[0]
+  return word.charAt(0).toUpperCase() + word.slice(1)
+}
+
+/**
  * Returns a Tailwind background color class for a transaction category
  * @param {string} category
  * @returns {string} Tailwind class

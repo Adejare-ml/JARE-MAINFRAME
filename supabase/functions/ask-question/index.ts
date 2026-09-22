@@ -98,6 +98,9 @@ function startOfMonthISO() {
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS })
+  // Answered without a model call, so Settings → System can tell "deployed"
+  // from "not deployed" -- the one fact about this page nothing else can see.
+  if (req.method === 'GET') return json({ ok: true, service: 'ask-question' })
   if (req.method !== 'POST') return json({ ok: false, reason: 'POST only' }, 405)
 
   const authHeader = req.headers.get('Authorization')

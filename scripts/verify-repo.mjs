@@ -49,6 +49,7 @@ import {
 import { periodWindow, REPO_METRIC } from '../src/lib/planning.js'
 import { toDateOnly, daysAgo } from '../src/lib/queries.js'
 import { resolveOwnerUserId } from './lib/ownerId.mjs'
+import { recordRun } from './lib/recordRun.mjs'
 
 // ───────────────────────────────────────────────────────────────
 // 1. Configuration
@@ -96,6 +97,9 @@ const VERIFY_DAYS = Number(process.env.VERIFY_DAYS) || 14
  * every scheduled job died on it.
  */
 let OWNER_USER_ID = process.env.OWNER_USER_ID
+
+const JOB = 'verify-repo'
+const RUN_STARTED_AT = new Date()
 
 const missingVars = [
   ['SUPABASE_URL', SUPABASE_URL],
@@ -301,7 +305,10 @@ async function main() {
   console.log('   Days with no commits are recorded as checked-and-empty, not as missed.')
 }
 
-main().catch((err) => {
-  console.error('❌ Repo verification failed:', err?.message || err)
-  process.exit(1)
-})
+main()
+  .then(() => recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: process.exitCode !== 1 }))
+  .catch(async (err) => {
+    console.error('❌ Repo verification failed:', err?.message || err)
+    await recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: false, summary: err?.message || String(err) })
+    process.exit(1)
+  })

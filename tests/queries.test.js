@@ -2,6 +2,8 @@ import { describe, it, expect, vi } from 'vitest'
 import {
   transactionListColumns,
   transactionSummaryColumns,
+  transactionRecurrenceColumns,
+  voidedOnly,
   orderGoalsBySlot,
   toDateOnly,
   startOfMonth,
@@ -250,7 +252,7 @@ describe('buildFilterOptions', () => {
 
   it('always offers the standing filters', () => {
     const ids = buildFilterOptions([]).map(o => o.id)
-    expect(ids).toEqual(['All', 'Review', 'This Week', 'This Month', 'Needs', 'Wants', 'Uncategorized'])
+    expect(ids).toEqual(['All', 'Review', 'This Week', 'This Month', 'Needs', 'Wants', 'Uncategorized', 'Voided'])
   })
 
   it('handles a missing wallet list', () => {
@@ -367,5 +369,46 @@ describe('filter and search composition', () => {
     const q = fakeQuery()
     applyTransactionFilter(q, 'This Month', [], '')
     expect(q.calls.filter(c => c.method === 'or')).toHaveLength(0)
+  })
+})
+
+describe('transactionRecurrenceColumns', () => {
+  it('adds who the money went to on top of the summary list -- what recurring.js groups on', () => {
+    resetSchemaCapabilities()
+    const cols = transactionRecurrenceColumns().split(', ')
+    for (const c of transactionSummaryColumns().split(', ')) expect(cols).toContain(c)
+    expect(cols).toContain('recipient')
+    expect(cols).toContain('description')
+  })
+})
+
+describe('voidedOnly', () => {
+  function recorder() {
+    const calls = []
+    const q = { calls, eq: (column, value) => (calls.push(['eq', column, value]), q) }
+    return q
+  }
+
+  it('selects only voided rows once 006 has run', () => {
+    resetSchemaCapabilities()
+    const q = recorder()
+    voidedOnly(q)
+    expect(q.calls).toEqual([['eq', 'voided', true]])
+  })
+
+  it('is a no-op before 006, when nothing can be voided', () => {
+    setSchemaCapabilities(['transactions.voided'])
+    const q = recorder()
+    voidedOnly(q)
+    expect(q.calls).toEqual([])
+    resetSchemaCapabilities()
+  })
+
+  it('offers the Voided chip only when the column exists', () => {
+    resetSchemaCapabilities()
+    expect(buildFilterOptions([]).map((o) => o.id)).toContain('Voided')
+    setSchemaCapabilities(['transactions.voided'])
+    expect(buildFilterOptions([]).map((o) => o.id)).not.toContain('Voided')
+    resetSchemaCapabilities()
   })
 })

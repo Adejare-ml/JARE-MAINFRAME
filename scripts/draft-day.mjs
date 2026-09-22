@@ -31,6 +31,7 @@ import {
 } from './google.mjs'
 import { assertProgress } from './lib/assertProgress.mjs'
 import { resolveOwnerUserId } from './lib/ownerId.mjs'
+import { recordRun } from './lib/recordRun.mjs'
 
 // ───────────────────────────────────────────────────────────────
 // 1. Configuration
@@ -74,6 +75,9 @@ const DAYS_AHEAD = Number(process.env.DAY_DRAFT_DAYS) || 2
  * every scheduled job died on it.
  */
 let OWNER_USER_ID = process.env.OWNER_USER_ID
+
+const JOB = 'draft-day'
+const RUN_STARTED_AT = new Date()
 
 const missingVars = [
   ['GOOGLE_CLIENT_ID', GOOGLE_CLIENT_ID],
@@ -241,7 +245,10 @@ async function main() {
   ])
 }
 
-main().catch((err) => {
-  console.error('❌ Day drafting failed:', err?.message || err)
-  process.exit(1)
-})
+main()
+  .then(() => recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: process.exitCode !== 1 }))
+  .catch(async (err) => {
+    console.error('❌ Day drafting failed:', err?.message || err)
+    await recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: false, summary: err?.message || String(err) })
+    process.exit(1)
+  })

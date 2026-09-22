@@ -91,6 +91,11 @@ export const GATED_COLUMNS = {
   // Budget.jsx already renders without either.
   'category_budgets.category': '024_category_budgets.sql',
   'category_budgets.target_amount': '024_category_budgets.sql',
+
+  // Where each scheduled script leaves a note about its run, read by
+  // Settings → System. A database behind 025 costs that section a notice
+  // and nothing else.
+  'sync_runs.job': '025_sync_runs.sql',
 }
 
 /**

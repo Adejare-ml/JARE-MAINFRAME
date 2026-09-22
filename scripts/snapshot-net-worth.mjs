@@ -22,6 +22,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { toDateOnly } from '../src/lib/queries.js'
 import { resolveOwnerUserId } from './lib/ownerId.mjs'
+import { recordRun } from './lib/recordRun.mjs'
 
 // ───────────────────────────────────────────────────────────────
 // 1. Configuration
@@ -40,6 +41,9 @@ const { SUPABASE_URL, SUPABASE_SERVICE_KEY } = process.env
  * every scheduled job died on it.
  */
 let OWNER_USER_ID = process.env.OWNER_USER_ID
+
+const JOB = 'snapshot-net-worth'
+const RUN_STARTED_AT = new Date()
 
 const missingVars = [
   ['SUPABASE_URL', SUPABASE_URL],
@@ -101,7 +105,10 @@ async function main() {
   console.log(`✅ Snapshot written for ${today}`)
 }
 
-main().catch((err) => {
-  console.error('❌ Net worth snapshot failed:', err?.message || err)
-  process.exit(1)
-})
+main()
+  .then(() => recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: process.exitCode !== 1 }))
+  .catch(async (err) => {
+    console.error('❌ Net worth snapshot failed:', err?.message || err)
+    await recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: false, summary: err?.message || String(err) })
+    process.exit(1)
+  })
