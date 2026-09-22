@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { connectGmail, disconnectGmail, syncGmailEmails } from '../lib/gmailSync'
 import { getParseStrategy, sanitizeSlug } from '../lib/sync'
 import { timeAgo, formatNaira, formatDate } from '../lib/formatters'
 import { toast } from '../lib/toast'
 import { useAuth } from '../hooks/useAuth'
+import { secondaryItems } from '../lib/nav'
 import ErrorState from '../components/ui/ErrorState'
 import Sheet from '../components/ui/Sheet'
 import CategoryRules from '../components/settings/CategoryRules'
@@ -441,6 +443,25 @@ export default function Settings() {
         <ErrorState message={pageError} onRetry={loadData} />
       ) : (
         <div className="space-y-6">
+
+          {/* ════════════════════════════════════════ */}
+          {/* MODULES (phone only -- the sidebar carries these on desktop) */}
+          {/* ════════════════════════════════════════ */}
+          {secondaryItems().length > 0 && (
+            <nav aria-label="More modules" className="lg:hidden grid grid-cols-2 gap-3">
+              {secondaryItems().map((item) => (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className="bg-card rounded-2xl p-4 border border-white/10 flex items-center gap-3 min-h-[56px] hover:border-accent/40 transition-colors"
+                >
+                  <span className="text-xl" aria-hidden="true">{item.icon}</span>
+                  <span className="text-sm font-bold text-white">{item.label}</span>
+                  <span className="ml-auto text-muted" aria-hidden="true">→</span>
+                </Link>
+              ))}
+            </nav>
+          )}
 
           {/* ════════════════════════════════════════ */}
           {/* EMAIL SYNC SECTION */}

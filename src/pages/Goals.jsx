@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { toast } from '../lib/toast'
 import { formatDate } from '../lib/formatters'
@@ -357,7 +358,10 @@ export default function Goals() {
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-white">Goals 🎯</h1>
           <p className="text-muted text-sm mt-0.5">
-            What you are aiming at, and today's priorities
+            What you are aiming at, and today's priorities ·{' '}
+            <Link to="/projects" className="text-accent hover:underline">
+              Projects →
+            </Link>
           </p>
         </div>
         {canPlan && (
