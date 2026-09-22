@@ -12,6 +12,7 @@ import Sheet from '../components/ui/Sheet'
 import CategoryRules from '../components/settings/CategoryRules'
 import CategoryBudgets from '../components/settings/CategoryBudgets'
 import SystemHealth from '../components/settings/SystemHealth'
+import ExportData from '../components/settings/ExportData'
 import { SettingsSkeleton } from '../components/ui/PageSkeleton'
 import { isOledEnabled, setOledEnabled, getThemeMode, setThemeMode } from '../lib/theme'
 
@@ -862,6 +863,11 @@ export default function Settings() {
           {/* SYSTEM HEALTH */}
           {/* ════════════════════════════════════════ */}
           <SystemHealth />
+
+          {/* ════════════════════════════════════════ */}
+          {/* EXPORT */}
+          {/* ════════════════════════════════════════ */}
+          <ExportData />
 
           {/* ════════════════════════════════════════ */}
           {/* ACCOUNT SECTION */}
