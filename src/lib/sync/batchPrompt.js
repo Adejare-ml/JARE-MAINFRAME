@@ -34,6 +34,10 @@ Return ONLY this JSON object, nothing else:
 Rules:
 - "category" must be copied EXACTLY from the list above. Never invent one.
   If nothing fits well, use "Uncategorized" and set confidence "LOW".
+- "Transfer Out" and "Transfer In" are only for money moving between the
+  user's OWN accounts (the other party is a bank or wallet they also hold).
+  A payment to any other person or business is never a transfer, whatever
+  the bank calls it. When in doubt, do not use them.
 - "explanation" must be specific and drawn from the transaction's own details --
   name the counterparty or the merchant where you can. Good: "Transfer received
   from Nandip Mamtur Ladong via Opay." Bad: "A financial transaction."

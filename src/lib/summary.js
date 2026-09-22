@@ -38,6 +38,10 @@ export const TRANSFER_CATEGORIES = [
   'Investment',
   'Cash Withdrawal',
   'Cash Received',
+  // The generic pair for a move between two of your own wallets that is
+  // neither "into savings" nor "out as cash" -- see src/lib/transfers.js.
+  'Transfer Out',
+  'Transfer In',
 ]
 
 /**

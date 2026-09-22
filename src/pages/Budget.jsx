@@ -265,6 +265,12 @@ export default function Budget() {
             + Log Transaction
           </button>
           <button
+            onClick={() => openQuickLog('transfer')}
+            className="bg-card hover:bg-card/80 border border-white/10 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors min-h-[48px]"
+          >
+            ⇄ Transfer
+          </button>
+          <button
             onClick={() => openQuickLog('credit')}
             className="bg-accent/10 hover:bg-accent/20 text-accent border border-accent/20 px-4 py-2 rounded-xl text-sm font-medium transition-colors min-h-[48px]"
           >
