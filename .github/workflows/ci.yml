@@ -43,7 +43,7 @@ jobs:
       # under plain Node, not just under the bundler.
       - name: Check shared modules load under Node
         run: |
-          for m in planning queries summary schema constants formatters debts repo repoProfile planReview planPrompt speech calendar sparkline transactionGroups insight recurring pendingTransactions haptics theme privacy weekreview activity recapPrompt recapReview nlQuery nlQueryPrompt swipeGesture contrast health projects; do
+          for m in planning queries summary schema constants formatters debts repo repoProfile planReview planPrompt speech calendar sparkline transactionGroups insight recurring pendingTransactions haptics theme privacy weekreview activity recapPrompt recapReview nlQuery nlQueryPrompt swipeGesture contrast health projects repairs; do
             node --input-type=module -e "await import('./src/lib/$m.js')" \
               || { echo "::error::src/lib/$m.js does not load under Node"; exit 1; }
           done

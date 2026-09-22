@@ -9,19 +9,21 @@ describe('navigation', () => {
     expect(bottomNavItems().map((i) => i.path)).toContain('/transactions')
   })
 
-  // A static placeholder with hardcoded zeros does not earn a thumb target.
-  it('hides the remaining placeholder module from both surfaces', () => {
-    expect(sidebarItems().map((i) => i.path)).not.toContain('/repairs')
-    expect(bottomNavItems().map((i) => i.path)).not.toContain('/repairs')
+  // The hidden route resolves for a bookmark but earns no slot anywhere yet.
+  it('keeps the still-hidden route off both surfaces', () => {
+    expect(sidebarItems().map((i) => i.path)).not.toContain('/ask')
+    expect(bottomNavItems().map((i) => i.path)).not.toContain('/ask')
   })
 
-  // Projects is real now, but the bottom bar is full: it takes the same route
-  // Settings does on a phone (header gear -> Modules) and a sidebar slot on
-  // desktop.
-  it('puts Projects on the sidebar and in the Modules list, never the bottom bar', () => {
-    expect(sidebarItems().map((i) => i.path)).toContain('/projects')
-    expect(secondaryItems().map((i) => i.path)).toContain('/projects')
-    expect(bottomNavItems().map((i) => i.path)).not.toContain('/projects')
+  // Projects and Repairs are real now, but the bottom bar is full: they take
+  // the same route Settings does on a phone (header gear -> Modules) and a
+  // sidebar slot on desktop.
+  it('puts the secondary modules on the sidebar and in the Modules list, never the bottom bar', () => {
+    for (const path of ['/projects', '/repairs']) {
+      expect(sidebarItems().map((i) => i.path)).toContain(path)
+      expect(secondaryItems().map((i) => i.path)).toContain(path)
+      expect(bottomNavItems().map((i) => i.path)).not.toContain(path)
+    }
   })
 
   it('never lists a hidden route as a secondary module', () => {
@@ -29,7 +31,6 @@ describe('navigation', () => {
   })
 
   it('keeps hidden items in the source list so their routes stay documented', () => {
-    expect(NAV_ITEMS.map((i) => i.path)).toContain('/repairs')
     expect(NAV_ITEMS.map((i) => i.path)).toContain('/ask')
   })
 
