@@ -6,9 +6,12 @@
  * pipeline exists to feed, appeared in neither, while four static placeholder
  * pages held prime space on a phone.
  *
- * Projects and Repairs are hidden rather than deleted: their routes still
- * resolve, so a bookmarked URL works, but they do not spend a nav slot until
- * they do something. Restore them by flipping `hidden`.
+ * The bottom bar holds five thumb targets and no more. Modules past the
+ * five core ones are `secondary`: on the sidebar like everything else, and
+ * on a phone reached the way Settings already is -- through the header gear
+ * and a "Modules" row at the top of Settings -- plus a link from the page
+ * they relate to. A route still hidden (`hidden`) resolves for a bookmark
+ * but appears nowhere until its page does something.
  */
 export const NAV_ITEMS = [
   { path: '/', label: 'Daily HQ', icon: '🏠' },
@@ -20,7 +23,7 @@ export const NAV_ITEMS = [
   // desktop-only here rather than a sixth thumb target.
   { path: '/settings', label: 'Settings', icon: '⚙️', desktopOnly: true },
 
-  { path: '/projects', label: 'Projects', icon: '🛠️', hidden: true },
+  { path: '/projects', label: 'Projects', icon: '🛠️', desktopOnly: true, secondary: true },
   { path: '/repairs', label: 'Repairs', icon: '🔧', hidden: true },
   { path: '/ask', label: 'Ask', icon: '💬', hidden: true },
 ]
@@ -30,3 +33,6 @@ export const sidebarItems = () => NAV_ITEMS.filter((i) => !i.hidden)
 
 /** Items for the mobile bottom bar. */
 export const bottomNavItems = () => NAV_ITEMS.filter((i) => !i.hidden && !i.desktopOnly)
+
+/** Modules reachable from Settings on a phone, where the bottom bar is full. */
+export const secondaryItems = () => NAV_ITEMS.filter((i) => !i.hidden && i.secondary)

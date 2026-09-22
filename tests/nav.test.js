@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { NAV_ITEMS, sidebarItems, bottomNavItems } from '../src/lib/nav.js'
+import { NAV_ITEMS, sidebarItems, bottomNavItems, secondaryItems } from '../src/lib/nav.js'
 
 describe('navigation', () => {
   // The whole point of the email parsing pipeline is the ledger, and it was
@@ -9,17 +9,28 @@ describe('navigation', () => {
     expect(bottomNavItems().map((i) => i.path)).toContain('/transactions')
   })
 
-  // Static placeholders with hardcoded zeros do not earn a thumb target.
-  it('hides the placeholder modules from both surfaces', () => {
-    for (const path of ['/projects', '/repairs']) {
-      expect(sidebarItems().map((i) => i.path)).not.toContain(path)
-      expect(bottomNavItems().map((i) => i.path)).not.toContain(path)
-    }
+  // A static placeholder with hardcoded zeros does not earn a thumb target.
+  it('hides the remaining placeholder module from both surfaces', () => {
+    expect(sidebarItems().map((i) => i.path)).not.toContain('/repairs')
+    expect(bottomNavItems().map((i) => i.path)).not.toContain('/repairs')
+  })
+
+  // Projects is real now, but the bottom bar is full: it takes the same route
+  // Settings does on a phone (header gear -> Modules) and a sidebar slot on
+  // desktop.
+  it('puts Projects on the sidebar and in the Modules list, never the bottom bar', () => {
+    expect(sidebarItems().map((i) => i.path)).toContain('/projects')
+    expect(secondaryItems().map((i) => i.path)).toContain('/projects')
+    expect(bottomNavItems().map((i) => i.path)).not.toContain('/projects')
+  })
+
+  it('never lists a hidden route as a secondary module', () => {
+    expect(secondaryItems().every((i) => !i.hidden)).toBe(true)
   })
 
   it('keeps hidden items in the source list so their routes stay documented', () => {
-    expect(NAV_ITEMS.map((i) => i.path)).toContain('/projects')
     expect(NAV_ITEMS.map((i) => i.path)).toContain('/repairs')
+    expect(NAV_ITEMS.map((i) => i.path)).toContain('/ask')
   })
 
   // Layout renders a settings gear in the mobile header; a second entry in the

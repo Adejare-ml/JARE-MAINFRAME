@@ -96,6 +96,13 @@ export const GATED_COLUMNS = {
   // Settings → System. A database behind 025 costs that section a notice
   // and nothing else.
   'sync_runs.job': '025_sync_runs.sql',
+
+  // The Projects module. Both tables existed by hand before 026 with no
+  // owner column and a policy that admits nobody, so `user_id` is the one
+  // column guaranteed absent until the migration runs -- and a database
+  // behind it shows the page a "run 026" notice rather than a locked table.
+  'projects.user_id': '026_projects.sql',
+  'milestones.user_id': '026_projects.sql',
 }
 
 /**
