@@ -113,6 +113,20 @@ select
 Adding a migration-gated column to a shared select list means adding it to
 `GATED_COLUMNS` in `src/lib/schema.js` in the same change. Forgetting is the bug.
 
+### Every scheduled job fails on its first line
+
+`❌ Missing required environment variables: OWNER_USER_ID` means the scripts
+could not work out whose rows to write. They read the `OWNER_USER_ID`
+repository secret and, when it is blank, fall back to the single account in
+`auth.users`. That fallback refuses to guess between two accounts -- set the
+secret (`select id, email from auth.users;`) and the jobs resume.
+
+Two Supabase projects with the same name are the other way this goes wrong:
+the app, the Actions secrets and the SQL editor must all point at the same
+project ref. The Migrations page only lists migrations applied through the
+CLI or MCP; anything pasted into the SQL editor never appears there even when
+it worked, so check the banner in the app, not that page.
+
 ### The scheduled sync stopped importing
 
 A failed run now opens a **`sync-failure`** issue rather than failing silently.

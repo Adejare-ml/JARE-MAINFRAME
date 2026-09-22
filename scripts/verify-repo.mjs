@@ -48,6 +48,7 @@ import {
 } from '../src/lib/repo.js'
 import { periodWindow, REPO_METRIC } from '../src/lib/planning.js'
 import { toDateOnly, daysAgo } from '../src/lib/queries.js'
+import { resolveOwnerUserId } from './lib/ownerId.mjs'
 
 // ───────────────────────────────────────────────────────────────
 // 1. Configuration
@@ -87,19 +88,16 @@ const VERIFY_DAYS = Number(process.env.VERIFY_DAYS) || 14
 /**
  * Whose rows these are.
  *
- * Required, not optional, and that is the whole point. This script writes with
- * the service-role key, which bypasses RLS and has no `auth.uid()` -- so a row
- * it inserts without `user_id` is a row that migration 015's policy makes
- * invisible to you in the app, with no error anywhere. Treating this as
- * optional would turn a missing repository secret into silently vanishing data,
- * which is this project's signature failure.
- *
- * Get it from: select id from auth.users;
+ * This script writes with the service-role key, which bypasses RLS and has no
+ * `auth.uid()`, so every row must carry `user_id` by hand -- 017 refuses one
+ * that doesn't. The secret wins when set; when it is blank, main() asks
+ * auth.users instead (the way 014_claim_rows.sql does) and still refuses an
+ * ambiguous answer. It was blank and undocumented for five weeks once, and
+ * every scheduled job died on it.
  */
-const OWNER_USER_ID = process.env.OWNER_USER_ID
+let OWNER_USER_ID = process.env.OWNER_USER_ID
 
 const missingVars = [
-  ['OWNER_USER_ID', OWNER_USER_ID],
   ['SUPABASE_URL', SUPABASE_URL],
   ['SUPABASE_SERVICE_KEY', SUPABASE_SERVICE_KEY],
   ['GITHUB_TOKEN', GITHUB_TOKEN],
@@ -205,6 +203,7 @@ function sameEvidence(stored, fresh) {
 // ───────────────────────────────────────────────────────────────
 
 async function main() {
+  OWNER_USER_ID = await resolveOwnerUserId(supabase, OWNER_USER_ID)
   console.log(`🔍 Verifying ${REPO}`)
   console.log(`   window: ${cutoff} → ${today} (UTC${OFFSET_MINUTES >= 0 ? '+' : ''}${OFFSET_MINUTES / 60})`)
   if (AUTHOR) console.log(`   author: ${AUTHOR}`)
