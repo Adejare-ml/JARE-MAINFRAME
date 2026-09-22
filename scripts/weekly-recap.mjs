@@ -33,6 +33,7 @@ import { endOfWeek, weeksAgo, daysAgo } from '../src/lib/queries.js'
 import { callModel, hasAnyProvider, LLM_CONFIG } from './llm.mjs'
 import { assertProgress } from './lib/assertProgress.mjs'
 import { resolveOwnerUserId } from './lib/ownerId.mjs'
+import { recordRun } from './lib/recordRun.mjs'
 
 // ───────────────────────────────────────────────────────────────
 // 1. Configuration
@@ -58,6 +59,9 @@ const STREAK_LOOKBACK_DAYS = 60
  * every scheduled job died on it.
  */
 let OWNER_USER_ID = process.env.OWNER_USER_ID
+
+const JOB = 'weekly-recap'
+const RUN_STARTED_AT = new Date()
 
 const missingVars = [
   ['SUPABASE_URL', SUPABASE_URL],
@@ -216,7 +220,10 @@ async function main() {
   // above, for the one thing that IS this script's business: no answer at all.
 }
 
-main().catch((err) => {
-  console.error('❌ Weekly recap failed:', err?.message || err)
-  process.exit(1)
-})
+main()
+  .then(() => recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: process.exitCode !== 1 }))
+  .catch(async (err) => {
+    console.error('❌ Weekly recap failed:', err?.message || err)
+    await recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: false, summary: err?.message || String(err) })
+    process.exit(1)
+  })

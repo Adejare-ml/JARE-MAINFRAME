@@ -1,26 +1,12 @@
 /**
- * What a natural-language money question would ask a model for, if this app
- * had somewhere to run it interactively.
+ * What the Ask page asks a model for.
  *
- * It does not, yet, and that is a deliberate, documented cut rather than an
- * oversight. Every model call in this codebase today happens from a scheduled
- * GitHub Action with a service-role key -- gmail-sync.mjs, plan-month.mjs,
- * weekly-recap.mjs -- never from the browser, which has no credential to make
- * one safely. Answering a typed question needs the opposite shape: a live
- * round trip, started by the person, answered in seconds. That is a Supabase
- * Edge Function (Deno, a new runtime this project has never deployed or
- * tested) or an equivalent always-on endpoint, and standing one up is a
- * decision with its own operational cost -- cold starts, a second place
- * secrets live, a new failure mode with no scheduled retry to fall back on --
- * that deserves to be made on purpose, not folded into a stage that was
- * asked to ship five other things.
- *
- * So this file, and src/lib/nlQuery.js next to it, ship the part that is
- * real and testable without one: the prompt a model would receive, built
- * from the same describeQueries() list runQuery() enforces, and the contract
- * both sides would honour -- the model names a function and supplies
- * arguments, nothing else. Wiring it to an actual endpoint is future work,
- * and when it happens this is the file that already says what to ask for.
+ * Built from the same describeQueries() list runQuery() enforces, so the
+ * model is never offered a function this app will not run. The live round
+ * trip is supabase/functions/ask-question/index.ts, which calls
+ * buildNlQueryPrompt and hands the model's answer straight to runQuery.
+ * The contract both sides honour: the model names a function and supplies
+ * arguments, nothing else -- it never computes an answer itself.
  */
 
 import { describeQueries } from './nlQuery.js'

@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { formatNaira, formatDate } from '../lib/formatters'
+import { formatNaira, formatDate, displayName } from '../lib/formatters'
 import { getCategoryIcon } from '../lib/constants'
 import { toast } from '../lib/toast'
 import CashReconciliation from '../components/CashReconciliation'
 import ErrorState from '../components/ui/ErrorState'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
+import { useAuth } from '../hooks/useAuth'
 import { summarizeMonth, safeToSpend, budgetPace } from '../lib/summary'
 import { upcomingDebts } from '../lib/debts'
 import { generateTasks } from '../lib/generateTasks'
@@ -47,6 +48,8 @@ const GRID_DAYS = 63
 const EVENING_HOUR = 18
 
 export default function DailyHQ() {
+  const { session } = useAuth()
+  const ownerName = displayName(session?.user)
   const [wallets, setWallets] = useState([])
   const [transactions, setTransactions] = useState([])
   const [recentRows, setRecentRows] = useState([])
@@ -391,7 +394,7 @@ export default function DailyHQ() {
   if (pageError) {
     return (
       <div className="space-y-6 pb-6">
-        <h1 className="text-2xl md:text-3xl font-extrabold text-white">{greeting}, Adejare 👋</h1>
+        <h1 className="text-2xl md:text-3xl font-extrabold text-white">{greeting}, {ownerName} 👋</h1>
         <ErrorState message={pageError} onRetry={fetchDailyData} />
       </div>
     )
@@ -526,7 +529,7 @@ export default function DailyHQ() {
               {mode === 'day' ? fullDateStr : `Week of ${formatDate(weekStart)}`}
             </p>
             <h1 className="text-2xl md:text-3xl font-extrabold text-white">
-              {mode === 'day' ? `${greeting}, Adejare 👋` : 'How the week went'}
+              {mode === 'day' ? `${greeting}, {ownerName} 👋` : 'How the week went'}
             </h1>
           </div>
 

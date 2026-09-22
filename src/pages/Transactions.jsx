@@ -18,6 +18,7 @@ import {
   NEEDS_REVIEW_FILTER,
   needsReview,
   excludeVoided,
+  voidedOnly,
 } from '../lib/queries'
 import { validateCorrection, isMissingFunctionError } from '../lib/corrections'
 import { hasColumn } from '../lib/schema'
@@ -113,9 +114,11 @@ export default function Transactions() {
    */
   const fetchRange = useCallback(
     async (from, size, currentWallets) => {
-      let query = excludeVoided(
-        supabase.from('transactions').select(transactionListColumns()),
-      )
+      const base = supabase.from('transactions').select(transactionListColumns())
+      // The Voided chip is the one view that wants the rows every other
+      // query hides -- and the only way back for a void whose Undo toast
+      // has already gone.
+      let query = filter === 'Voided' ? voidedOnly(base) : excludeVoided(base)
 
       // The review queue is ordered by what a mistake costs, biggest first. A
       // mis-parsed ₦50,000 transfer is worth catching; a mis-categorised ₦150
@@ -610,6 +613,12 @@ export default function Transactions() {
           refetch behind it) has confirmed them -- see
           lib/pendingTransactions.js. Only on the default, unfiltered view:
           a pending row is not yet a real transaction to filter or search. */}
+      {filter === 'Voided' && (
+        <p className="text-[11px] text-muted-dim px-1">
+          Left out of every list and every total. Restore one to bring it back.
+        </p>
+      )}
+
       {filter === 'All' && !activeSearch && pending.length > 0 && (
         <div className="space-y-2 mb-3">
           {pending.map((p) => (
@@ -740,15 +749,18 @@ export default function Transactions() {
                   <button
                     type="button"
                     onClick={() => {
-                      handleVoid(t)
+                      const act = t.voided ? handleUnvoid : handleVoid
+                      act(t)
                       setRevealedId(null)
                     }}
                     disabled={updating}
                     aria-hidden={!isRevealed}
                     tabIndex={isRevealed ? 0 : -1}
-                    className="absolute inset-y-0 right-0 w-20 flex items-center justify-center bg-red-500/90 text-white text-xs font-bold disabled:opacity-50"
+                    className={`absolute inset-y-0 right-0 w-20 flex items-center justify-center text-xs font-bold disabled:opacity-50 ${
+                      t.voided ? 'bg-accent/90 text-black' : 'bg-red-500/90 text-white'
+                    }`}
                   >
-                    Void
+                    {t.voided ? 'Restore' : 'Void'}
                   </button>
                 )}
 
@@ -1001,17 +1013,30 @@ export default function Transactions() {
                         banner already explains what to run. */}
                     {hasColumn('transactions.voided') && (
                     <div className="pt-1">
-                      <button
-                        onClick={() => handleVoid(t)}
-                        disabled={updating}
-                        className="w-full py-2.5 text-xs font-semibold text-muted hover:text-red-300 transition-colors min-h-[44px] disabled:opacity-50"
-                      >
-                        {updating ? 'Voiding…' : 'Void this transaction'}
-                      </button>
-                      <p className="text-[11px] text-muted-dim leading-relaxed">
-                        Hides it from every list and every total -- undo from the toast for
-                        the next five seconds, or reopen and edit it any time after.
-                      </p>
+                      {t.voided ? (
+                        <button
+                          onClick={() => handleUnvoid(t)}
+                          disabled={updating}
+                          className="w-full py-2.5 text-xs font-semibold text-accent hover:text-white transition-colors min-h-[44px] disabled:opacity-50"
+                        >
+                          Restore this transaction
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => handleVoid(t)}
+                            disabled={updating}
+                            className="w-full py-2.5 text-xs font-semibold text-muted hover:text-red-300 transition-colors min-h-[44px] disabled:opacity-50"
+                          >
+                            {updating ? 'Voiding…' : 'Void this transaction'}
+                          </button>
+                          <p className="text-[11px] text-muted-dim leading-relaxed">
+                            Hides it from every list and every total -- undo from the toast for
+                            the next five seconds, or find it under the Voided filter and
+                            restore it any time after.
+                          </p>
+                        </>
+                      )}
                     </div>
                     )}
 
