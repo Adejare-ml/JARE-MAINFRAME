@@ -118,6 +118,10 @@ export const GATED_COLUMNS = {
   // costs the Settings section a notice and leaves every picker on the
   // built-in list -- which is exactly what it showed before.
   'categories.name': '030_categories.sql',
+
+  // One row per device that wants the morning reminder. A database behind
+  // 031 costs Settings -> Reminders a notice; nothing else reads it.
+  'push_subscriptions.endpoint': '031_push_subscriptions.sql',
 }
 
 /**

@@ -17,8 +17,11 @@
  *      goes straight to the network. Auth and data are never cached here,
  *      and the unhashed files are tiny.
  *
- * Bump VERSION to purge every cache on the next activate. The push and
- * notificationclick handlers arrive with the reminders work (Stage 20).
+ * Bump VERSION to purge every cache on the next activate.
+ *
+ * The push and notificationclick handlers show the morning reminder
+ * (scripts/remind.mjs sends it; Settings -> Reminders subscribes). The
+ * payload is the digest's own shape: {title, body, url}.
  *
  * The routing decision is exposed on self.__jareRouting so tests/sw.test.js
  * can load this file under Node with a shimmed `self` and exercise it
@@ -57,7 +60,60 @@ function keepsCache(name) {
   return name === SHELL_CACHE || name === ASSET_CACHE
 }
 
-self.__jareRouting = { VERSION, SHELL_URL, ASSET_LIMIT, strategyFor, isHtml, keepsCache }
+/**
+ * The notification to show for a push payload, or null for one this worker
+ * does not understand -- a malformed push shows nothing rather than an
+ * empty box. `url` is kept same-origin: a payload cannot send a tap
+ * anywhere but this app.
+ *
+ * @param {string|null} raw - event.data?.text()
+ * @param {string} origin
+ * @returns {{title: string, options: object} | null}
+ */
+function notificationFor(raw, origin) {
+  if (!raw) return null
+  let payload
+  try {
+    payload = JSON.parse(raw)
+  } catch {
+    return null
+  }
+  const title = typeof payload?.title === 'string' ? payload.title.trim() : ''
+  if (!title) return null
+  const body = typeof payload.body === 'string' ? payload.body : ''
+  return {
+    title,
+    options: {
+      body,
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      // One tag: a second reminder replaces the first instead of stacking.
+      tag: 'jare-reminder',
+      data: { url: clickTarget(payload.url, origin) },
+    },
+  }
+}
+
+/** An absolute same-origin URL for a tap, falling back to the app root. */
+function clickTarget(url, origin) {
+  try {
+    const target = new URL(typeof url === 'string' ? url : '/', origin)
+    return target.origin === origin ? target.href : `${origin}/`
+  } catch {
+    return `${origin}/`
+  }
+}
+
+self.__jareRouting = {
+  VERSION,
+  SHELL_URL,
+  ASSET_LIMIT,
+  strategyFor,
+  isHtml,
+  keepsCache,
+  notificationFor,
+  clickTarget,
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -128,3 +184,24 @@ async function trimCache(cache, limit) {
   if (keys.length <= limit) return
   await Promise.all(keys.slice(0, keys.length - limit).map((key) => cache.delete(key)))
 }
+
+self.addEventListener('push', (event) => {
+  const shown = notificationFor(event.data ? event.data.text() : null, self.location.origin)
+  if (!shown) return
+  event.waitUntil(self.registration.showNotification(shown.title, shown.options))
+})
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const url = event.notification.data?.url || `${self.location.origin}/`
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
+      // Reuse an open tab of the app rather than opening a second one.
+      const existing = windows.find((w) => new URL(w.url).origin === self.location.origin)
+      if (existing) {
+        return existing.focus().then((w) => (w && 'navigate' in w ? w.navigate(url) : w))
+      }
+      return self.clients.openWindow(url)
+    }),
+  )
+})
