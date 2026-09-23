@@ -12,24 +12,25 @@ describe('summarizeRuns', () => {
   })
 
   it('reads a recent successful run as ok', () => {
-    const [gmail] = summarizeRuns([{ job: 'gmail-sync', finished_at: hoursAgo(3), ok: true }], NOW)
-    expect(gmail.status).toBe(STATUS.OK)
-    expect(gmail.lastOk.finished_at).toBe(hoursAgo(3))
+    const [audit] = summarizeRuns([{ job: 'claude-audit', finished_at: hoursAgo(3), ok: true }], NOW)
+    expect(audit.status).toBe(STATUS.OK)
+    expect(audit.lastOk.finished_at).toBe(hoursAgo(3))
   })
 
   it('turns a success that is older than the job allows into stale', () => {
-    const [gmail] = summarizeRuns([{ job: 'gmail-sync', finished_at: hoursAgo(21), ok: true }], NOW)
-    expect(gmail.status).toBe(STATUS.STALE)
+    // The audit runs once a day; 30 hours is the patience, so 31 is stale.
+    expect(summarizeRuns([{ job: 'claude-audit', finished_at: hoursAgo(29), ok: true }], NOW)[0].status).toBe(STATUS.OK)
+    expect(summarizeRuns([{ job: 'claude-audit', finished_at: hoursAgo(31), ok: true }], NOW)[0].status).toBe(STATUS.STALE)
   })
 
-  it('gives each job its own patience -- a week-old weekly recap is fine, a week-old sync is not', () => {
+  it('gives each job its own patience -- a week-old weekly recap is fine, a week-old audit is not', () => {
     const rows = [
       { job: 'weekly-recap', finished_at: hoursAgo(6 * 24), ok: true },
-      { job: 'gmail-sync', finished_at: hoursAgo(6 * 24), ok: true },
+      { job: 'claude-audit', finished_at: hoursAgo(6 * 24), ok: true },
     ]
     const byId = Object.fromEntries(summarizeRuns(rows, NOW).map((j) => [j.id, j.status]))
     expect(byId['weekly-recap']).toBe(STATUS.OK)
-    expect(byId['gmail-sync']).toBe(STATUS.STALE)
+    expect(byId['claude-audit']).toBe(STATUS.STALE)
   })
 
   it('reads a failed latest run as failing, however recent the success before it', () => {
@@ -65,12 +66,12 @@ describe('gmailCursorStatus', () => {
     expect(gmailCursorStatus({ last_checked: null }, NOW).status).toBe(STATUS.NEVER)
   })
 
-  it('is ok within the same window the sync job gets, and stale past it', () => {
-    expect(gmailCursorStatus({ last_checked: hoursAgo(19), last_sync: '2026-09-22' }, NOW)).toMatchObject({
+  it('is ok within the daily audit\'s window, and stale past it', () => {
+    expect(gmailCursorStatus({ last_checked: hoursAgo(29), last_sync: '2026-09-22' }, NOW)).toMatchObject({
       status: STATUS.OK,
       caughtUpTo: '2026-09-22',
     })
-    expect(gmailCursorStatus({ last_checked: hoursAgo(21) }, NOW).status).toBe(STATUS.STALE)
+    expect(gmailCursorStatus({ last_checked: hoursAgo(31) }, NOW).status).toBe(STATUS.STALE)
   })
 })
 

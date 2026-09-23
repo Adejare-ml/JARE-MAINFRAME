@@ -1,10 +1,12 @@
 name: Gmail Transaction Sync
 
 on:
-  schedule:
-    # UTC times -- Lagos is UTC+1
-    # 8am, 10am, 2pm, 6pm Lagos = 07,09,13,17 UTC
-    - cron: '0 7,9,13,17 * * *'
+  # The schedule is retired. The Google refresh token this needs expires
+  # every seven days while the OAuth app is in "Testing" status, and the
+  # sync had been dead on invalid_grant since mid-August. Bank alerts are
+  # now read by the owner's Claude scheduled task ("Daily spending audit"),
+  # which writes through ingest_alert_transaction (migration 032). Manual
+  # runs still work here with a fresh token, for a backfill.
   workflow_dispatch:   # manual trigger button
 
 permissions:

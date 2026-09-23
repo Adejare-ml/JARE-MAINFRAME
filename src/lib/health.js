@@ -15,7 +15,10 @@ export const STATUS = { OK: 'ok', FAILING: 'failing', STALE: 'stale', NEVER: 'ne
 /** Every scheduled job, with how long silence is normal before it is worrying. */
 export const JOBS = [
   // Four runs a day, 8am-6pm Lagos; the overnight gap alone is fourteen hours.
-  { id: 'gmail-sync', label: 'Gmail sync', staleAfterHours: 20 },
+  // The mailbox is read by the owner's Claude scheduled task (once a day at
+  // 08:00 UTC) since the token-based Gmail sync was retired; it records its
+  // run through record_sync_run (migration 032).
+  { id: 'claude-audit', label: 'Bank alerts (Claude audit)', staleAfterHours: 30 },
   { id: 'draft-day', label: 'Day brief', staleAfterHours: 30 },
   { id: 'verify-repo', label: 'Repo verification', staleAfterHours: 30 },
   { id: 'snapshot-net-worth', label: 'Net worth snapshot', staleAfterHours: 30 },
@@ -66,9 +69,11 @@ export function summarizeRuns(rows = [], now = new Date(), jobs = JOBS) {
 }
 
 /**
- * The Gmail cursor as a second signal: the sync stamps last_checked whether
- * or not anything new arrived, so a quiet mailbox and a dead sync look the
- * same on the ledger but not here.
+ * The mailbox cursor as a second signal: whoever reads the mailbox stamps
+ * last_checked whether or not anything new arrived, so a quiet mailbox
+ * and a dead reader look the same on the ledger but not here. Since the
+ * Claude audit took over (032), that stamp comes once a day, so the
+ * patience matches its 30 hours.
  *
  * @param {{last_checked?: string|null, last_sync?: string|null}|null} integration
  * @param {Date|string|number} [now]
@@ -77,7 +82,7 @@ export function gmailCursorStatus(integration, now = new Date()) {
   const caughtUpTo = integration?.last_sync || null
   if (!integration?.last_checked) return { status: STATUS.NEVER, checkedHoursAgo: null, caughtUpTo }
   const checkedHoursAgo = hoursBetween(integration.last_checked, now)
-  return { status: checkedHoursAgo > 20 ? STATUS.STALE : STATUS.OK, checkedHoursAgo, caughtUpTo }
+  return { status: checkedHoursAgo > 30 ? STATUS.STALE : STATUS.OK, checkedHoursAgo, caughtUpTo }
 }
 
 /** One word for the whole system: the worst job wins. */
