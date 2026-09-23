@@ -6,6 +6,7 @@ import ErrorState from '../components/ui/ErrorState'
 import EmptyState from '../components/ui/EmptyState'
 import Sheet from '../components/ui/Sheet'
 import { DebtsSkeleton } from '../components/ui/PageSkeleton'
+import { openQuickLog } from '../components/ui/QuickLog'
 import { confirmBuzz } from '../lib/haptics'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import {
@@ -18,6 +19,9 @@ import {
   daysUntil,
   debtTotals,
   payoffProjection,
+  paidTotals,
+  linkedPayments,
+  repayingType,
 } from '../lib/debts'
 import { hasColumn } from '../lib/schema'
 
@@ -38,6 +42,10 @@ const EMPTY_FORM = {
 
 export default function Debts() {
   const [debts, setDebts] = useState([])
+  // Ledger rows that carry a debt_id, any debt's. What a loan has actually
+  // been paid is derived from these plus the typed baseline, so voiding a
+  // payment un-counts it with no write here -- see lib/debts.js paidTotal.
+  const [linkedRows, setLinkedRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState(null)
   const [tab, setTab] = useState('all')
@@ -52,32 +60,63 @@ export default function Debts() {
   const [shake, setShake] = useState(false)
   const [justSaved, setJustSaved] = useState(false)
 
+  // Before 029 there is no link column, so the typed amount is the whole
+  // answer and no second query is sent.
+  const linkLive = hasColumn('transactions.debt_id')
+
   const fetchDebts = useCallback(async () => {
     try {
       setPageError(null)
-      const { data, error } = await supabase
-        .from('debts')
-        .select('*')
-        .order('settled', { ascending: true })
-        .order('created_at', { ascending: false })
+      const linkedColumns = [
+        'id',
+        'debt_id',
+        'amount',
+        'type',
+        'transaction_date',
+        hasColumn('transactions.voided') ? 'voided' : null,
+      ]
+        .filter(Boolean)
+        .join(', ')
 
-      if (error) throw error
-      setDebts(data || [])
+      const [debtsRes, linkedRes] = await Promise.all([
+        supabase
+          .from('debts')
+          .select('*')
+          .order('settled', { ascending: true })
+          .order('created_at', { ascending: false }),
+        linkLive
+          ? supabase.from('transactions').select(linkedColumns).not('debt_id', 'is', null)
+          : Promise.resolve({ data: [], error: null }),
+      ])
+
+      if (debtsRes.error) throw debtsRes.error
+      setDebts(debtsRes.data || [])
+      // A failed payments query costs the derived totals, not the page:
+      // the cards fall back to the typed amount with a console warning.
+      if (linkedRes.error) {
+        console.warn('Linked payments could not be loaded:', linkedRes.error.message)
+        setLinkedRows([])
+      } else {
+        setLinkedRows(linkedRes.data || [])
+      }
     } catch (err) {
       console.error('Error loading debts:', err)
       setPageError(err.message || 'Failed to load')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [linkLive])
 
   useEffect(() => {
     fetchDebts()
   }, [fetchDebts])
 
-  useRealtimeRefresh(['debts'], fetchDebts, { channelPrefix: 'debts' })
+  // Transactions too: a repayment logged from this page, or voided from the
+  // ledger, changes the numbers on these cards.
+  useRealtimeRefresh(['debts', 'transactions'], fetchDebts, { channelPrefix: 'debts' })
 
-  const totals = useMemo(() => debtTotals(debts), [debts])
+  const paidByDebt = useMemo(() => paidTotals(debts, linkedRows), [debts, linkedRows])
+  const totals = useMemo(() => debtTotals(debts, paidByDebt), [debts, paidByDebt])
 
   const visible = debts.filter(d => {
     if (tab === 'all') return true
@@ -296,7 +335,9 @@ export default function Debts() {
         <div className="space-y-3">
           {visible.map(debt => {
             const cycle = cycleStatus(debt)
-            const progress = repaymentProgress(debt)
+            const paid = paidByDebt[debt.id]
+            const payments = linkedPayments(linkedRows, debt)
+            const progress = repaymentProgress(debt, paid)
             const dueIn = daysUntil(debt.due_date)
             const payoutIn = daysUntil(debt.payout_date)
             const kindMeta = KINDS.find(k => k.value === debt.kind)
@@ -383,7 +424,7 @@ export default function Debts() {
                   <div className="space-y-2">
                     <div className="flex items-baseline justify-between">
                       <p className="text-lg font-bold text-white tabular-nums money">
-                        {formatNaira(outstanding(debt))}
+                        {formatNaira(outstanding(debt, paid))}
                       </p>
                       {Number(debt.principal) > 0 && (
                         <p className="text-xs text-muted tabular-nums">
@@ -401,8 +442,22 @@ export default function Debts() {
                         />
                       </div>
                     )}
+                    {payments.length > 0 && (
+                      <p className="text-[11px] text-muted">
+                        🤝 {payments.length} payment{payments.length === 1 ? '' : 's'} from the ledger ·{' '}
+                        <span className="money">
+                          {formatNaira(payments.reduce((sum, row) => sum + (Number(row.amount) || 0), 0))}
+                        </span>
+                        {Number(debt.amount_paid) > 0 && (
+                          <>
+                            {' · '}
+                            <span className="money">{formatNaira(debt.amount_paid)}</span> before tracking
+                          </>
+                        )}
+                      </p>
+                    )}
                     {!debt.settled && debt.monthly_payment > 0 && (() => {
-                      const payoff = payoffProjection(debt, debt.monthly_payment)
+                      const payoff = payoffProjection(debt, debt.monthly_payment, undefined, paid)
                       if (!payoff) return null
                       return (
                         <p className="text-[11px] text-muted">
@@ -447,12 +502,25 @@ export default function Debts() {
 
                 {debt.notes && <p className="text-[11px] text-muted mt-2 italic">{debt.notes}</p>}
 
-                <button
-                  onClick={() => toggleSettled(debt)}
-                  className="mt-3 w-full py-2.5 text-xs font-semibold rounded-xl bg-white/5 hover:bg-white/10 text-muted hover:text-white min-h-[44px] transition-colors"
-                >
-                  {debt.settled ? 'Reopen' : 'Mark settled'}
-                </button>
+                <div className="mt-3 flex gap-2">
+                  {/* A repayment is an ordinary QuickLog entry with the
+                      category and note filled in and the row linked back
+                      here. Loans only: a rotating cycle pays by round. */}
+                  {linkLive && !debt.settled && !isRotating(debt.kind) && (
+                    <button
+                      onClick={() => openQuickLog(repayingType(debt), { debt })}
+                      className="flex-1 py-2.5 text-xs font-bold rounded-xl bg-accent/15 hover:bg-accent/25 text-accent min-h-[44px] transition-colors"
+                    >
+                      {debt.direction === 'owed_to_me' ? 'Log a repayment' : 'Log payment'}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => toggleSettled(debt)}
+                    className="flex-1 py-2.5 text-xs font-semibold rounded-xl bg-white/5 hover:bg-white/10 text-muted hover:text-white min-h-[44px] transition-colors"
+                  >
+                    {debt.settled ? 'Reopen' : 'Mark settled'}
+                  </button>
+                </div>
 
                 {confirmDeleteId === debt.id && (
                   <div className="mt-3 p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
@@ -630,7 +698,9 @@ export default function Debts() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-muted font-semibold mb-1">Paid so far (₦)</label>
+                  <label className="block text-xs text-muted font-semibold mb-1">
+                    {linkLive ? 'Paid before tracking (₦)' : 'Paid so far (₦)'}
+                  </label>
                   <input
                     type="number"
                     inputMode="decimal"
@@ -639,6 +709,11 @@ export default function Debts() {
                     placeholder="0"
                     className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
                   />
+                  {linkLive && (
+                    <p className="text-[10px] text-muted-dim mt-1">
+                      Payments logged from the card are added on top of this.
+                    </p>
+                  )}
                 </div>
               </div>
             )}

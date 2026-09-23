@@ -35,6 +35,7 @@ import { isValidDate } from './sync/normalize.js'
 export const GATED_LIST_COLUMNS = {
   explanation: 'transactions.explanation',
   voided: 'transactions.voided',
+  debt_id: 'transactions.debt_id',
 }
 
 const BASE_LIST_COLUMNS = [
@@ -56,6 +57,7 @@ const BASE_LIST_COLUMNS = [
   'available_balance',
   'confidence',
   'reviewed',
+  'debt_id',
   'created_at',
 ]
 

@@ -27,10 +27,14 @@ const STEPS = {
 // openQuickLog('debit'|'credit'|'transfer') instead of mounting their own
 // copy -- the component renders its own floating action button when closed,
 // so a second instance would put a second FAB on screen.
+//
+// `preset.debt` opens the sheet as a repayment of that debt: the category
+// and note are filled in, the category step is skipped, and the row is
+// written with its debt_id so the Debts page counts it (migration 029).
 let openListener = null;
 
-export function openQuickLog(type = 'debit') {
-  if (openListener) openListener(type);
+export function openQuickLog(type = 'debit', preset = {}) {
+  if (openListener) openListener(type, preset);
 }
 
 const MODES = ['debit', 'credit', 'transfer'];
@@ -52,6 +56,9 @@ export default function QuickLog() {
   const [toWallet, setToWallet] = useState(null);
   const [note, setNote] = useState('');
   const [wantOrNeed, setWantOrNeed] = useState(''); // 'need', 'want', 'obligation', 'emergency'
+  // The debt this entry repays, when opened from the Debts page. Direction
+  // follows the debt, so the mode toggle is hidden while it is set.
+  const [linkedDebt, setLinkedDebt] = useState(null);
   // Defaults to today; anything earlier is a backdated entry. The RPC has
   // taken a date since 002 -- only the sheet never asked for one.
   const [txDate, setTxDate] = useState(() => toDateOnly(new Date()));
@@ -76,8 +83,13 @@ export default function QuickLog() {
   }, [isOpen]);
 
   useEffect(() => {
-    openListener = (openType) => {
+    openListener = (openType, preset = {}) => {
       setType(MODES.includes(openType) ? openType : 'debit');
+      if (preset?.debt?.id) {
+        setLinkedDebt(preset.debt);
+        setCategory('Loan Repayment');
+        setNote(`Repayment -- ${preset.debt.counterparty || ''}`.trim());
+      }
       setIsOpen(true);
     };
     return () => {
@@ -114,13 +126,16 @@ export default function QuickLog() {
     setToWallet(null);
     setNote('');
     setWantOrNeed('');
+    setLinkedDebt(null);
     setTxDate(toDateOnly(new Date()));
     setIsSubmitting(false);
     setJustLogged(false);
   };
 
-  const handleNext = () => setStep((s) => s + 1);
-  const handleBack = () => setStep((s) => s - 1);
+  // A repayment has its category already, so the sheet steps straight from
+  // the amount to the wallet and back again.
+  const handleNext = () => setStep((s) => (linkedDebt && s === STEPS.AMOUNT ? STEPS.WALLET : s + 1));
+  const handleBack = () => setStep((s) => (linkedDebt && s === STEPS.WALLET ? STEPS.AMOUNT : s - 1));
 
   /** The date and time the row is stamped with: a clock time only for today,
    *  since a backdated entry has no honest time of day to give. */
@@ -192,16 +207,30 @@ export default function QuickLog() {
         p_want_or_need: wantOrNeed || null,
         p_date: date,
         p_time: time,
+        // Only named when there is a debt to link: a database behind 029
+        // has no p_debt_id, and naming it would make PostgREST reject the
+        // call for an ordinary entry too.
+        ...(linkedDebt ? { p_debt_id: linkedDebt.id } : {}),
       });
 
-      if (error) throw error;
+      if (error) {
+        if (linkedDebt && isMissingFunctionError(error)) {
+          throw new Error('run supabase/migrations/029_debt_link.sql first');
+        }
+        throw error;
+      }
 
       // The real row is in the database now, and the realtime subscription
       // Transactions.jsx already holds will pick it up -- remove the
       // placeholder immediately rather than leaving both visible until the
       // TTL catches up.
       pendingTransactions.remove(submissionId);
-      finishLogged(`₦${numAmount.toLocaleString()} logged ✓`, getCategoryColor(category));
+      finishLogged(
+        linkedDebt
+          ? `₦${numAmount.toLocaleString()} counted toward ${linkedDebt.counterparty} ✓`
+          : `₦${numAmount.toLocaleString()} logged ✓`,
+        getCategoryColor(category),
+      );
     } catch (err) {
       console.error('Error logging transaction:', err);
       toast.error('Failed to log: ' + (err.message || 'check connection and retry'));
@@ -280,6 +309,17 @@ export default function QuickLog() {
 
   const renderAmount = () => (
     <div className="flex flex-col h-full space-y-6">
+      {linkedDebt ? (
+        <div className="flex items-center gap-3 bg-[#0f0f0f] rounded-xl px-4 py-3 border border-white/5">
+          <span className="text-xl" aria-hidden="true">🤝</span>
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-white truncate">
+              {type === 'credit' ? 'Repayment from' : 'Repayment to'} {linkedDebt.counterparty}
+            </p>
+            <p className="text-[11px] text-muted">Counts toward that debt on the Debts page</p>
+          </div>
+        </div>
+      ) : (
       <div className="flex bg-[#0f0f0f] rounded-xl p-1 border border-white/5">
         <button
           className={`flex-1 py-3 text-center rounded-lg text-xs font-bold transition-all min-h-[48px] ${type === 'debit' ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'text-muted hover:text-white'}`}
@@ -300,6 +340,7 @@ export default function QuickLog() {
           ⇄ Transfer
         </button>
       </div>
+      )}
 
       <div className="flex-1 flex flex-col items-center justify-center py-6">
         <label className="text-xs text-muted font-semibold uppercase tracking-wider mb-2">
@@ -556,6 +597,12 @@ export default function QuickLog() {
                 <span className="text-muted">Wallet</span>
                 <span className="text-white font-bold">{wallet?.name}</span>
               </div>
+              {linkedDebt && (
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted">Counts toward</span>
+                  <span className="text-white font-bold">🤝 {linkedDebt.counterparty}</span>
+                </div>
+              )}
             </>
           )}
           {txDate !== today && (
@@ -630,7 +677,7 @@ export default function QuickLog() {
             )}
 
             <div className="flex space-x-1.5">
-              {[1, 2, 3, 4, 5].map(s => (
+              {(linkedDebt ? [1, 3, 4, 5] : [1, 2, 3, 4, 5]).map(s => (
                 <div
                   key={s}
                   className={`h-1.5 rounded-full transition-all ${s === step ? 'w-6 bg-accent' : 'w-1.5 bg-white/20'}`}

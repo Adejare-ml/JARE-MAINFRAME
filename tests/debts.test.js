@@ -8,6 +8,10 @@ import {
   debtTotals,
   isRotating,
   payoffProjection,
+  repayingType,
+  linkedPayments,
+  paidTotal,
+  paidTotals,
 } from '../src/lib/debts.js'
 
 const NOW = new Date(2026, 7, 8) // 8 Aug 2026, local
@@ -199,5 +203,125 @@ describe('isRotating', () => {
     expect(isRotating('ajo')).toBe(true)
     expect(isRotating('esusu')).toBe(true)
     expect(isRotating('loan')).toBe(false)
+  })
+})
+
+describe('repayingType', () => {
+  it('is money out for what I owe, money in for what is owed to me', () => {
+    expect(repayingType({ direction: 'i_owe' })).toBe('debit')
+    expect(repayingType({ direction: 'owed_to_me' })).toBe('credit')
+  })
+
+  it('defaults to money out', () => {
+    expect(repayingType({})).toBe('debit')
+    expect(repayingType(null)).toBe('debit')
+  })
+})
+
+describe('linkedPayments', () => {
+  const debt = { id: 'd1', direction: 'i_owe', principal: 50000, amount_paid: 5000 }
+  const rows = [
+    { id: 't1', debt_id: 'd1', type: 'debit', amount: 10000, voided: false },
+    { id: 't2', debt_id: 'd1', type: 'debit', amount: 2500, voided: true }, // voided: does not count
+    { id: 't3', debt_id: 'd1', type: 'credit', amount: 999, voided: false }, // wrong direction
+    { id: 't4', debt_id: 'd2', type: 'debit', amount: 7000, voided: false }, // another debt
+    { id: 't5', debt_id: null, type: 'debit', amount: 7000 }, // unlinked
+    { id: 't6', debt_id: 'd1', type: 'debit', amount: 3000 }, // voided column absent (pre-006)
+  ]
+
+  it('keeps only this debt, the repaying direction, and rows not voided', () => {
+    expect(linkedPayments(rows, debt).map((r) => r.id)).toEqual(['t1', 't6'])
+  })
+
+  it('flips direction for money owed to me', () => {
+    const owed = { id: 'd1', direction: 'owed_to_me' }
+    expect(linkedPayments(rows, owed).map((r) => r.id)).toEqual(['t3'])
+  })
+
+  it('is empty without a debt id or rows', () => {
+    expect(linkedPayments(rows, {})).toEqual([])
+    expect(linkedPayments(null, debt)).toEqual([])
+  })
+})
+
+describe('paidTotal', () => {
+  const debt = { id: 'd1', direction: 'i_owe', principal: 50000, amount_paid: 5000 }
+
+  it('adds linked repayments on top of the typed baseline', () => {
+    const rows = [
+      { debt_id: 'd1', type: 'debit', amount: 10000 },
+      { debt_id: 'd1', type: 'debit', amount: '2500' },
+    ]
+    expect(paidTotal(debt, rows)).toBe(17500)
+  })
+
+  // The whole reason the total is derived rather than stored: undoing a
+  // payment is one flag on the row, not a reversal branch somewhere else.
+  it('un-counts a voided payment with no other write', () => {
+    const before = [{ debt_id: 'd1', type: 'debit', amount: 10000, voided: false }]
+    const after = [{ debt_id: 'd1', type: 'debit', amount: 10000, voided: true }]
+    expect(paidTotal(debt, before)).toBe(15000)
+    expect(paidTotal(debt, after)).toBe(5000)
+  })
+
+  it('is the baseline alone with no rows -- a database behind 029', () => {
+    expect(paidTotal(debt)).toBe(5000)
+    expect(paidTotal(debt, [])).toBe(5000)
+    expect(paidTotal({ id: 'x' }, [])).toBe(0)
+  })
+
+  it('keys every debt at once', () => {
+    const rows = [
+      { debt_id: 'a', type: 'debit', amount: 100 },
+      { debt_id: 'b', type: 'credit', amount: 40 },
+    ]
+    expect(
+      paidTotals(
+        [
+          { id: 'a', direction: 'i_owe', amount_paid: 1 },
+          { id: 'b', direction: 'owed_to_me', amount_paid: 2 },
+          { id: 'c', direction: 'i_owe' },
+        ],
+        rows,
+      ),
+    ).toEqual({ a: 101, b: 42, c: 0 })
+    expect(paidTotals(null, rows)).toEqual({})
+  })
+})
+
+describe('the paid override', () => {
+  const debt = { id: 'd1', direction: 'i_owe', principal: 50000, amount_paid: 5000 }
+
+  it('replaces amount_paid in outstanding and progress when supplied', () => {
+    expect(outstanding(debt)).toBe(45000)
+    expect(outstanding(debt, 20000)).toBe(30000)
+    expect(outstanding(debt, 60000)).toBe(0)
+    expect(repaymentProgress(debt)).toBe(0.1)
+    expect(repaymentProgress(debt, 25000)).toBe(0.5)
+  })
+
+  it('treats null and undefined as "not supplied", and zero as zero', () => {
+    expect(outstanding(debt, null)).toBe(45000)
+    expect(outstanding(debt, undefined)).toBe(45000)
+    expect(outstanding(debt, 0)).toBe(50000)
+  })
+
+  it('moves the payoff date with what the ledger says was paid', () => {
+    const typed = payoffProjection(debt, 10000, NOW)
+    const derived = payoffProjection(debt, 10000, NOW, 45000)
+    expect(typed.monthsRemaining).toBe(5)
+    expect(derived.monthsRemaining).toBe(1)
+    expect(payoffProjection(debt, 10000, NOW, 50000).monthsRemaining).toBe(0)
+  })
+
+  it('flows into the totals row through a paid map', () => {
+    const debts = [
+      { id: 'a', kind: 'loan', direction: 'i_owe', principal: 50000, amount_paid: 10000 },
+      { id: 'b', kind: 'loan', direction: 'owed_to_me', principal: 15000, amount_paid: 0 },
+    ]
+    expect(debtTotals(debts)).toMatchObject({ iOwe: 40000, owedToMe: 15000 })
+    expect(debtTotals(debts, { a: 30000, b: 15000 })).toMatchObject({ iOwe: 20000, owedToMe: 0 })
+    // A debt missing from the map keeps its typed figure.
+    expect(debtTotals(debts, { a: 30000 })).toMatchObject({ iOwe: 20000, owedToMe: 15000 })
   })
 })
