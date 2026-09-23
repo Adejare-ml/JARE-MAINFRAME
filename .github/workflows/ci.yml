@@ -33,6 +33,7 @@ jobs:
           node --check scripts/lib/assertProgress.mjs
           node --check scripts/lib/ownerId.mjs
           node --check scripts/lib/recordRun.mjs
+          node --check public/sw.js
 
       # `node --check` parses syntax without resolving imports, so it cannot see
       # a bad module path. That gap hid a missing `.js` in summary.js which made

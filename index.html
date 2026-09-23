@@ -8,6 +8,13 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <!-- Installable: the manifest names the icons and the standalone window;
+         public/sw.js caches the shell so the app opens offline. iOS reads
+         neither for its home-screen icon, so it gets its own 180px PNG. The
+         PNGs are the favicon rasterised (public/icons); the maskable one has
+         the glyph at 62% so any launcher mask leaves it whole. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <!-- Inter is self-hosted via @fontsource (see src/index.css). The Google
          Fonts <link> that was here was render-blocking, and it chained a
          second cross-origin fetch for the font files before anything painted:
