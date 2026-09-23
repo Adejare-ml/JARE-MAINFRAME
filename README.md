@@ -31,6 +31,16 @@ npm run build   # production build into dist/
 Database schema changes live in `supabase/migrations/`. Run them in the
 Supabase SQL Editor, in order.
 
+### Install it on your phone
+
+The app is installable: `public/manifest.webmanifest` names it and its
+icons, and `public/sw.js` caches the shell so it opens offline (pages then
+show their own error state with a Retry; nothing is written offline).
+Android and desktop Chrome offer "Install" from the address bar; on iOS use
+Share → Add to Home Screen. The service worker only registers in production
+builds, so `npm run dev` is unaffected. Lighthouse's "Installable" audit is
+the check that everything is wired.
+
 ## How transaction sync works
 
 Bank alert emails are read from Gmail and turned into transactions. Which
@@ -126,6 +136,15 @@ the app, the Actions secrets and the SQL editor must all point at the same
 project ref. The Migrations page only lists migrations applied through the
 CLI or MCP; anything pasted into the SQL editor never appears there even when
 it worked, so check the banner in the app, not that page.
+
+### The app shows an old build after a deploy
+
+`public/sw.js` serves navigations network-first, so a normal load picks up
+the new build; hashed assets under `/assets/` are cache-first because their
+names change with every build. If something still looks stale, reload once
+more (the worker updates in the background and takes over on the next
+load), or in DevTools → Application → Service Workers → Unregister. Bump
+`VERSION` in `public/sw.js` to purge every cache on the next activate.
 
 ### The scheduled sync stopped importing
 

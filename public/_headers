@@ -1,0 +1,8 @@
+# Cloudflare Pages serves real files before the /* -> /index.html redirect,
+# so these two are reachable; they must never be cached by the browser,
+# or an update to the worker or the manifest would wait out a CDN TTL.
+/sw.js
+  Cache-Control: no-cache
+
+/manifest.webmanifest
+  Cache-Control: no-cache
