@@ -25,9 +25,44 @@ beforeAll(async () => {
 
 const url = (path, origin = ORIGIN) => new URL(path, origin)
 
-describe('the worker registers the three lifecycle handlers', () => {
-  it('and nothing else', () => {
-    expect(Object.keys(globalThis.self.__listeners).sort()).toEqual(['activate', 'fetch', 'install'])
+describe('the worker registers its handlers', () => {
+  it('lifecycle, fetch, and the two for notifications -- nothing else', () => {
+    expect(Object.keys(globalThis.self.__listeners).sort()).toEqual([
+      'activate',
+      'fetch',
+      'install',
+      'notificationclick',
+      'push',
+    ])
+  })
+})
+
+describe('notificationFor', () => {
+  it('turns the digest payload into a notification with a same-origin tap target', () => {
+    const shown = routing.notificationFor(
+      JSON.stringify({ title: '2 things need you today', body: 'Rent due · 4 to review', url: '/debts' }),
+      ORIGIN,
+    )
+    expect(shown.title).toBe('2 things need you today')
+    expect(shown.options.body).toBe('Rent due · 4 to review')
+    expect(shown.options.data.url).toBe(`${ORIGIN}/debts`)
+    expect(shown.options.tag).toBe('jare-reminder')
+    expect(shown.options.icon).toBe('/icons/icon-192.png')
+  })
+
+  it('shows nothing for a malformed or empty push', () => {
+    expect(routing.notificationFor(null, ORIGIN)).toBeNull()
+    expect(routing.notificationFor('not json', ORIGIN)).toBeNull()
+    expect(routing.notificationFor(JSON.stringify({ body: 'no title' }), ORIGIN)).toBeNull()
+    expect(routing.notificationFor(JSON.stringify({ title: '   ' }), ORIGIN)).toBeNull()
+  })
+
+  it('never sends a tap off this origin', () => {
+    expect(routing.clickTarget('https://evil.example/phish', ORIGIN)).toBe(`${ORIGIN}/`)
+    expect(routing.clickTarget('//evil.example/phish', ORIGIN)).toBe(`${ORIGIN}/`)
+    expect(routing.clickTarget('/transactions?from=2026-07-01', ORIGIN)).toBe(`${ORIGIN}/transactions?from=2026-07-01`)
+    expect(routing.clickTarget(undefined, ORIGIN)).toBe(`${ORIGIN}/`)
+    expect(routing.clickTarget(42, ORIGIN)).toBe(`${ORIGIN}/`)
   })
 })
 
