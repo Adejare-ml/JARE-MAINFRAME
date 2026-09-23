@@ -37,6 +37,8 @@ export const CATEGORIES = {
     'Investment',
     'Cash Withdrawal',
     'Cash Received',
+    'Transfer Out',
+    'Transfer In',
   ],
   'Personal': [
     'Clothing & Fashion',
@@ -77,6 +79,8 @@ export const CATEGORY_ICONS = {
   'Investment': '📈',
   'Cash Withdrawal': '🏧',
   'Cash Received': '💵',
+  'Transfer Out': '↗️',
+  'Transfer In': '↘️',
   'Clothing & Fashion': '👕',
   'Entertainment': '🎬',
   'Dining Out': '🍽️',

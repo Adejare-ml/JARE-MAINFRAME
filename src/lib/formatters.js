@@ -136,6 +136,8 @@ export function getCategoryColor(category) {
     'Savings Transfer': 'bg-green-600',
     'Savings': 'bg-green-600',
     'Investment': 'bg-purple-600',
+    'Transfer Out': 'bg-teal-600',
+    'Transfer In': 'bg-teal-600',
     'Clothing & Fashion': 'bg-fuchsia-500',
     'Entertainment': 'bg-sky-500',
     'Dining Out': 'bg-orange-400',
