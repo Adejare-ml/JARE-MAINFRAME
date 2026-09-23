@@ -11,6 +11,7 @@ import ErrorState from '../components/ui/ErrorState'
 import Sheet from '../components/ui/Sheet'
 import CategoryRules from '../components/settings/CategoryRules'
 import CategoryBudgets from '../components/settings/CategoryBudgets'
+import CustomCategories from '../components/settings/CustomCategories'
 import SystemHealth from '../components/settings/SystemHealth'
 import ExportData from '../components/settings/ExportData'
 import { SettingsSkeleton } from '../components/ui/PageSkeleton'
@@ -858,6 +859,11 @@ export default function Settings() {
           {/* CATEGORY BUDGETS */}
           {/* ════════════════════════════════════════ */}
           <CategoryBudgets />
+
+          {/* ════════════════════════════════════════ */}
+          {/* CUSTOM CATEGORIES */}
+          {/* ════════════════════════════════════════ */}
+          <CustomCategories />
 
           {/* ════════════════════════════════════════ */}
           {/* SYSTEM HEALTH */}

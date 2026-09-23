@@ -1,4 +1,5 @@
-import { CATEGORIES, getCategoryIcon } from '../../lib/constants'
+import { getCategoryIcon } from '../../lib/constants'
+import { groupedCategories } from '../../lib/categories'
 
 /**
  * The icon + label grid itself, grouped by section -- no Sheet, no backdrop.
@@ -38,7 +39,7 @@ export default function CategoryPickerList({ value, onSelect, allowNone = false,
         </button>
       )}
 
-      {Object.entries(CATEGORIES).map(([section, cats]) => (
+      {Object.entries(groupedCategories()).map(([section, cats]) => (
         <div key={section} className="space-y-2">
           <h4 className="text-[11px] font-bold text-muted-dim uppercase tracking-widest">{section}</h4>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">

@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
 import { useSchemaCheck } from './hooks/useSchemaCheck'
+import { useCustomCategories } from './hooks/useCustomCategories'
 import ErrorBoundary from './components/ErrorBoundary'
 import Layout from './components/layout/Layout'
 import PageSkeleton from './components/ui/PageSkeleton'
@@ -26,6 +27,9 @@ function App() {
   // Runs alongside the session restore, so the two waits overlap and no page
   // can query before we know which columns exist.
   const { checking, pending } = useSchemaCheck()
+  // The user's own category names, loaded once the probe has said whether
+  // the table exists and a session says whose rows to ask for.
+  useCustomCategories(session?.user?.id, !checking)
 
   if (loading || checking) {
     return (
