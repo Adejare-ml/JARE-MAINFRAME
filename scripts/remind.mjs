@@ -6,30 +6,43 @@
  * repairs, milestones past their date, rows waiting for review -- and
  * turns it into one short digest (src/lib/reminders.js).
  *
- * This stage prints the digest and records the run. Sending it to a phone
- * is the next two stages: a push_subscriptions table the app fills from
- * Settings, then web-push from here. Until then every run is a dry run, so
- * the schedule, the reads and the wording can be watched in the Actions
- * log before a single notification goes out.
+ * Then sends it, as one web push, to every device that turned reminders
+ * on in Settings -> Reminders (push_subscriptions, migration 031). A push
+ * service answering 404 or 410 means the device is gone and its row is
+ * deleted; any other failure is stamped on the row and tried again next
+ * morning. A run that had devices and a digest and reached none of them
+ * fails, so the Actions issue says so.
+ *
+ * REMIND_DRY_RUN=1 prints what would be sent and to how many devices,
+ * without sending -- the way to watch a morning before trusting it.
  *
  * All the judgment lives in src/lib/reminders.js so it can be tested
  * without a network or a database. This file is wiring.
  */
 
 import { createClient } from '@supabase/supabase-js'
-import { buildReminderDigest } from '../src/lib/reminders.js'
+import webpush from 'web-push'
+import { buildReminderDigest, toPushPayload, classifySendError } from '../src/lib/reminders.js'
 import { toDateOnly, daysAgo } from '../src/lib/queries.js'
 import { resolveOwnerUserId } from './lib/ownerId.mjs'
 import { recordRun } from './lib/recordRun.mjs'
+import { assertProgress } from './lib/assertProgress.mjs'
 
 // ───────────────────────────────────────────────────────────────
 // 1. Configuration
 // ───────────────────────────────────────────────────────────────
 
-const { SUPABASE_URL, SUPABASE_SERVICE_KEY } = process.env
+const { SUPABASE_URL, SUPABASE_SERVICE_KEY, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY } = process.env
 
-/** Print the digest and stop. Always on until sending exists. */
+/** Print the digest and who would get it, then stop. */
 const DRY_RUN = process.env.REMIND_DRY_RUN === '1' || process.env.REMIND_DRY_RUN === 'true'
+
+/** A contact for the push services, per the VAPID spec. Not a secret. */
+const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'https://github.com/Adejare-ml/JARE-MAINFRAME'
+
+/** Six hours: a reminder that could not be delivered by lunchtime is
+ *  tomorrow's problem, not a stale ping at midnight. */
+const PUSH_TTL_SECONDS = 6 * 60 * 60
 
 /** How far back to look for recurring bills. detectRecurring needs three
  *  occurrences, so four months covers a monthly bill with one missed. */
@@ -112,7 +125,60 @@ async function readEverything(today) {
 }
 
 // ───────────────────────────────────────────────────────────────
-// 3. Run
+// 3. Send
+// ───────────────────────────────────────────────────────────────
+
+async function readSubscriptions() {
+  const { data, error } = await supabase
+    .from('push_subscriptions')
+    .select('id, endpoint, p256dh, auth, user_agent')
+    .eq('user_id', OWNER_USER_ID)
+  if (error) {
+    // A database behind 031 has no devices, which is a fact, not a failure.
+    if (!/relation .* does not exist|could not find the table/i.test(error.message || '')) {
+      console.warn(`   (push_subscriptions unavailable: ${error.message})`)
+    }
+    return []
+  }
+  return data || []
+}
+
+/**
+ * One push per device. Returns what happened to each so the summary and
+ * the exit code can be honest about it.
+ */
+async function sendToAll(subscriptions, payload) {
+  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)
+  const now = new Date().toISOString()
+  const outcome = { sent: 0, gone: 0, failed: 0 }
+
+  for (const row of subscriptions) {
+    const subscription = { endpoint: row.endpoint, keys: { p256dh: row.p256dh, auth: row.auth } }
+    try {
+      await webpush.sendNotification(subscription, payload, { TTL: PUSH_TTL_SECONDS })
+      outcome.sent++
+      await supabase.from('push_subscriptions').update({ last_used_at: now }).eq('id', row.id)
+      console.log(`   ✓ sent   ${describe(row)}`)
+    } catch (err) {
+      const verdict = classifySendError(err?.statusCode)
+      if (verdict === 'gone') {
+        outcome.gone++
+        await supabase.from('push_subscriptions').delete().eq('id', row.id)
+        console.log(`   ✗ gone   ${describe(row)} (${err.statusCode}) -- row removed`)
+      } else {
+        outcome.failed++
+        await supabase.from('push_subscriptions').update({ failed_at: now }).eq('id', row.id)
+        console.log(`   ✗ failed ${describe(row)} (${err?.statusCode || err?.message || 'no status'}) -- will retry tomorrow`)
+      }
+    }
+  }
+  return outcome
+}
+
+const describe = (row) => `${(row.user_agent || 'unknown device').slice(0, 60)} …${row.endpoint.slice(-12)}`
+
+// ───────────────────────────────────────────────────────────────
+// 4. Run
 // ───────────────────────────────────────────────────────────────
 
 async function main() {
@@ -143,9 +209,37 @@ async function main() {
   for (const item of digest.items) console.log(`   • [${item.kind}] ${item.text}`)
   console.log('─'.repeat(64))
 
-  // Sending lands with the push subscriptions (Stages 20-21). Until then
-  // the digest above is the whole output, dry run or not.
-  console.log(DRY_RUN ? 'Dry run: nothing sent.' : 'No delivery channel yet: nothing sent.')
+  const subscriptions = await readSubscriptions()
+  if (subscriptions.length === 0) {
+    console.log('No device has turned reminders on (Settings → Reminders). Nothing to send to.')
+    return
+  }
+
+  const payload = toPushPayload(digest)
+  if (DRY_RUN) {
+    console.log(`Dry run: would send ${payload.length}-byte payload to ${subscriptions.length} device(s):`)
+    for (const row of subscriptions) console.log(`   · ${describe(row)}`)
+    return
+  }
+
+  const haveKeys = Boolean(VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY)
+  if (!haveKeys) {
+    console.log(`${subscriptions.length} device(s) waiting, but VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY are not set.`)
+    console.log('   Generate them with `node scripts/generate-vapid.mjs` and add the Actions secrets.')
+  }
+
+  const outcome = haveKeys ? await sendToAll(subscriptions, payload) : { sent: 0, gone: 0, failed: 0 }
+  console.log(`\n📱 ${outcome.sent} sent, ${outcome.gone} gone (removed), ${outcome.failed} failed (kept)`)
+
+  // Devices were waiting and a digest existed: reaching none of them is
+  // the one outcome the error handling above cannot see on its own.
+  assertProgress([
+    { ok: haveKeys, reason: 'devices are subscribed but the VAPID keys are not configured' },
+    {
+      ok: !haveKeys || outcome.sent > 0 || outcome.gone === subscriptions.length,
+      reason: `no device received the digest (${outcome.failed} failed, ${outcome.gone} gone)`,
+    },
+  ])
 }
 
 main()

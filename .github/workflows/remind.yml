@@ -37,6 +37,13 @@ jobs:
           # decides; a manual run passes what the button said.
           REMIND_DRY_RUN: ${{ inputs.dry_run }}
           REMIND_LOOKBACK_DAYS: ${{ vars.REMIND_LOOKBACK_DAYS }}
+          # The pair from `node scripts/generate-vapid.mjs`. The public half
+          # is also the Cloudflare build variable VITE_VAPID_PUBLIC_KEY; the
+          # private half lives here and nowhere else.
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          # A contact for the push services (mailto: or https:). Optional.
+          VAPID_SUBJECT: ${{ vars.VAPID_SUBJECT }}
 
       # Same shape as every other cron's failure step: one issue, reopened
       # and commented on, rather than a new one every morning.
@@ -56,6 +63,10 @@ jobs:
               '- A missing secret — check the env block in the run log for a blank value.',
               '- `OWNER_USER_ID` could not be resolved — more than one account in auth.users.',
               '- A table error on debts or transactions — a migration has not been run.',
+              '- Devices are subscribed but `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` are',
+              '  not set — run `node scripts/generate-vapid.mjs` and add the secrets.',
+              '- Every send failed — the log names each device and the status code; a',
+              '  404/410 removes the device, anything else is retried tomorrow.',
               '',
               'Repairs, projects and milestones are optional: a database without them',
               'costs the digest those lines, not the run.',
