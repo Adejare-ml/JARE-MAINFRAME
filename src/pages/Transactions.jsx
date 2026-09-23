@@ -101,6 +101,25 @@ export default function Transactions() {
   const [search, setSearch] = useState('')
   const [activeSearch, setActiveSearch] = useState('')
 
+  // Counterparty per debt id, so a linked repayment row can say who it paid
+  // rather than just that it paid someone. Loaded once; the table is tiny
+  // and a database behind 029 has no rows that would need it.
+  const [debtNames, setDebtNames] = useState({})
+  useEffect(() => {
+    if (!hasColumn('transactions.debt_id')) return
+    let cancelled = false
+    supabase
+      .from('debts')
+      .select('id, counterparty')
+      .then(({ data, error }) => {
+        if (cancelled || error || !data) return
+        setDebtNames(Object.fromEntries(data.map((d) => [d.id, d.counterparty])))
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   // Bulk selection. Deliberately a set of explicit ids and never "everything
   // matching the current filter": a mis-tap that recategorises 400 rows is not
   // undoable, and it would teach the corrections table the wrong lesson too.
@@ -940,6 +959,14 @@ export default function Transactions() {
                             'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
                           }`}>
                             {t.want_or_need}
+                          </span>
+                        )}
+                        {t.debt_id && (
+                          <span
+                            className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-teal-500/15 text-teal-300 border border-teal-500/30 truncate max-w-[140px]"
+                            title="Counts toward this debt"
+                          >
+                            🤝 {debtNames[t.debt_id] || 'Debt'}
                           </span>
                         )}
                       </div>

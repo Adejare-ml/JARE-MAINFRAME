@@ -114,6 +114,13 @@ describe('gated column lists', () => {
     // No leading, trailing or doubled commas from filtering something out.
     expect(transactionListColumns()).not.toMatch(/^,|,$|,\s*,/)
   })
+
+  it('asks for debt_id only once 029 has run', () => {
+    expect(transactionListColumns()).toContain('debt_id')
+    setSchemaCapabilities(['transactions.debt_id'])
+    expect(transactionListColumns()).not.toContain('debt_id')
+    expect(transactionListColumns()).toContain('want_or_need')
+  })
 })
 
 describe('a missing table, not just a missing column', () => {

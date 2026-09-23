@@ -21,21 +21,77 @@ export const KINDS = [
 export const isRotating = (kind) => kind === 'ajo' || kind === 'esusu'
 
 /**
+ * Which ledger direction repays a debt: money leaving for what I owe, money
+ * arriving for what is owed to me.
+ * @returns {'debit'|'credit'}
+ */
+export function repayingType(debt) {
+  return debt?.direction === 'owed_to_me' ? 'credit' : 'debit'
+}
+
+/**
+ * The ledger rows that count as repayment of this debt: linked to it, not
+ * voided, and in the repaying direction. A voided row drops out here rather
+ * than needing a reversal anywhere -- that is the point of deriving the
+ * total instead of bumping `amount_paid` on every payment.
+ *
+ * @param {object[]} rows - transactions with at least debt_id, type, amount, voided
+ * @param {object} debt
+ */
+export function linkedPayments(rows, debt) {
+  if (!debt?.id) return []
+  const type = repayingType(debt)
+  return (rows || []).filter(
+    (row) => row?.debt_id === debt.id && !row.voided && row.type === type,
+  )
+}
+
+/**
+ * Everything paid on a debt: the typed baseline (`amount_paid`, what was
+ * paid before the ledger link existed) plus every linked repayment row.
+ *
+ * @param {object} debt
+ * @param {object[]} [rows] - linked transactions, any debt's; filtered here
+ */
+export function paidTotal(debt, rows = []) {
+  const baseline = Number(debt?.amount_paid) || 0
+  return linkedPayments(rows, debt).reduce((sum, row) => sum + (Number(row.amount) || 0), baseline)
+}
+
+/** paidTotal for every debt at once, keyed by id. */
+export function paidTotals(debts, rows = []) {
+  const out = {}
+  for (const debt of debts || []) {
+    if (debt?.id) out[debt.id] = paidTotal(debt, rows)
+  }
+  return out
+}
+
+/** The paid figure a caller supplied, or the typed one on the row. */
+function paidOr(debt, paid) {
+  return paid == null ? Number(debt?.amount_paid) || 0 : Number(paid) || 0
+}
+
+/**
  * What is still outstanding on a loan.
+ * @param {object} debt
+ * @param {number} [paid] - total paid, when derived from the ledger; defaults to `amount_paid`
  * @returns {number} never negative -- overpayment reads as settled, not as a debt owed back
  */
-export function outstanding(debt) {
-  return Math.max(0, (Number(debt?.principal) || 0) - (Number(debt?.amount_paid) || 0))
+export function outstanding(debt, paid) {
+  return Math.max(0, (Number(debt?.principal) || 0) - paidOr(debt, paid))
 }
 
 /**
  * Progress through a loan, 0..1.
+ * @param {object} debt
+ * @param {number} [paid] - as for outstanding
  * @returns {number|null} null when there is no principal to measure against
  */
-export function repaymentProgress(debt) {
+export function repaymentProgress(debt, paid) {
   const principal = Number(debt?.principal) || 0
   if (principal <= 0) return null
-  return Math.min(1, (Number(debt?.amount_paid) || 0) / principal)
+  return Math.min(1, paidOr(debt, paid) / principal)
 }
 
 /**
@@ -75,11 +131,12 @@ export function cycleStatus(debt) {
  * @param {object} debt
  * @param {number} monthlyPayment
  * @param {Date} [now]
+ * @param {number} [paid] - as for outstanding
  * @returns {{monthsRemaining: number, payoffDate: string} | null} null when
  *   there is a balance left but no payment to project it forward with
  */
-export function payoffProjection(debt, monthlyPayment, now = new Date()) {
-  const remaining = outstanding(debt)
+export function payoffProjection(debt, monthlyPayment, now = new Date(), paid) {
+  const remaining = outstanding(debt, paid)
   if (remaining <= 0) return { monthsRemaining: 0, payoffDate: dateOnly(now) }
 
   const payment = Number(monthlyPayment) || 0
@@ -144,8 +201,12 @@ export function upcomingDebts(debts, withinDays = 7, now = new Date()) {
 /**
  * Totals for the summary row. Rotating savings are counted at what you have
  * put in so far, not at the pot: the money is contributed, not owed.
+ *
+ * @param {object[]} debts
+ * @param {Record<string, number>} [paidByDebt] - from paidTotals, when the
+ *   ledger link is live; without it the typed amount_paid is used
  */
-export function debtTotals(debts) {
+export function debtTotals(debts, paidByDebt = {}) {
   let iOwe = 0
   let owedToMe = 0
   let inCycles = 0
@@ -158,8 +219,9 @@ export function debtTotals(debts) {
       continue
     }
 
-    if (debt.direction === 'i_owe') iOwe += outstanding(debt)
-    else owedToMe += outstanding(debt)
+    const left = outstanding(debt, paidByDebt[debt.id])
+    if (debt.direction === 'i_owe') iOwe += left
+    else owedToMe += left
   }
 
   return { iOwe, owedToMe, inCycles }

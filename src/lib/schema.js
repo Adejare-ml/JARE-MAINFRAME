@@ -107,6 +107,12 @@ export const GATED_COLUMNS = {
   // The Repairs module, same story as 026: a hand-made table with no owner
   // column until the migration runs.
   'repairs.user_id': '027_repairs.sql',
+
+  // The link from a repayment row to its debt. Selected by the ledger list
+  // (so it is in GATED_LIST_COLUMNS too) and the reason Debts.jsx shows a
+  // "Log payment" button at all; a database behind 029 keeps the typed
+  // amount_paid as the whole answer.
+  'transactions.debt_id': '029_debt_link.sql',
 }
 
 /**
