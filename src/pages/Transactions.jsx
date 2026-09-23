@@ -19,6 +19,8 @@ import {
   needsReview,
   excludeVoided,
   voidedOnly,
+  applyTransactionSort,
+  SORT_OPTIONS,
 } from '../lib/queries'
 import { validateCorrection, isMissingFunctionError } from '../lib/corrections'
 import { hasColumn } from '../lib/schema'
@@ -45,9 +47,20 @@ export default function Transactions() {
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   // Deep links from the Budget breakdown arrive as /transactions?category=Rent.
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const initialCategory = searchParams.get('category')
   const [filter, setFilter] = useState(initialCategory ? `category:${initialCategory}` : 'All')
+  // Range, direction and order live in the URL too, so a filtered view can
+  // be bookmarked or sent, and survives a refresh.
+  const [range, setRange] = useState(() => ({
+    from: searchParams.get('from') || '',
+    to: searchParams.get('to') || '',
+    type: searchParams.get('type') || 'all',
+  }))
+  const [sort, setSort] = useState(() => searchParams.get('sort') || 'newest')
+  const [showFilters, setShowFilters] = useState(
+    () => Boolean(searchParams.get('from') || searchParams.get('to') || searchParams.get('type') || searchParams.get('sort')),
+  )
   const [expandedId, setExpandedId] = useState(null)
   // The id of the row currently showing its swiped-open Void button, or
   // null. One at a time, same reasoning as expandedId -- a second row
@@ -120,19 +133,7 @@ export default function Transactions() {
       // has already gone.
       let query = filter === 'Voided' ? voidedOnly(base) : excludeVoided(base)
 
-      // The review queue is ordered by what a mistake costs, biggest first. A
-      // mis-parsed ₦50,000 transfer is worth catching; a mis-categorised ₦150
-      // airtime top-up is not worth scrolling for. Everything else reads as a
-      // ledger, so it stays newest-first.
-      if (filter === 'Review') {
-        query = query
-          .order('amount', { ascending: false })
-          .order('transaction_date', { ascending: false })
-      } else {
-        query = query
-          .order('transaction_date', { ascending: false })
-          .order('created_at', { ascending: false })
-      }
+      query = applyTransactionSort(query, filter, sort)
 
       // One extra row, purely to know whether a "Load more" button belongs on
       // screen without paying for a separate count query.
@@ -141,6 +142,7 @@ export default function Transactions() {
         filter,
         currentWallets,
         activeSearch,
+        range,
       )
 
       const { data, error } = await query
@@ -149,7 +151,7 @@ export default function Transactions() {
       const rows = data || []
       return { rows: rows.slice(0, size), hasMore: rows.length > size }
     },
-    [filter, activeSearch],
+    [filter, activeSearch, sort, range],
   )
 
   const fetchData = useCallback(async () => {
@@ -199,6 +201,42 @@ export default function Transactions() {
   }, [fetchData])
 
   useRealtimeRefresh(['transactions'], fetchData, { channelPrefix: 'transactions_page' })
+
+  // Mirror range, direction and order into the URL; defaults are dropped so
+  // a plain visit keeps a plain address.
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams)
+    const wanted = [
+      ['from', range.from, ''],
+      ['to', range.to, ''],
+      ['type', range.type, 'all'],
+      ['sort', sort, 'newest'],
+    ]
+    for (const [key, value, fallback] of wanted) {
+      if (value && value !== fallback) next.set(key, value)
+      else next.delete(key)
+    }
+    if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [range, sort])
+
+  const rangeSummary = [
+    range.from && range.to
+      ? `${range.from} → ${range.to}`
+      : range.from
+        ? `from ${range.from}`
+        : range.to
+          ? `to ${range.to}`
+          : '',
+    range.type === 'debit' ? 'money out' : range.type === 'credit' ? 'money in' : '',
+  ]
+    .filter(Boolean)
+    .join(', ')
+
+  const clearRange = () => {
+    setRange({ from: '', to: '', type: 'all' })
+    setSort('newest')
+  }
 
   const handleLoadMore = async () => {
     setLoadingMore(true)
@@ -579,6 +617,89 @@ export default function Transactions() {
         <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted text-sm pointer-events-none">
           🔍
         </span>
+      </div>
+
+      {/* Range, direction and order. Collapsed by default: the chips answer
+          most questions, and three more controls above every visit would
+          push the ledger itself below the fold on a phone. */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={() => setShowFilters((v) => !v)}
+            aria-expanded={showFilters}
+            className="text-xs font-semibold text-muted hover:text-white min-h-[40px] px-1"
+          >
+            {showFilters ? 'Hide filters' : 'Filters'}
+            {rangeSummary ? ` · ${rangeSummary}` : ''}
+          </button>
+          {(rangeSummary || sort !== 'newest') && (
+            <button type="button" onClick={clearRange} className="text-xs font-semibold text-accent min-h-[40px] px-1">
+              Clear
+            </button>
+          )}
+        </div>
+        {showFilters && (
+          <div className="bg-card rounded-2xl border border-white/5 p-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <label className="text-xs text-muted">
+              From
+              <input
+                type="date"
+                value={range.from}
+                max={range.to || undefined}
+                onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))}
+                className="mt-1 w-full px-3 py-2 bg-background border border-white/10 rounded-xl text-white text-sm min-h-[44px] focus:outline-none focus:border-accent"
+              />
+            </label>
+            <label className="text-xs text-muted">
+              To
+              <input
+                type="date"
+                value={range.to}
+                min={range.from || undefined}
+                onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))}
+                className="mt-1 w-full px-3 py-2 bg-background border border-white/10 rounded-xl text-white text-sm min-h-[44px] focus:outline-none focus:border-accent"
+              />
+            </label>
+            <div className="text-xs text-muted">
+              Direction
+              <div className="mt-1 flex bg-background rounded-xl border border-white/10 p-0.5" role="group" aria-label="Direction">
+                {[
+                  ['all', 'All'],
+                  ['debit', 'Out'],
+                  ['credit', 'In'],
+                ].map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setRange((r) => ({ ...r, type: id }))}
+                    aria-pressed={range.type === id}
+                    className={`flex-1 py-2 rounded-lg text-xs font-semibold min-h-[40px] ${
+                      range.type === id ? 'bg-accent text-black' : 'text-muted hover:text-white'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <label className="text-xs text-muted">
+              Order
+              <select
+                value={sort}
+                onChange={(e) => setSort(e.target.value)}
+                disabled={filter === 'Review'}
+                className="mt-1 w-full px-3 py-2 bg-background border border-white/10 rounded-xl text-white text-sm min-h-[44px] focus:outline-none focus:border-accent disabled:opacity-50"
+              >
+                {SORT_OPTIONS.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
       </div>
 
       {/* Filter Chips Horizontal Scroll */}

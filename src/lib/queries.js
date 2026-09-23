@@ -1,5 +1,6 @@
 import { walletSource } from './sync/wallets.js'
 import { hasColumn } from './schema.js'
+import { isValidDate } from './sync/normalize.js'
 
 /**
  * Shared Supabase query helpers for transactions.
@@ -268,6 +269,26 @@ export function endOfMonth(date = new Date()) {
   return toDateOnly(new Date(date.getFullYear(), date.getMonth() + 1, 0))
 }
 
+/** The 1st of the month `n` months from `date`'s month. Day-of-month is
+ *  dropped first, so the 31st shifted one month never rolls into the next. */
+export function shiftMonth(date = new Date(), n = 0) {
+  return new Date(date.getFullYear(), date.getMonth() + n, 1)
+}
+
+/** A `?month=YYYY-MM` value as a Date on the 1st, or null when it is not one. */
+export function parseMonthParam(raw) {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(raw || '').trim())
+  if (!m) return null
+  const month = Number(m[2])
+  if (month < 1 || month > 12) return null
+  return new Date(Number(m[1]), month - 1, 1)
+}
+
+/** Same calendar month as `now`, whatever the day. */
+export function isCurrentMonth(date, now = new Date()) {
+  return startOfMonth(date) === startOfMonth(now)
+}
+
 /** Longest search term we send. Beyond this it is a paste, not a search. */
 const SEARCH_MAX = 60
 
@@ -369,9 +390,11 @@ export function combineOrGroups(groups) {
  * @param {string} filter - filter id, e.g. 'All' or 'wallet:<uuid>'
  * @param {object[]} wallets
  * @param {string} search - free text; ignored when shorter than two characters
+ * @param {{from?: string, to?: string, type?: string}} [range] - a date range
+ *   (YYYY-MM-DD, inclusive) and a direction, stacked on top of the chip
  * @returns {object} the query with the filter applied
  */
-export function applyTransactionFilter(query, filter, wallets = [], search = '') {
+export function applyTransactionFilter(query, filter, wallets = [], search = '', range = {}) {
   // Collected rather than applied inline, because a wallet chip and a search
   // both want an OR and only one `or=` may be sent. See combineOrGroups.
   const orGroups = []
@@ -403,11 +426,53 @@ export function applyTransactionFilter(query, filter, wallets = [], search = '')
     }
   }
 
+  // A range and a direction stack on whichever chip is active -- "Transport,
+  // last quarter, money out" is one question, not three. A malformed date is
+  // ignored rather than sent: PostgREST would 400 the whole page for it.
+  if (isValidDate(range?.from)) query = query.gte('transaction_date', range.from)
+  if (isValidDate(range?.to)) query = query.lte('transaction_date', range.to)
+  if (range?.type === 'debit' || range?.type === 'credit') query = query.eq('type', range.type)
+
   const search_ = searchConditions(search)
   if (search_) orGroups.push(search_)
 
   const combined = combineOrGroups(orGroups)
   return combined ? query.or(combined) : query
+}
+
+export const SORT_OPTIONS = [
+  { id: 'newest', label: 'Newest first' },
+  { id: 'oldest', label: 'Oldest first' },
+  { id: 'largest', label: 'Largest first' },
+  { id: 'smallest', label: 'Smallest first' },
+]
+
+/**
+ * The order rows come back in.
+ *
+ * The review queue always reads by what a mistake costs, biggest first: a
+ * mis-parsed ₦50,000 transfer is worth catching, a mis-categorised ₦150
+ * airtime top-up is not worth scrolling for. Everything else is a ledger,
+ * newest first unless asked otherwise.
+ *
+ * @param {object} query - a supabase query builder on `transactions`
+ * @param {string} filter - the active chip
+ * @param {'newest'|'oldest'|'largest'|'smallest'} [sort]
+ */
+export function applyTransactionSort(query, filter, sort = 'newest') {
+  if (filter === 'Review') {
+    return query.order('amount', { ascending: false }).order('transaction_date', { ascending: false })
+  }
+  if (sort === 'oldest') {
+    return query.order('transaction_date', { ascending: true }).order('created_at', { ascending: true })
+  }
+  if (sort === 'largest') {
+    return query.order('amount', { ascending: false }).order('transaction_date', { ascending: false })
+  }
+  if (sort === 'smallest') {
+    return query.order('amount', { ascending: true }).order('transaction_date', { ascending: false })
+  }
+  return query.order('transaction_date', { ascending: false }).order('created_at', { ascending: false })
 }
 
 /**
