@@ -907,6 +907,7 @@ export default function Settings() {
         <div className="p-6 relative overflow-y-auto">
             <button
               onClick={() => setShowWalletModal(false)}
+              aria-label="Close"
               className="absolute top-4 right-4 text-muted hover:text-white w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10"
             >
               ✕
