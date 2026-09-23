@@ -21,6 +21,8 @@ export const JOBS = [
   { id: 'snapshot-net-worth', label: 'Net worth snapshot', staleAfterHours: 30 },
   { id: 'weekly-recap', label: 'Weekly recap', staleAfterHours: 8 * 24 },
   { id: 'plan-month', label: 'Month plan', staleAfterHours: 33 * 24 },
+  // Every morning at 07:30 Lagos.
+  { id: 'remind', label: 'Morning reminder', staleAfterHours: 30 },
 ]
 
 export function hoursBetween(from, to) {
