@@ -88,6 +88,25 @@ Two entry points, one implementation:
 
 Everything they share lives in `src/lib/sync/`.
 
+### Since 23 Sep 2026: the mailbox is read by a Claude scheduled task
+
+The token-based sync above is retired from the schedule (the workflow
+still runs by hand for a backfill). Its Google refresh token expired every
+seven days while the OAuth app sat in "Testing" status, and it had been
+failing on `invalid_grant` since mid-August.
+
+The owner's Claude scheduled task ("Daily spending audit", 08:00 UTC)
+already reads the same GTBank, OPay and Stanbic alerts through Claude's own
+Gmail connection, with nothing to keep alive. It now also writes each
+alert into the ledger through one function, `ingest_alert_transaction`
+(`supabase/migrations/032_alert_ingest.sql`), and records its run with
+`record_sync_run`. Everything the sync used to enforce lives in that
+function: the owner is resolved, the wallet must exist by slug, the id is
+the Gmail message id so a re-run inserts nothing, an alert the old sync
+already imported is refused by its natural key, and a wallet balance never
+moves backwards. Low-confidence rows land in the review queue exactly as
+before. Settings → System shows the task as "Bank alerts (Claude audit)".
+
 ### Parse strategy
 
 Each wallet chooses how its alerts are read, in Settings → Banks & Wallets:
