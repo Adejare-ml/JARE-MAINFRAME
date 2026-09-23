@@ -92,8 +92,19 @@ export const CATEGORY_ICONS = {
 
 export const ALL_CATEGORIES = Object.values(CATEGORIES).flat()
 
+// Icons for names that only exist at runtime -- the user's custom categories
+// (src/lib/categories.js). Registered rather than imported, because that
+// module imports this one, and this file must stay dependency-free for the
+// sync scripts that load it under Node.
+let runtimeIcons = {}
+
+/** Replace the runtime icon set. Called by categories.js on every load. */
+export function registerCategoryIcons(icons) {
+  runtimeIcons = { ...(icons || {}) }
+}
+
 export function getCategoryIcon(category) {
-  return CATEGORY_ICONS[category] || '📦'
+  return CATEGORY_ICONS[category] || runtimeIcons[category] || '📦'
 }
 
 /**

@@ -113,6 +113,11 @@ export const GATED_COLUMNS = {
   // "Log payment" button at all; a database behind 029 keeps the typed
   // amount_paid as the whole answer.
   'transactions.debt_id': '029_debt_link.sql',
+
+  // The user's own category names. A whole table, so a database behind 030
+  // costs the Settings section a notice and leaves every picker on the
+  // built-in list -- which is exactly what it showed before.
+  'categories.name': '030_categories.sql',
 }
 
 /**

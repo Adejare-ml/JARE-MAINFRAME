@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { toast } from '../../lib/toast';
-import { CATEGORIES, getCategoryIcon } from '../../lib/constants';
+import { getCategoryIcon } from '../../lib/constants';
+import { groupedCategories } from '../../lib/categories';
 import { getCategoryColor } from '../../lib/formatters';
 import { toDateOnly } from '../../lib/queries';
 import { pendingTransactions } from '../../lib/pendingTransactions';
@@ -383,7 +384,7 @@ export default function QuickLog() {
       <p className="text-xs font-semibold text-muted uppercase tracking-wider">Select Category</p>
 
       <div className="flex-1 overflow-y-auto pr-1 pb-16 space-y-4 max-h-[50vh]">
-        {Object.entries(CATEGORIES || {}).map(([section, cats]) => (
+        {Object.entries(groupedCategories()).map(([section, cats]) => (
           <div key={section} className="space-y-2">
             <h4 className="text-[11px] font-bold text-muted-dim uppercase tracking-widest">{section}</h4>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
