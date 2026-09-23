@@ -101,6 +101,47 @@ function milestoneItems(projects, milestones, today, now) {
 
 const cut = (text, max) => (text.length <= max ? text : `${text.slice(0, max - 1).trimEnd()}…`)
 
+/** Web push payloads are capped around 4 KB by the push services. */
+export const PAYLOAD_MAX_BYTES = 3500
+
+/**
+ * What goes over the wire: the three fields public/sw.js reads, nothing
+ * else. The item list is for logs and the app, not the lock screen.
+ *
+ * @param {{title: string, body: string, url: string}} digest
+ * @returns {string} JSON
+ */
+export function toPushPayload(digest) {
+  const payload = JSON.stringify({
+    title: cut(String(digest?.title || ''), TITLE_MAX),
+    body: cut(String(digest?.body || ''), BODY_MAX),
+    url: typeof digest?.url === 'string' && digest.url.startsWith('/') ? digest.url : '/',
+  })
+  // TextEncoder rather than Buffer: this module is shared with the browser
+  // build, which has no Buffer.
+  const bytes = new TextEncoder().encode(payload).length
+  if (bytes > PAYLOAD_MAX_BYTES) {
+    throw new Error(`push payload is ${bytes} bytes; the cap is ${PAYLOAD_MAX_BYTES}`)
+  }
+  return payload
+}
+
+/**
+ * What to do with a subscription after a failed send.
+ *
+ * 404 and 410 are the push service saying the subscription no longer
+ * exists -- the browser unsubscribed, the app was uninstalled, the keys
+ * rotated -- so the row is deleted. Anything else (a 5xx, a 429, a network
+ * error with no status) is a bad morning, not a dead device, and the row
+ * is stamped instead so the next run tries again.
+ *
+ * @param {number|undefined|null} statusCode
+ * @returns {'gone'|'retry'}
+ */
+export function classifySendError(statusCode) {
+  return statusCode === 404 || statusCode === 410 ? 'gone' : 'retry'
+}
+
 /**
  * Build the digest, or null when there is nothing worth saying.
  *

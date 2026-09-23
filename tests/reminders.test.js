@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildReminderDigest, KIND_URLS, BODY_MAX, TITLE_MAX } from '../src/lib/reminders.js'
+import { buildReminderDigest, toPushPayload, classifySendError, KIND_URLS, BODY_MAX, TITLE_MAX, PAYLOAD_MAX_BYTES } from '../src/lib/reminders.js'
 
 const TODAY = '2026-08-08'
 
@@ -144,5 +144,44 @@ describe('size', () => {
     expect(digest.title.length).toBeLessThanOrEqual(TITLE_MAX)
     expect(digest.body.length).toBeLessThanOrEqual(BODY_MAX)
     expect(digest.body.endsWith('…')).toBe(true)
+  })
+})
+
+describe('toPushPayload', () => {
+  it('sends only what the worker reads', () => {
+    const digest = buildReminderDigest({ today: TODAY, unreviewedCount: 3 })
+    expect(JSON.parse(toPushPayload(digest))).toEqual({
+      title: '3 transactions to review',
+      body: '3 transactions to review',
+      url: '/transactions',
+    })
+  })
+
+  it('never carries a url off the app', () => {
+    expect(JSON.parse(toPushPayload({ title: 't', body: 'b', url: 'https://evil.example' })).url).toBe('/')
+    expect(JSON.parse(toPushPayload({ title: 't', body: 'b' })).url).toBe('/')
+  })
+
+  it('stays well inside the push services\' cap', () => {
+    const digest = buildReminderDigest({
+      today: TODAY,
+      debts: Array.from({ length: 40 }, (_, i) => ({
+        id: String(i), kind: 'loan', direction: 'i_owe', counterparty: `Someone ${i}`, principal: 5000, due_date: TODAY,
+      })),
+    })
+    expect(Buffer.byteLength(toPushPayload(digest), 'utf8')).toBeLessThan(PAYLOAD_MAX_BYTES)
+  })
+})
+
+describe('classifySendError', () => {
+  it('deletes only on the two "this subscription is gone" codes', () => {
+    expect(classifySendError(404)).toBe('gone')
+    expect(classifySendError(410)).toBe('gone')
+  })
+
+  it('keeps the row for anything that might be a bad morning', () => {
+    for (const code of [400, 401, 403, 413, 429, 500, 502, 503, undefined, null]) {
+      expect(classifySendError(code)).toBe('retry')
+    }
   })
 })

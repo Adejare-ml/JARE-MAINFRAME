@@ -31,6 +31,7 @@ jobs:
           node --check scripts/snapshot-net-worth.mjs
           node --check scripts/weekly-recap.mjs
           node --check scripts/remind.mjs
+          node --check scripts/generate-vapid.mjs
           node --check scripts/lib/assertProgress.mjs
           node --check scripts/lib/ownerId.mjs
           node --check scripts/lib/recordRun.mjs

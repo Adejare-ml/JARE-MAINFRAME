@@ -41,6 +41,27 @@ Share → Add to Home Screen. The service worker only registers in production
 builds, so `npm run dev` is unaffected. Lighthouse's "Installable" audit is
 the check that everything is wired.
 
+### Reminders on your phone
+
+One notification each morning at 07:30 with what needs you (debts due,
+bills expected, urgent repairs, milestones past their date, rows waiting
+for review); nothing on a quiet day. Four steps, once:
+
+1. `node scripts/generate-vapid.mjs` prints a key pair.
+2. Put the public key in the Cloudflare Pages build variable
+   `VITE_VAPID_PUBLIC_KEY` and the Actions secret `VAPID_PUBLIC_KEY`; put
+   the private key in the Actions secret `VAPID_PRIVATE_KEY` only.
+3. Redeploy, then on each phone open Settings → Reminders and tap **Turn on
+   for this device** (iPhone: install to the Home Screen first, then open
+   the app from there).
+4. Run the **Morning Reminder** workflow by hand with `dry_run` set to
+   `false` and watch for the notification. The log names every device and
+   what the push service said.
+
+A device the push service reports gone is removed automatically; any other
+failure is retried the next morning and shown as "Last send failed" in
+Settings.
+
 ## How transaction sync works
 
 Bank alert emails are read from Gmail and turned into transactions. Which
