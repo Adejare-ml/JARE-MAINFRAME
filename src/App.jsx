@@ -11,6 +11,7 @@ import PageSkeleton from './components/ui/PageSkeleton'
 // which meant typing an email address cost you the 800-line Settings page and
 // the whole Debts module first.
 import Login from './pages/Login'
+import ResetPassword from './pages/ResetPassword'
 
 const DailyHQ = lazy(() => import('./pages/DailyHQ'))
 const Budget = lazy(() => import('./pages/Budget'))
@@ -23,7 +24,7 @@ const Repairs = lazy(() => import('./pages/Repairs'))
 const Ask = lazy(() => import('./pages/Ask'))
 
 function App() {
-  const { session, loading, signIn, signOut } = useAuth()
+  const { session, loading, recovering, signIn, signOut, resetPassword, updatePassword, finishRecovery } = useAuth()
   // Runs alongside the session restore, so the two waits overlap and no page
   // can query before we know which columns exist.
   const { checking, pending } = useSchemaCheck()
@@ -42,8 +43,28 @@ function App() {
     )
   }
 
+  // The reset link lands here signed in with a recovery session; the reset
+  // page is the only thing shown until the new password is saved.
+  if (recovering) {
+    return (
+      <ResetPassword
+        onUpdate={updatePassword}
+        onDone={finishRecovery}
+        // Sign out first so a recovery session never lingers behind the
+        // sign-in page; then leave recovery whether or not there was one.
+        onCancel={async () => {
+          await signOut()
+          finishRecovery()
+        }}
+        // Loading is over by here, so no session means the link's code
+        // could not be exchanged: used already, or expired.
+        expired={!session}
+      />
+    )
+  }
+
   if (!session) {
-    return <Login onLogin={signIn} />
+    return <Login onLogin={signIn} onReset={resetPassword} />
   }
 
   return (

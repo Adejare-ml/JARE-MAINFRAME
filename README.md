@@ -167,6 +167,24 @@ more (the worker updates in the background and takes over on the next
 load), or in DevTools → Application → Service Workers → Unregister. Bump
 `VERSION` in `public/sw.js` to purge every cache on the next activate.
 
+### Forgot your password?
+
+"Forgot password?" on the sign-in page emails a reset link. The link opens
+`/reset-password` on this app, signs you in with a one-time recovery
+session, and asks for a new password twice. The reply to the request is
+the same whether or not the address has an account, on purpose.
+
+Two things must be true for the link to work, both set once in the
+Supabase dashboard under Authentication → URL Configuration:
+
+- **Site URL** is the deployed address (the `pages.dev` domain or your own).
+- **Redirect URLs** include `https://<your domain>/reset-password` and, for
+  local development, `http://localhost:5173/reset-password`.
+
+A link that lands on the dashboard's default page instead of the app means
+the redirect URL is not on that list. The email itself comes from the
+project's default "Reset Password" template, which needs no change.
+
 ### The scheduled sync stopped importing
 
 A failed run now opens a **`sync-failure`** issue rather than failing silently.
