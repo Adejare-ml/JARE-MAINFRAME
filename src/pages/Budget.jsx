@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import WalletCard from '../components/ui/WalletCard'
 import CategoryBreakdown from '../components/ui/CategoryBreakdown'
@@ -17,6 +17,10 @@ import {
   transactionListColumns,
   transactionSummaryColumns,
   startOfMonth,
+  endOfMonth,
+  shiftMonth,
+  parseMonthParam,
+  isCurrentMonth,
   daysAgo,
   excludeVoided,
 } from '../lib/queries'
@@ -60,12 +64,19 @@ export default function Budget() {
   const [budgetTarget, setBudgetTarget] = useState(85000)
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState(null)
+  // Which month the page shows: `?month=YYYY-MM`, or this one. Balances,
+  // runway and safe-to-spend are facts about now, so a past month shows
+  // only what happened in it.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const viewMonthStart = startOfMonth(parseMonthParam(searchParams.get('month')) || new Date())
+  const isCurrent = isCurrentMonth(new Date(viewMonthStart + 'T00:00:00'))
 
   const fetchWalletsAndData = useCallback(async () => {
     try {
       setPageError(null)
-      const now = new Date()
-      const averageWindowStart = startOfMonth(new Date(now.getFullYear(), now.getMonth() - AVERAGE_MONTHS, 1))
+      const monthDate = new Date(viewMonthStart + 'T00:00:00')
+      const monthEnd = endOfMonth(monthDate)
+      const averageWindowStart = startOfMonth(shiftMonth(monthDate, -AVERAGE_MONTHS))
 
       const [walletsRes, monthRes, recentRes, settingsRes, netWorthRes, categoryBudgetsRes, averageWindowRes] = await Promise.all([
         supabase.from('wallets').select('*').order('name'),
@@ -77,12 +88,14 @@ export default function Budget() {
           supabase
             .from('transactions')
             .select(transactionSummaryColumns())
-            .gte('transaction_date', startOfMonth()),
+            .gte('transaction_date', viewMonthStart)
+            .lte('transaction_date', monthEnd),
         ),
         excludeVoided(
           supabase
             .from('transactions')
             .select(transactionListColumns())
+            .lte('transaction_date', monthEnd)
             .order('transaction_date', { ascending: false })
             .order('created_at', { ascending: false })
             .limit(5),
@@ -108,7 +121,7 @@ export default function Budget() {
             .from('transactions')
             .select(transactionSummaryColumns())
             .gte('transaction_date', averageWindowStart)
-            .lt('transaction_date', startOfMonth()),
+            .lt('transaction_date', viewMonthStart),
         ),
       ])
 
@@ -138,7 +151,7 @@ export default function Budget() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [viewMonthStart])
 
   useEffect(() => {
     fetchWalletsAndData()
@@ -245,6 +258,13 @@ export default function Budget() {
 
   const hasSavingsOrInvestments = savingsWallets.length > 0 || investmentWallets.length > 0
 
+  const monthLabel = new Date(viewMonthStart + 'T00:00:00').toLocaleDateString('en-NG', { month: 'long', year: 'numeric' })
+  const goToMonth = (n) => {
+    const next = shiftMonth(new Date(viewMonthStart + 'T00:00:00'), n)
+    if (isCurrentMonth(next)) setSearchParams({})
+    else setSearchParams({ month: startOfMonth(next).slice(0, 7) })
+  }
+
   return (
     <div className="p-4 md:p-8 space-y-8 max-w-5xl mx-auto">
       {/* Header */}
@@ -331,8 +351,42 @@ export default function Budget() {
 
       {/* This Month Summary Card */}
       <div className="bg-card rounded-3xl p-6 border border-white/5">
-        <h3 className="text-lg font-bold text-white mb-6">THIS MONTH</h3>
+        <div className="flex items-center justify-between gap-3 mb-6">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => goToMonth(-1)}
+              aria-label="Previous month"
+              className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 text-muted hover:text-white flex items-center justify-center min-h-[44px] min-w-[44px]"
+            >
+              ‹
+            </button>
+            <h3 className="text-lg font-bold text-white uppercase">{isCurrent ? 'This month' : monthLabel}</h3>
+            <button
+              type="button"
+              onClick={() => goToMonth(1)}
+              disabled={isCurrent}
+              aria-label="Next month"
+              className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 text-muted hover:text-white flex items-center justify-center min-h-[44px] min-w-[44px] disabled:opacity-30"
+            >
+              ›
+            </button>
+          </div>
+          {!isCurrent && (
+            <button type="button" onClick={() => setSearchParams({})} className="text-xs font-semibold text-accent min-h-[44px] px-1">
+              This month →
+            </button>
+          )}
+        </div>
 
+        {!isCurrent && percentOfBudget != null && (
+          <p className="text-xs text-muted mb-6">
+            {percentOfBudget}% of the <span className="money">{formatNaira(budgetTarget)}</span> budget
+            {percentOfBudget > 100 && <span className="text-red-400 font-semibold"> · over</span>}
+          </p>
+        )}
+
+        {isCurrent && (
         <div className="flex items-center gap-5 mb-6">
           {percentOfBudget != null && (
             <ProgressRing
@@ -359,6 +413,7 @@ export default function Budget() {
             )}
           </div>
         </div>
+        )}
 
         <div className="grid grid-cols-3 gap-4">
           <div>
@@ -373,12 +428,14 @@ export default function Budget() {
             <p className="text-lg font-bold text-red-400 money">{formatNaira(thisMonthSpent)}</p>
           </div>
           <div>
-            <p className="text-xs text-muted mb-1">Liquid Balance</p>
-            <p className="text-lg font-bold text-white money">{formatNaira(thisMonthRemaining)}</p>
+            <p className="text-xs text-muted mb-1">{isCurrent ? 'Liquid Balance' : 'Net'}</p>
+            <p className={`text-lg font-bold money ${!isCurrent && thisMonthIncome - thisMonthSpent < 0 ? 'text-red-400' : 'text-white'}`}>
+              {formatNaira(isCurrent ? thisMonthRemaining : thisMonthIncome - thisMonthSpent)}
+            </p>
           </div>
         </div>
 
-        {(monthSummary.movedAside > 0 || monthRunway?.daysOfRunway != null) && (
+        {(monthSummary.movedAside > 0 || (isCurrent && monthRunway?.daysOfRunway != null)) && (
           <div className="flex flex-wrap gap-x-6 gap-y-1 mt-5 pt-4 border-t border-white/5">
             {monthSummary.movedAside > 0 && (
               <p className="text-xs text-muted">
@@ -386,7 +443,7 @@ export default function Budget() {
                 <span className="text-blue-400 font-semibold money">{formatNaira(monthSummary.movedAside)}</span>
               </p>
             )}
-            {monthRunway?.daysOfRunway != null && (
+            {isCurrent && monthRunway?.daysOfRunway != null && (
               <p className="text-xs text-muted">
                 At <span className="money">{formatNaira(monthRunway.dailyBurn)}</span>/day, liquid lasts{' '}
                 <span className="text-white font-semibold">

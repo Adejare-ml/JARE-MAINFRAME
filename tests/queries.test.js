@@ -4,6 +4,11 @@ import {
   transactionSummaryColumns,
   transactionRecurrenceColumns,
   voidedOnly,
+  applyTransactionSort,
+  SORT_OPTIONS,
+  shiftMonth,
+  parseMonthParam,
+  isCurrentMonth,
   orderGoalsBySlot,
   toDateOnly,
   startOfMonth,
@@ -410,5 +415,89 @@ describe('voidedOnly', () => {
     setSchemaCapabilities(['transactions.voided'])
     expect(buildFilterOptions([]).map((o) => o.id)).not.toContain('Voided')
     resetSchemaCapabilities()
+  })
+})
+
+describe('month helpers', () => {
+  it('parseMonthParam reads YYYY-MM and rejects anything else', () => {
+    expect(startOfMonth(parseMonthParam('2026-02'))).toBe('2026-02-01')
+    expect(parseMonthParam('2026-13')).toBeNull()
+    expect(parseMonthParam('2026-00')).toBeNull()
+    expect(parseMonthParam('2026-2')).toBeNull()
+    expect(parseMonthParam('')).toBeNull()
+    expect(parseMonthParam(null)).toBeNull()
+  })
+
+  it('shiftMonth crosses February and the year end from the 1st, never rolling a 31st forward', () => {
+    expect(startOfMonth(shiftMonth(new Date(2026, 0, 31), 1))).toBe('2026-02-01')
+    expect(startOfMonth(shiftMonth(new Date(2026, 0, 15), -1))).toBe('2025-12-01')
+    expect(startOfMonth(shiftMonth(new Date(2024, 1, 29), 12))).toBe('2025-02-01')
+    expect(endOfMonth(shiftMonth(new Date(2026, 0, 1), 1))).toBe('2026-02-28')
+  })
+
+  it('isCurrentMonth compares months, not days', () => {
+    const now = new Date(2026, 8, 22)
+    expect(isCurrentMonth(new Date(2026, 8, 1), now)).toBe(true)
+    expect(isCurrentMonth(new Date(2026, 7, 31), now)).toBe(false)
+  })
+})
+
+describe('applyTransactionFilter range', () => {
+  it('stacks a date range and a direction on top of the chip', () => {
+    const q = fakeQuery()
+    applyTransactionFilter(q, 'Needs', [], '', { from: '2026-07-01', to: '2026-07-31', type: 'debit' })
+    expect(q.calls).toEqual([
+      { method: 'eq', args: ['want_or_need', 'need'] },
+      { method: 'gte', args: ['transaction_date', '2026-07-01'] },
+      { method: 'lte', args: ['transaction_date', '2026-07-31'] },
+      { method: 'eq', args: ['type', 'debit'] },
+    ])
+  })
+
+  // PostgREST would 400 the whole page for a malformed date.
+  it('ignores a malformed date and an "all" direction', () => {
+    const q = fakeQuery()
+    applyTransactionFilter(q, 'All', [], '', { from: '31/07/2026', to: '2026-02-30', type: 'all' })
+    expect(q.calls).toHaveLength(0)
+  })
+
+  it('is unchanged for callers that pass no range', () => {
+    const q = fakeQuery()
+    applyTransactionFilter(q, 'This Month', [])
+    expect(q.calls).toHaveLength(1)
+  })
+})
+
+describe('applyTransactionSort', () => {
+  const orders = (q) => q.calls.map((c) => [c.args[0], c.args[1].ascending])
+
+  it('reads newest first by default', () => {
+    const q = fakeQuery()
+    applyTransactionSort(q, 'All')
+    expect(orders(q)).toEqual([['transaction_date', false], ['created_at', false]])
+  })
+
+  it('offers oldest, largest and smallest', () => {
+    const a = fakeQuery()
+    applyTransactionSort(a, 'All', 'oldest')
+    expect(orders(a)).toEqual([['transaction_date', true], ['created_at', true]])
+
+    const b = fakeQuery()
+    applyTransactionSort(b, 'All', 'largest')
+    expect(orders(b)[0]).toEqual(['amount', false])
+
+    const c = fakeQuery()
+    applyTransactionSort(c, 'All', 'smallest')
+    expect(orders(c)[0]).toEqual(['amount', true])
+  })
+
+  it('keeps the review queue ordered by what a mistake costs, whatever sort is asked for', () => {
+    const q = fakeQuery()
+    applyTransactionSort(q, 'Review', 'oldest')
+    expect(orders(q)).toEqual([['amount', false], ['transaction_date', false]])
+  })
+
+  it('names every sort the select offers', () => {
+    expect(SORT_OPTIONS.map((o) => o.id)).toEqual(['newest', 'oldest', 'largest', 'smallest'])
   })
 })
