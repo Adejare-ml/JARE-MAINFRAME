@@ -6,7 +6,8 @@
  * recoverable from keywords and has to be reasoned about.
  *
  * Endpoints and model IDs come from the environment. A model being renamed or
- * retired should be a secret change, not a code change and a redeploy.
+ * retired should be a repository-variable change, not a code change and a
+ * redeploy.
  */
 
 import { ALL_CATEGORIES } from '../src/lib/constants.js'

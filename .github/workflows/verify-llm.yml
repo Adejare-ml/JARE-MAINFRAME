@@ -23,8 +23,11 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Probe both providers
-        run: node scripts/test-llm.mjs "${{ inputs.fixture }}"
+        run: node scripts/test-llm.mjs "$FIXTURE"
         env:
+          # Through the environment, never spliced into the shell line: a
+          # dispatch input is text somebody typed, in a step holding two keys.
+          FIXTURE: ${{ inputs.fixture }}
           # The secrets are named OLLAMA_KEY / NVIDIA_KEY in this repository.
           # The `||` accepts either spelling, because a secret that does not
           # exist resolves to an empty string with no error -- which is how

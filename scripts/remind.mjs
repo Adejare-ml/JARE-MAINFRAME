@@ -24,6 +24,7 @@ import { createClient } from '@supabase/supabase-js'
 import webpush from 'web-push'
 import { buildReminderDigest, toPushPayload, classifySendError } from '../src/lib/reminders.js'
 import { toDateOnly, daysAgo } from '../src/lib/queries.js'
+import { summarizeRuns, STATUS } from '../src/lib/health.js'
 import { resolveOwnerUserId } from './lib/ownerId.mjs'
 import { recordRun } from './lib/recordRun.mjs'
 import { assertProgress } from './lib/assertProgress.mjs'
@@ -54,6 +55,13 @@ let OWNER_USER_ID = process.env.OWNER_USER_ID
 
 const JOB = 'remind'
 const RUN_STARTED_AT = new Date()
+
+/** What the run record says, set as main() learns it. */
+let runSummary = null
+
+/** How far back the job-health check reads sync_runs. Wider than the
+ *  longest cadence (plan-month, monthly) so "never run" means never. */
+const HEALTH_LOOKBACK_DAYS = 35
 
 const missingVars = [
   ['SUPABASE_URL', SUPABASE_URL],
@@ -87,19 +95,60 @@ async function optional(label, query) {
   return data || []
 }
 
+/**
+ * The ledger for the bill scan, paged. PostgREST answers at most 1000 rows
+ * per request and says nothing when it cuts the rest, and four months of
+ * alerts (a GTBank charge is its own row) can pass that. Newest first, so
+ * even a truncated answer would drop the oldest; the loop reads to the end.
+ */
+async function readTransactions(today) {
+  const PAGE = 1000
+  const rows = []
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('type, amount, category, wallet_id, transaction_date, recipient, description, voided')
+      .eq('user_id', OWNER_USER_ID)
+      .eq('voided', false)
+      .gte('transaction_date', daysAgo(BILL_LOOKBACK_DAYS))
+      .lte('transaction_date', today)
+      .order('transaction_date', { ascending: false })
+      .order('id', { ascending: true })
+      .range(from, from + PAGE - 1)
+    if (error) {
+      console.warn(`   (transactions unavailable: ${error.message})`)
+      return rows
+    }
+    rows.push(...(data || []))
+    if (!data || data.length < PAGE) return rows
+  }
+}
+
+/**
+ * Every other job's health, from the same rows Settings → System reads. This
+ * is the one alarm the pipeline has: if the Claude audit stops, nothing else
+ * opens an issue, and every number the app shows quietly goes stale. The
+ * digest carries it to the phone.
+ */
+async function readJobHealth() {
+  const since = new Date(Date.now() - HEALTH_LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString()
+  const rows = await optional(
+    'sync_runs',
+    supabase
+      .from('sync_runs')
+      .select('job, finished_at, ok, summary')
+      .eq('user_id', OWNER_USER_ID)
+      .gte('finished_at', since)
+      .order('finished_at', { ascending: false }),
+  )
+  // This job's own row is the one being written right now.
+  return summarizeRuns(rows).filter((job) => job.id !== JOB)
+}
+
 async function readEverything(today) {
-  const [debts, transactions, unreviewed, repairs, projects, milestones] = await Promise.all([
+  const [debts, transactions, unreviewed, repairs, projects, milestones, jobs] = await Promise.all([
     optional('debts', supabase.from('debts').select('*').eq('user_id', OWNER_USER_ID).eq('settled', false)),
-    optional(
-      'transactions',
-      supabase
-        .from('transactions')
-        .select('type, amount, category, wallet_id, transaction_date, recipient, description, voided')
-        .eq('user_id', OWNER_USER_ID)
-        .eq('voided', false)
-        .gte('transaction_date', daysAgo(BILL_LOOKBACK_DAYS))
-        .lte('transaction_date', today),
-    ),
+    readTransactions(today),
     supabase
       .from('transactions')
       .select('id', { count: 'exact', head: true })
@@ -109,6 +158,7 @@ async function readEverything(today) {
     optional('repairs', supabase.from('repairs').select('*').eq('user_id', OWNER_USER_ID).neq('status', 'done')),
     optional('projects', supabase.from('projects').select('id, name, status').eq('user_id', OWNER_USER_ID).eq('status', 'active')),
     optional('milestones', supabase.from('milestones').select('project_id, title, due_date, completed').eq('user_id', OWNER_USER_ID).eq('completed', false)),
+    readJobHealth(),
   ])
 
   if (unreviewed.error) console.warn(`   (review count unavailable: ${unreviewed.error.message})`)
@@ -120,6 +170,7 @@ async function readEverything(today) {
     repairs,
     projects,
     milestones,
+    jobs,
     today,
   }
 }
@@ -190,7 +241,8 @@ async function main() {
   console.log(
     `   read: ${input.debts.length} open debt(s), ${input.transactions.length} transaction(s), ` +
       `${input.unreviewedCount} to review, ${input.repairs.length} open repair(s), ` +
-      `${input.projects.length} active project(s), ${input.milestones.length} open milestone(s)`,
+      `${input.projects.length} active project(s), ${input.milestones.length} open milestone(s), ` +
+      `${input.jobs.filter((j) => j.status === STATUS.FAILING || j.status === STATUS.STALE).length} job(s) unwell`,
   )
 
   const digest = buildReminderDigest(input)
@@ -199,6 +251,7 @@ async function main() {
   if (!digest) {
     console.log('Nothing needs you today. No digest, on purpose.')
     console.log('─'.repeat(64))
+    runSummary = 'nothing to send'
     return
   }
 
@@ -212,6 +265,7 @@ async function main() {
   const subscriptions = await readSubscriptions()
   if (subscriptions.length === 0) {
     console.log('No device has turned reminders on (Settings → Reminders). Nothing to send to.')
+    runSummary = 'no device subscribed'
     return
   }
 
@@ -230,6 +284,9 @@ async function main() {
 
   const outcome = haveKeys ? await sendToAll(subscriptions, payload) : { sent: 0, gone: 0, failed: 0 }
   console.log(`\n📱 ${outcome.sent} sent, ${outcome.gone} gone (removed), ${outcome.failed} failed (kept)`)
+  // Written to sync_runs, so a morning that reached nobody reads that way in
+  // Settings → System instead of as a plain green tick.
+  runSummary = `sent ${outcome.sent}/${subscriptions.length} device(s), ${outcome.gone} gone, ${outcome.failed} failed`
 
   // Devices were waiting and a digest existed: reaching none of them is
   // the one outcome the error handling above cannot see on its own.
@@ -243,7 +300,7 @@ async function main() {
 }
 
 main()
-  .then(() => recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: process.exitCode !== 1 }))
+  .then(() => recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: process.exitCode !== 1, summary: runSummary }))
   .catch(async (err) => {
     console.error('❌ Reminder digest failed:', err?.message || err)
     await recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: false, summary: err?.message || String(err) })

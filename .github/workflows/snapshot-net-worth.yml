@@ -2,10 +2,11 @@ name: Snapshot Net Worth
 
 on:
   schedule:
-    # 23:55 Lagos = 22:55 UTC. Last thing at night, after the day's spending
-    # has had every chance to land, so the snapshot reflects the whole day
-    # rather than a balance from the middle of it.
-    - cron: '55 22 * * *'
+    # 10:30 Lagos = 09:30 UTC, after the Claude audit (08:08 UTC) has moved
+    # the wallet balances to the last alert of yesterday. The row is dated
+    # yesterday, which is the day those balances describe; a 22:55 run dated
+    # today used to record a balance that had stopped moving a day earlier.
+    - cron: '30 9 * * *'
   workflow_dispatch:   # manual trigger button
 
 permissions:
@@ -26,9 +27,9 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          # Required. The service key bypasses RLS and has no auth.uid(), so a
-          # row written without this is one migration 015 hides from you in the
-          # app, with no error anywhere. The script refuses to start without it.
+          # Optional while the project has one account: the script looks it up
+          # (scripts/lib/ownerId.mjs) and the database pins it (035). Required
+          # the moment auth.users holds more than one row.
           OWNER_USER_ID: ${{ secrets.OWNER_USER_ID }}
 
       # Same shape as the other four scheduled scripts' failure step: one

@@ -91,17 +91,6 @@ if (missingVars.length > 0) {
   process.exit(1)
 }
 
-if (!hasAnyProvider()) {
-  // Named rather than implied. The secrets in this repository are OLLAMA_KEY
-  // and NVIDIA_KEY, and an unset secret resolves to an empty string with no
-  // error -- which is how categorization silently degraded to
-  // Uncategorized/LOW on every run for weeks while a working key sat in
-  // settings.
-  console.error('❌ No LLM provider configured. Set OLLAMA_KEY or NVIDIA_KEY.')
-  console.error(`   ollama: ${LLM_CONFIG.ollama.configured}, nvidia: ${LLM_CONFIG.nvidia.configured}`)
-  process.exit(1)
-}
-
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 const today = toDateOnly(new Date())
@@ -136,6 +125,17 @@ function listRepoFiles() {
 async function main() {
   OWNER_USER_ID = await resolveOwnerUserId(supabase, OWNER_USER_ID)
   console.log(`🗓️  Planning ${monthStart}`)
+
+  // Inside main() so that a missing key goes through the catch below and is
+  // recorded as a failed run: an exit before recordRun left Settings → System
+  // showing "stale" a month later instead of "failing" the same morning.
+  // Named rather than implied: an unset secret resolves to an empty string
+  // with no error, which is how categorization once silently degraded.
+  if (!hasAnyProvider()) {
+    throw new Error(
+      `No LLM provider configured. Set OLLAMA_KEY or NVIDIA_KEY (ollama: ${LLM_CONFIG.ollama.configured}, nvidia: ${LLM_CONFIG.nvidia.configured})`,
+    )
+  }
 
   const profile = buildRepoProfile(listRepoFiles())
   console.log(
@@ -182,7 +182,7 @@ async function main() {
   let written = 0
   let noAnswer = 0
 
-  for (const goal of goals) {
+  for (const [goalIndex, goal] of goals.entries()) {
     console.log(`── ${goal.title} ──`)
 
     const answer = await callModel(
@@ -221,7 +221,9 @@ async function main() {
       focus: item.focus,
       period: 'weekly',
       target_date: weeks[item.week - 1],
-      slot: PLAN_SLOT_BASE + item.week,
+      // Ten slots per goal: with two coding goals the second one's drafts
+      // used to land on the first one's rows.
+      slot: PLAN_SLOT_BASE + goalIndex * 10 + item.week,
       parent_id: goal.id,
       // NOT `generated`. That flag means "the arithmetic owns this row and may
       // rewrite it", and reconcileGenerated would do exactly that -- replacing
@@ -240,7 +242,10 @@ async function main() {
 
     const { error } = await supabase
       .from('goals')
-      .upsert(rows, { onConflict: 'period,target_date,slot' })
+      // Never over an existing row: a week the owner already approved or
+      // discarded stays that way on a re-run, and only the missing weeks
+      // are drafted.
+      .upsert(rows, { onConflict: 'period,target_date,slot', ignoreDuplicates: true })
 
     if (error) throw error
     written += rows.length

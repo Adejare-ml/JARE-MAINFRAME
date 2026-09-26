@@ -20,7 +20,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
-import { toDateOnly } from '../src/lib/queries.js'
+import { toDateOnly, daysAgo } from '../src/lib/queries.js'
 import { resolveOwnerUserId } from './lib/ownerId.mjs'
 import { recordRun } from './lib/recordRun.mjs'
 
@@ -59,6 +59,11 @@ if (missingVars.length > 0) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 const today = toDateOnly(new Date())
+// The row is dated yesterday. The balances come from bank alerts, and the
+// Claude audit records yesterday's alerts at 08:08 UTC; by the time this runs
+// (09:30 UTC) a wallet balance is "as of the last alert of yesterday". Dating
+// the row today would say the balance stood still for a day.
+const snapshotDate = daysAgo(1)
 
 // ───────────────────────────────────────────────────────────────
 // 2. Run
@@ -66,7 +71,7 @@ const today = toDateOnly(new Date())
 
 async function main() {
   OWNER_USER_ID = await resolveOwnerUserId(supabase, OWNER_USER_ID)
-  console.log(`💰 Snapshotting net worth for ${today}`)
+  console.log(`💰 Snapshotting net worth as of ${snapshotDate} (run ${today})`)
 
   const { data: wallets, error } = await supabase
     .from('wallets')
@@ -93,7 +98,7 @@ async function main() {
     .upsert(
       {
         user_id: OWNER_USER_ID,
-        snapshot_date: today,
+        snapshot_date: snapshotDate,
         total_balance: totalBalance,
         by_wallet: byWallet,
       },

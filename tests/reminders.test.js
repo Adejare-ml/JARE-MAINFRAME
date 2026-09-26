@@ -185,3 +185,32 @@ describe('classifySendError', () => {
     }
   })
 })
+
+describe('system health', () => {
+  const failing = { id: 'claude-audit', label: 'Bank alerts (Claude audit)', status: 'failing', lastRun: { finished_at: '2026-08-07T08:10:00Z', ok: false } }
+  const stale = { id: 'verify-repo', label: 'Repo verification', status: 'stale', lastRun: { finished_at: '2026-08-04T21:31:00Z', ok: true } }
+  const ok = { id: 'remind', label: 'Morning reminder', status: 'ok', lastRun: { finished_at: '2026-08-08T06:31:00Z', ok: true } }
+
+  it('a failing or stale job makes the digest on its own, and lands on Settings', () => {
+    const digest = buildReminderDigest({ today: TODAY, jobs: [failing] })
+    expect(digest).not.toBeNull()
+    expect(digest.items).toHaveLength(1)
+    expect(digest.items[0].kind).toBe('system')
+    expect(digest.items[0].text).toMatch(/Bank alerts \(Claude audit\) is failing \(last run yesterday\)/)
+    expect(digest.url).toBe(KIND_URLS.system)
+  })
+
+  it('leads the digest ahead of debts, and says how long a stale job has been quiet', () => {
+    const digest = buildReminderDigest({
+      today: TODAY,
+      jobs: [ok, stale],
+      debts: [{ id: 'a', kind: 'loan', direction: 'i_owe', counterparty: 'Tolu', principal: 5000, due_date: TODAY }],
+    })
+    expect(digest.items.map((i) => i.kind)).toEqual(['system', 'debt'])
+    expect(digest.items[0].text).toMatch(/Repo verification has not run \(last 4d ago\)/)
+  })
+
+  it('healthy jobs add nothing', () => {
+    expect(buildReminderDigest({ today: TODAY, jobs: [ok] })).toBeNull()
+  })
+})

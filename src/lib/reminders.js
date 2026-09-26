@@ -17,6 +17,7 @@ import { upcomingDebts, outstanding, cycleStatus, daysUntil, isRotating } from '
 import { detectRecurring } from './recurring.js'
 import { urgentRepairs } from './repairs.js'
 import { dueMilestones } from './projects.js'
+import { STATUS } from './health.js'
 
 /** Debts due or paying out within this many days make the digest. */
 export const DEBT_WINDOW_DAYS = 3
@@ -33,6 +34,7 @@ export const KIND_URLS = {
   repair: '/repairs',
   milestone: '/projects',
   review: '/transactions',
+  system: '/settings',
 }
 
 const money = (n) => `₦${Math.round(Number(n) || 0).toLocaleString('en-US')}`
@@ -99,6 +101,26 @@ function milestoneItems(projects, milestones, today, now) {
   })
 }
 
+/**
+ * Jobs that have stopped or are failing, from health.js's summarizeRuns.
+ * First in the digest, because every other line depends on them: a dead
+ * bank-alert audit means the review count, the bills and the balances are
+ * all yesterday's, and nothing else in the pipeline says so.
+ */
+function systemItems(jobs, today) {
+  return (jobs || [])
+    .filter((job) => job && (job.status === STATUS.FAILING || job.status === STATUS.STALE))
+    .map((job) => {
+      const last = job.lastRun?.finished_at ? String(job.lastRun.finished_at).slice(0, 10) : null
+      const days = last ? Math.round((new Date(`${today}T00:00:00`) - new Date(`${last}T00:00:00`)) / 86400000) : null
+      const since = days == null ? '' : days <= 0 ? ' today' : days === 1 ? ' yesterday' : ` ${days}d ago`
+      const text = job.status === STATUS.FAILING
+        ? `${job.label} is failing (last run${since})`
+        : `${job.label} has not run (last${since})`
+      return { kind: 'system', text, url: KIND_URLS.system, days: days == null ? 0 : -days }
+    })
+}
+
 const cut = (text, max) => (text.length <= max ? text : `${text.slice(0, max - 1).trimEnd()}…`)
 
 /** Web push payloads are capped around 4 KB by the push services. */
@@ -152,6 +174,7 @@ export function classifySendError(statusCode) {
  * @param {object[]} [input.repairs]
  * @param {object[]} [input.projects]
  * @param {object[]} [input.milestones]
+ * @param {object[]} [input.jobs] - summarizeRuns() output; failing or stale jobs lead the digest
  * @param {string} [input.today] - YYYY-MM-DD
  * @returns {{title: string, body: string, items: object[], url: string} | null}
  */
@@ -162,10 +185,12 @@ export function buildReminderDigest({
   repairs = [],
   projects = [],
   milestones = [],
+  jobs = [],
   today = new Date().toISOString().slice(0, 10),
 } = {}) {
   const now = new Date(`${today}T00:00:00`)
   const items = [
+    ...systemItems(jobs, today),
     ...debtItems(debts, now),
     ...billItems(transactions, today, now),
     ...repairItems(repairs, today, now),
