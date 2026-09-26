@@ -12,10 +12,10 @@
 --      Supabase Auth, so a stranger holding the app's public key could read
 --      and edit the owner's recaps. Owner-scoped now, like every other table.
 --   2. jare_sole_owner() refused to guess between two accounts and had no
---      way to be told. It now honours a pinned owner, set once with
---        alter database postgres set jare.owner = '<the owner uuid>';
---      so a second account (a test login, a stray sign-up) no longer stops
---      the bank-alert ingestion.
+--      way to be told. It now honours a pinned owner in the jare.owner
+--      setting. (Supabase refuses to store that setting on the database or
+--      the role, so 035 moves the pin into a one-row table; the setting
+--      remains for a one-off `set local`.)
 --   3. ingest_alert_transaction gets back the guards the token sync had
 --      (src/lib/sync/normalize.js, categorize.js) and a few it never needed:
 --        - free text is whitespace-normalised and capped (recipient 200,
