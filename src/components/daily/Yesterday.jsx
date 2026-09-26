@@ -1,5 +1,5 @@
 import { formatNaira } from '../../lib/formatters'
-import { summarizeMonth } from '../../lib/summary'
+import { summarizeMonth, TRANSFER_CATEGORIES } from '../../lib/summary'
 
 /**
  * What yesterday actually came to.
@@ -22,7 +22,13 @@ export default function Yesterday({ transactions, tasks, isDone, liquidWalletIds
   // Biggest single debit, ignoring transfers -- moving money to savings is not
   // the day's notable expense even when it is the day's largest number.
   const biggest = (transactions || [])
-    .filter((t) => t.type === 'debit' && !t.voided)
+    .filter(
+      (t) =>
+        t.type === 'debit' &&
+        !t.voided &&
+        !TRANSFER_CATEGORIES.includes(t.category) &&
+        (!t.wallet_id || !liquidWalletIds || liquidWalletIds.has(t.wallet_id)),
+    )
     .reduce((max, t) => (Number(t.amount) > Number(max?.amount || 0) ? t : max), null)
 
   if (summary.spent === 0 && total === 0) return null
