@@ -13,7 +13,8 @@ Live at [jare-mainframe.pages.dev](https://jare-mainframe.pages.dev/).
 | Frontend | React 19, Vite 6, Tailwind 4, React Router 7 |
 | Backend | Supabase (Postgres, Auth, Realtime) |
 | Hosting | Cloudflare Pages — pushes to `main` deploy automatically |
-| Sync | GitHub Actions cron, Gmail API, Ollama Cloud / NVIDIA NIM |
+| Bank alerts | A Claude scheduled task reads Gmail and writes through two SQL functions (no Google token) |
+| Other jobs | GitHub Actions cron; Ollama Cloud / NVIDIA NIM for the two that use a model |
 
 ## Setup
 
@@ -28,8 +29,15 @@ npm test        # unit tests
 npm run build   # production build into dist/
 ```
 
-Database schema changes live in `supabase/migrations/`. Run them in the
-Supabase SQL Editor, in order.
+Database schema changes live in `supabase/migrations/`. On a live project
+apply only the new files, in order, through the Supabase SQL Editor or the
+MCP (`apply_migration`). On a **fresh** project the order is not 001 upwards:
+run `013_schema_baseline.sql` first, then 001–012, sign in to the app once
+(014 needs an account to claim rows for), then 014 onwards. The early files
+say "safe to re-run"; that stopped being true at 017, which made `user_id`
+required: re-running 002 recreates a second `log_manual_transaction` next to
+029's (QuickLog then fails with PGRST203), and re-running 009 narrows the
+goal-metric check back. Do not re-run a file older than the newest one.
 
 ### Install it on your phone
 
@@ -62,76 +70,70 @@ A device the push service reports gone is removed automatically; any other
 failure is retried the next morning and shown as "Last send failed" in
 Settings.
 
-## How transaction sync works
-
-Bank alert emails are read from Gmail and turned into transactions. Which
-addresses to search comes from the `wallets` table, not from code — adding a
-bank is a Settings edit, not a deploy.
+## How bank alerts become transactions
 
 ```
-Gmail  ──▶  match sender to wallet  ──▶  parse  ──▶  validate  ──▶  upsert
-                                          │
-                             ┌────────────┴────────────┐
-                             │                         │
-                        rules parser              LLM (Ollama,
-                     (src/lib/parsers/)          NVIDIA fallback)
+Gmail  ──▶  Claude scheduled task ("Daily spending audit", 08:00 UTC)
+              │  one call per alert, through a read-write Supabase connector
+              ▼
+        ingest_alert_transaction(...)   ──▶   transactions (+ wallet balance)
+              │
+              └──▶  record_sync_run('claude-audit', ...)  ──▶  Settings → System
 ```
 
-Two entry points, one implementation:
+Every morning the owner's Claude scheduled task searches yesterday's mail
+from the three bank senders through Claude's own Gmail connection, reads
+each alert, and calls `ingest_alert_transaction` once per alert with the
+slug, the Gmail message id, direction, amount, date, time, description,
+payee, category, stated balance, an excerpt and a confidence. It then calls
+`record_sync_run`, which is what Settings → System and the morning push
+read. There is no Google token to keep alive, which is why the token-based
+sync below was retired on 23 Sep 2026.
 
-- **Background** — `scripts/gmail-sync.mjs`, on cron at 8am, 10am, 2pm and 6pm
-  Lagos, plus a manual trigger from the Actions tab. Uses a Google refresh
-  token, so it keeps working unattended. This is the durable path.
-- **Manual** — the "Sync now" button in Settings. Uses a browser OAuth token
-  that expires after about an hour, and has no LLM, so it skips wallets that
-  need one and reports how many it left behind.
+The function (`032_alert_ingest.sql`, hardened in `034_close_out.sql`) is
+where every rule lives, so a prompt cannot skip one:
 
-Everything they share lives in `src/lib/sync/`.
+- the owner is pinned (`jare_owner`, 035), the wallet must exist by slug,
+  the direction and amount are checked, and bad input comes back as
+  `{"inserted": false, "reason": "refused", ...}` rather than an error;
+- the id is `CLA-<gmail message id>`, unique per source, so a re-run inserts
+  nothing; an alert the old sync already imported is refused by its natural
+  key (same wallet, day, direction, amount, payee);
+- free text is normalised and capped; a category the app does not know, an
+  amount above ₦5m and a date more than a day ahead all land in the review
+  queue at LOW confidence; the owner's category rules (Settings) are applied
+  in priority order;
+- a wallet balance follows the alert's stated balance forward only, and
+  never from a future-dated alert.
 
-### Since 23 Sep 2026: the mailbox is read by a Claude scheduled task
+Rows the task was sure about (HIGH) are reviewed on arrival; LOW ones wait in
+the review queue on Transactions, exactly as before.
 
-The token-based sync above is retired from the schedule (the workflow
-still runs by hand for a backfill). Its Google refresh token expired every
-seven days while the OAuth app sat in "Testing" status, and it had been
-failing on `invalid_grant` since mid-August.
-
-The owner's Claude scheduled task ("Daily spending audit", 08:00 UTC)
-already reads the same GTBank, OPay and Stanbic alerts through Claude's own
-Gmail connection, with nothing to keep alive. It now also writes each
-alert into the ledger through one function, `ingest_alert_transaction`
-(`supabase/migrations/032_alert_ingest.sql`), and records its run with
-`record_sync_run`. Everything the sync used to enforce lives in that
-function: the owner is resolved, the wallet must exist by slug, the id is
-the Gmail message id so a re-run inserts nothing, an alert the old sync
-already imported is refused by its natural key, and a wallet balance never
-moves backwards. Low-confidence rows land in the review queue exactly as
-before. Settings → System shows the task as "Bank alerts (Claude audit)".
-
-The task needs a Supabase connector in Claude that can write. The
-standard one cannot: its `execute_sql` runs as `supabase_read_only_user`
-inside a read-only transaction and answers `permission denied for
-function` (every run from 23 to 26 Sep hit exactly this; no grant can
-change it). The one that works is a second, custom connector on
+**The connector.** The standard Supabase connector in Claude cannot write:
+its `execute_sql` runs as `supabase_read_only_user` inside a read-only
+transaction and answers `permission denied for function`. The task uses a
+second, custom connector on
 `https://mcp.supabase.com/mcp?project_ref=<project ref>&features=database`
-(no `read_only`), whose `execute_sql` runs as `postgres`. The task's
-prompt names that connector, and since 26 Sep its runs record alerts
-through it. The functions are granted to `postgres` and `service_role`
-only, so the browser's anon key still cannot call them.
-`033_claude_audit_channel.sql` was written for a fallback through
-`apply_migration` and is harmless on this path: it only clears
-`claude_audit_%` rows from the migrations ledger, which never appear.
+(no `read_only`), whose `execute_sql` runs as `postgres`. The functions are
+granted to `postgres` and `service_role` only, so the browser's anon key
+still cannot call them. `033_claude_audit_channel.sql` is an unused
+fallback for sending a day as one `apply_migration` batch.
 
-The overnight day draft (`.github/workflows/draft-day.yml`, the "Today's
-shape" card on Daily HQ) was retired the same way on 26 Sep 2026. It
-needed the same Google token and had only been able to write "could not
-read the calendar" markers since 22 Sep. The card simply does not appear
-when there is no brief for the day. The scheduled task holds Claude's own
-Google Calendar connection, so a day brief can come back through it if it
-is ever wanted; the table and `012_day_brief.sql` stay as they are.
+**The retired token sync.** `scripts/gmail-sync.mjs` and
+`.github/workflows/gmail-sync.yml` still exist for a manual run with a fresh
+Google refresh token, and only for dates **before 23 Sep 2026**: the script
+does not know about `CLA-` ids, so a backfill over days the task already
+covered inserts every alert a second time. The browser "Sync now" button
+was removed for the same reason. The overnight day draft
+(`draft-day.yml`, the "Today's shape" card on Daily HQ) was retired on
+26 Sep 2026 for the same token; the task holds Claude's own Calendar
+connection if a day brief is ever wanted back, and `012_day_brief.sql`
+stays.
 
 ### Parse strategy
 
-Each wallet chooses how its alerts are read, in Settings → Banks & Wallets:
+Only a manual run of the retired token sync reads this; the Claude task
+decides direction itself. Each wallet chooses, in Settings → Banks & Wallets:
 
 | Strategy | Behaviour |
 |---|---|
@@ -147,16 +149,17 @@ who received.
 
 ### Deduplication
 
-Every sync re-reads a window of email, so the same alert is seen many times.
-Two guards keep the ledger clean:
+Three guards keep the ledger clean:
 
-1. A unique index on `(source, transaction_id)`. The database refuses the second
-   write, which also closes the race between a cron run and a manual sync.
-2. For alerts that carry no bank reference — GTBank charge and stamp-duty
-   emails ship an empty Document Number — a synthetic ID is derived from the
-   transaction's own content with FNV-1a. It must stay deterministic and
-   identical in Node and the browser, or the same email is inserted forever.
-   `tests/dedup.test.js` guards that.
+1. A unique index on `(source, transaction_id)`. The task's id is
+   `CLA-<gmail message id>`, so the same alert read twice inserts nothing.
+2. The natural key: an alert whose wallet, day, direction, amount and payee
+   match a non-voided row from the old sync is refused as already imported.
+   This runs one way only, which is why the old sync must not be run over
+   days the task has covered.
+3. For the retired sync's alerts that carry no bank reference, a synthetic
+   `SYN-` id derived from the content with FNV-1a, identical in Node and the
+   browser. `tests/dedup.test.js` guards that.
 
 ## When something stops working
 
@@ -185,19 +188,22 @@ select
 Adding a migration-gated column to a shared select list means adding it to
 `GATED_COLUMNS` in `src/lib/schema.js` in the same change. Forgetting is the bug.
 
-### Every scheduled job fails on its first line
+### A scheduled job cannot work out whose rows to write
 
-`❌ Missing required environment variables: OWNER_USER_ID` means the scripts
-could not work out whose rows to write. They read the `OWNER_USER_ID`
-repository secret and, when it is blank, fall back to the single account in
-`auth.users`. That fallback refuses to guess between two accounts -- set the
-secret (`select id, email from auth.users;`) and the jobs resume.
+`OWNER_USER_ID` is optional while the project has one account: the Actions
+scripts look it up (`scripts/lib/ownerId.mjs`) and the database pins it
+(`jare_owner`, migration 035), so a second account -- a test login, a stray
+sign-up -- no longer stops the bank-alert task. If a script still refuses to
+guess, set the `OWNER_USER_ID` repository secret to the owner's id
+(`select id, email from auth.users;`). Turn sign-ups off in Supabase Auth
+(Providers → Email) so nobody else gets an account in the first place.
 
 Two Supabase projects with the same name are the other way this goes wrong:
-the app, the Actions secrets and the SQL editor must all point at the same
-project ref. The Migrations page only lists migrations applied through the
-CLI or MCP; anything pasted into the SQL editor never appears there even when
-it worked, so check the banner in the app, not that page.
+the app, the Actions secrets, the Claude connector and the SQL editor must
+all point at the same project ref. The Migrations page only lists migrations
+applied through the CLI or MCP; anything pasted into the SQL editor never
+appears there even when it worked, so check the banner in the app, not that
+page.
 
 ### The app shows an old build after a deploy
 
@@ -226,22 +232,47 @@ A link that lands on the dashboard's default page instead of the app means
 the redirect URL is not on that list. The email itself comes from the
 project's default "Reset Password" template, which needs no change.
 
-### The scheduled sync stopped importing
+### Bank alerts stopped arriving
 
-A failed run now opens a **`sync-failure`** issue rather than failing silently.
-The most common cause is `invalid_grant` — the Google refresh token expired or
-was revoked. Regenerate it:
+Three places say so: Settings → System ("Bank alerts (Claude audit)" turns
+orange after 30 hours or red on a failed run), the Needs Attention card on
+Daily HQ, and the morning push, which leads with any failing or stale job.
 
-```bash
-GOOGLE_CLIENT_ID="..." GOOGLE_CLIENT_SECRET="..." node scripts/get-refresh-token.mjs
-```
+In order:
 
-and paste the result into the `GOOGLE_REFRESH_TOKEN` repository secret.
+1. claude.ai → Routines → "Daily spending audit": is it enabled, and did the
+   last run finish? Its output ends with `N recorded / M already there / K
+   skipped`.
+2. Its connectors: Gmail authorised, and the custom read-write Supabase
+   connector attached with `execute_sql` allowed. An output full of
+   `permission denied for function` means it wrote through the standard
+   read-only connector instead.
+3. Run it by hand from the same page. Re-runs are safe: the function refuses
+   a duplicate by Gmail message id. To cover missed days, add a note to the
+   run asking for those dates as well.
+4. `select * from sync_runs where job = 'claude-audit' order by finished_at
+   desc limit 5;` shows what each run recorded; a `refused` in the summary
+   names the alert and why.
 
-If this recurs roughly weekly, the cause is the OAuth consent screen: Google
-expires refresh tokens issued by an app in **Testing** publishing status after 7
-days. Set the app to **In production** in the Google Cloud console and they stop
-expiring.
+## What runs on its own
+
+| Job | When (UTC) | Needs | Records as |
+|---|---|---|---|
+| Bank-alert audit (Claude Routine) | 08:00 daily | Gmail + read-write Supabase connectors | `claude-audit` |
+| Repo verification (`verify-repo.yml`) | 21:30 daily | `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` | `verify-repo` |
+| Net-worth snapshot (`snapshot-net-worth.yml`) | 09:30 daily, dated yesterday | same | `snapshot-net-worth` |
+| Morning reminder (`remind.yml`) | 08:20 daily | same, plus `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` once a phone has subscribed | `remind` |
+| Weekly recap (`weekly-recap.yml`) | Monday 09:17 | same, plus `OLLAMA_KEY` or `NVIDIA_KEY` | `weekly-recap` |
+| Month plan (`plan-month.yml`) | 1st, 05:17 | same, plus an LLM key | `plan-month` |
+| Keep schedules alive (`keepalive.yml`) | 1st and 15th, 04:23 | `actions: write` (automatic) | — |
+
+The last row exists because GitHub switches off every scheduled workflow in
+a public repository after 60 days without a commit, silently. Making the
+repository private removes that rule and also stops the Actions logs, which
+print balances and bill names, from being world-readable; the keep-alive is
+then harmless. Each Actions job records its run in `sync_runs`, opens or
+reopens one `sync-failure` issue when it fails, and the morning reminder
+repeats any failing or stale job at the top of its digest.
 
 ## Environment
 
