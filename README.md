@@ -107,16 +107,19 @@ already imported is refused by its natural key, and a wallet balance never
 moves backwards. Low-confidence rows land in the review queue exactly as
 before. Settings → System shows the task as "Bank alerts (Claude audit)".
 
-The task writes through the Supabase connector in Claude, whose
-`execute_sql` runs as `supabase_read_only_user` inside a read-only
-transaction and answers `permission denied for function` (every run from
-23 to 26 Sep hit exactly this; no grant can change it). The same
-connector's `apply_migration` runs as postgres, so the task sends its
-day's calls as one batch through it, named `claude_audit_YYYYMMDD`, and
-`record_sync_run` clears the earlier days' rows from
-`supabase_migrations.schema_migrations` (`033_claude_audit_channel.sql`).
-The functions are granted to `postgres` and `service_role` only, so the
-browser's anon key still cannot call them.
+The task needs a Supabase connector in Claude that can write. The
+standard one cannot: its `execute_sql` runs as `supabase_read_only_user`
+inside a read-only transaction and answers `permission denied for
+function` (every run from 23 to 26 Sep hit exactly this; no grant can
+change it). The one that works is a second, custom connector on
+`https://mcp.supabase.com/mcp?project_ref=<project ref>&features=database`
+(no `read_only`), whose `execute_sql` runs as `postgres`. The task's
+prompt names that connector, and since 26 Sep its runs record alerts
+through it. The functions are granted to `postgres` and `service_role`
+only, so the browser's anon key still cannot call them.
+`033_claude_audit_channel.sql` was written for a fallback through
+`apply_migration` and is harmless on this path: it only clears
+`claude_audit_%` rows from the migrations ledger, which never appear.
 
 ### Parse strategy
 
