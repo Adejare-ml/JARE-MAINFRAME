@@ -2,9 +2,10 @@ name: Morning Reminder
 
 on:
   schedule:
-    # 07:30 Lagos = 06:30 UTC. After the overnight Gmail syncs have run, so
-    # the review count and last night's bills are in; before the day starts.
-    - cron: '30 6 * * *'
+    # 09:20 Lagos = 08:20 UTC, ten minutes after the Claude audit (08:08 UTC)
+    # has recorded yesterday's alerts, so the review count and last night's
+    # bills are in. Any earlier and it described the day before yesterday.
+    - cron: '20 8 * * *'
   workflow_dispatch:
     inputs:
       dry_run:

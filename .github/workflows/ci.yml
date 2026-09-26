@@ -22,6 +22,7 @@ jobs:
       - name: Check sync scripts parse
         run: |
           node --check scripts/gmail-sync.mjs
+          node --check scripts/get-refresh-token.mjs
           node --check scripts/llm.mjs
           node --check scripts/test-llm.mjs
           node --check scripts/verify-repo.mjs

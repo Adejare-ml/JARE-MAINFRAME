@@ -249,8 +249,9 @@ See `.env.example`. In short: `VITE_`-prefixed variables are compiled into the
 browser bundle and are public by design; everything else belongs in GitHub
 Actions secrets and is never bundled.
 
-Model IDs and endpoints are configurable so a renamed model needs a secret
-change rather than a code change. Verify them with:
+Model IDs and endpoints are configurable so a renamed model needs a
+repository *variable* change (Settings → Secrets and variables → Actions →
+Variables; a secret of the same name is ignored) rather than a code change. Verify them with:
 
 ```bash
 OLLAMA_API_KEY=... NVIDIA_API_KEY=... node scripts/test-llm.mjs

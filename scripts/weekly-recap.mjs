@@ -75,16 +75,6 @@ if (missingVars.length > 0) {
   process.exit(1)
 }
 
-if (!hasAnyProvider()) {
-  // Named rather than implied. The secrets in this repository are OLLAMA_KEY
-  // and NVIDIA_KEY, and an unset secret resolves to an empty string with no
-  // error -- the same silent-degradation failure this project has already
-  // shipped once, in categorization.
-  console.error('❌ No LLM provider configured. Set OLLAMA_KEY or NVIDIA_KEY.')
-  console.error(`   ollama: ${LLM_CONFIG.ollama.configured}, nvidia: ${LLM_CONFIG.nvidia.configured}`)
-  process.exit(1)
-}
-
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 // The run happens after the week has closed, so "the week" means the one that
@@ -103,13 +93,27 @@ async function main() {
   OWNER_USER_ID = await resolveOwnerUserId(supabase, OWNER_USER_ID)
   console.log(`🗓️  Recapping week of ${weekStart}`)
 
+  // Inside main() so that a missing key is recorded as a failed run rather
+  // than an exit before recordRun, which Settings → System could only ever
+  // read as "stale" a week later. Named rather than implied: an unset secret
+  // resolves to an empty string with no error.
+  if (!hasAnyProvider()) {
+    throw new Error(
+      `No LLM provider configured. Set OLLAMA_KEY or NVIDIA_KEY (ollama: ${LLM_CONFIG.ollama.configured}, nvidia: ${LLM_CONFIG.nvidia.configured})`,
+    )
+  }
+
   const [walletsRes, txRes, dailyRes, weeklyGoalsRes] = await Promise.all([
     supabase.from('wallets').select('id, type, is_active'),
     supabase
       .from('transactions')
       .select('type, amount, category, wallet_id, transaction_date, voided')
       .eq('voided', false)
-      .gte('transaction_date', priorWeekStart)
+      // As far back as the streak looks, not just two weeks: a daily task
+      // older than that was being judged with no transactions at all, which
+      // capped every streak at fourteen days. compareWeeks filters its own
+      // fortnight out of this below.
+      .gte('transaction_date', daysAgo(STREAK_LOOKBACK_DAYS, now))
       .lte('transaction_date', weekEnd),
     supabase
       .from('goals')

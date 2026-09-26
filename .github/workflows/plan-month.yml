@@ -2,10 +2,12 @@ name: Draft Month Plan
 
 on:
   schedule:
-    # 06:00 Lagos on the 1st = 05:00 UTC. Early enough that the proposal is
+    # 06:17 Lagos on the 1st = 05:17 UTC. Early enough that the proposal is
     # waiting when the month starts, and it changes nothing on its own -- every
-    # row it writes is a draft until approved.
-    - cron: '0 5 1 * *'
+    # row it writes is a draft until approved. The odd minute keeps a run that
+    # happens once a month off the top-of-the-hour crowd GitHub sometimes
+    # delays or drops; a dropped monthly run leaves no plan and opens no issue.
+    - cron: '17 5 1 * *'
   workflow_dispatch:   # manual trigger button
 
 permissions:
@@ -26,9 +28,9 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          # Required. The service key bypasses RLS and has no auth.uid(), so a
-          # row written without this is one migration 015 hides from you in the
-          # app, with no error anywhere. The script refuses to start without it.
+          # Optional while the project has one account: the script looks it up
+          # (scripts/lib/ownerId.mjs) and the database pins it (035). Required
+          # the moment auth.users holds more than one row.
           OWNER_USER_ID: ${{ secrets.OWNER_USER_ID }}
           # The secrets are named OLLAMA_KEY / NVIDIA_KEY in this repository.
           # The `||` accepts either spelling, because a secret that does not
