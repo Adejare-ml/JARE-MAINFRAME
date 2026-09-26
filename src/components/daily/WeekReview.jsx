@@ -41,11 +41,16 @@ export default function WeekReview({
   lastWeekGoals,
   dailyTasks,
   isDone,
+  isLastWeekGoalDone,
   today,
 }) {
   const comparison = compareWeeks(thisWeekTransactions, lastWeekTransactions, liquidWalletIds)
   const days = spendByWeekday(thisWeekTransactions, liquidWalletIds, weekStart, today)
-  const unfinished = carriedOver(lastWeekGoals, isDone)
+  // A weekly goal is judged on its whole week, not on its Monday: isDone
+  // filters transactions to the task's own target_date, which for a weekly
+  // row is the week's first day, so a spending cap with nothing spent on
+  // Monday read as met and was never carried over.
+  const unfinished = carriedOver(lastWeekGoals, isLastWeekGoalDone || isDone)
 
   const weekTasks = dailyTasks.filter((t) => t.target_date >= weekStart && t.target_date <= weekEnd)
   const tasksDone = weekTasks.filter(isDone).length

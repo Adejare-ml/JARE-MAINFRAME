@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { formatNaira, formatDate, displayName } from '../lib/formatters'
+import { formatNaira, formatDate, displayName, timeAgo } from '../lib/formatters'
 import { getCategoryIcon } from '../lib/constants'
 import { toast } from '../lib/toast'
 import CashReconciliation from '../components/CashReconciliation'
@@ -15,6 +15,7 @@ import { isTaskDone, goalProgress, GENERATED_SLOT_BASE, REPO_METRIC } from '../l
 import { dailyInsight } from '../lib/insight'
 import { currentStreak } from '../lib/activity'
 import { hasColumn } from '../lib/schema'
+import { summarizeRuns, STATUS } from '../lib/health'
 import TodayList from '../components/daily/TodayList'
 import DictateDay from '../components/daily/DictateDay'
 import DayBrief from '../components/daily/DayBrief'
@@ -58,6 +59,7 @@ export default function DailyHQ() {
   // activity grid are all derived from this one array.
   const [dailyTasks, setDailyTasks] = useState([])
   const [dayBrief, setDayBrief] = useState(null)
+  const [auditRun, setAuditRun] = useState(null)
   const [togglingId, setTogglingId] = useState(null)
   const [mode, setMode] = useState('day')
   const [unreviewedCount, setUnreviewedCount] = useState(0)
@@ -101,7 +103,7 @@ export default function DailyHQ() {
       // is checked: supabase-js returns errors rather than throwing, so the
       // old destructure-data-only version made the catch unreachable and a
       // total network failure rendered "Total: ₦0.00" and "All clear!".
-      const [walletsRes, recentRes, countRes, settingsRes, monthRes, goalsRes, debtsRes, briefRes] =
+      const [walletsRes, recentRes, countRes, settingsRes, monthRes, goalsRes, debtsRes, briefRes, auditRes] =
         await Promise.all([
           supabase.from('wallets').select('*'),
           excludeVoided(
@@ -152,6 +154,16 @@ export default function DailyHQ() {
           hasColumn('day_briefs.brief_date')
             ? supabase.from('day_briefs').select('*').eq('brief_date', todayDate).maybeSingle()
             : Promise.resolve({ data: null, error: null }),
+          // The one fact every other number on this page depends on: when
+          // bank alerts were last recorded. Additive; behind 025 it is skipped.
+          hasColumn('sync_runs.job')
+            ? supabase
+                .from('sync_runs')
+                .select('job, finished_at, ok, summary')
+                .eq('job', 'claude-audit')
+                .order('finished_at', { ascending: false })
+                .limit(1)
+            : Promise.resolve({ data: [], error: null }),
         ])
 
       const firstError =
@@ -168,6 +180,7 @@ export default function DailyHQ() {
 
       if (briefRes.error) console.warn('Day brief unavailable:', briefRes.error.message)
       setDayBrief(briefRes.error ? null : briefRes.data || null)
+      setAuditRun(auditRes.error ? null : (auditRes.data || [])[0] || null)
 
       setWallets(walletsRes.data || [])
       setTransactions(recentRes.data || [])
@@ -418,6 +431,12 @@ export default function DailyHQ() {
 
   const dueDebts = upcomingDebts(debts, 7)
 
+  // Bank alerts arrive through the morning audit; if it stops, every figure
+  // on this page quietly freezes while still looking current. Same 30-hour
+  // patience as Settings → System, and "never" counts too.
+  const auditJob = summarizeRuns(auditRun ? [auditRun] : []).find((j) => j.id === 'claude-audit')
+  const auditUnwell = hasColumn('sync_runs.job') && auditJob && auditJob.status !== STATUS.OK
+
   // Monthly Spending Progress. The old version summed the 3-row "recent"
   // query -- the headline card was three transactions divided by a hardcoded
   // 85000. Now: the real month query through the same tested math Budget uses,
@@ -461,7 +480,12 @@ export default function DailyHQ() {
 
   const streak = currentStreak(dayRows, doneOn, { today: todayDate })
 
-  const liquidWalletIds = new Set(liquidWallets.map(w => w.id))
+  // Every liquid wallet, active or not: a deactivated wallet keeps its
+  // history, and dropping it from the counted set erased every past month's
+  // spending from it. Active-only stays right for balances, above.
+  const liquidWalletIds = new Set(
+    wallets.filter(w => ['bank', 'mobile', 'cash'].includes(w.type)).map(w => w.id),
+  )
   const monthSummary = summarizeMonth(monthTransactions, liquidWalletIds)
   const totalSpent = monthSummary.spent
 
@@ -720,12 +744,30 @@ export default function DailyHQ() {
             <span>⚠️</span> Needs Attention
           </h2>
 
-          {unreviewedCount === 0 && lowWallets.length === 0 && dueDebts.length === 0 ? (
+          {unreviewedCount === 0 && lowWallets.length === 0 && dueDebts.length === 0 && !auditUnwell ? (
             <div className="flex items-center gap-2 text-accent text-sm font-medium pt-1">
               <span>✅</span> All clear! No items require review.
             </div>
           ) : (
             <div className="space-y-2">
+              {auditUnwell && (
+                <Link
+                  to="/settings"
+                  className="flex items-center justify-between p-3 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-300 text-xs font-semibold hover:bg-red-500/20 transition-all min-h-[48px]"
+                >
+                  <span>
+                    • Bank alerts{' '}
+                    {auditJob.status === STATUS.FAILING
+                      ? 'are failing'
+                      : auditJob.status === STATUS.NEVER
+                        ? 'have never been recorded'
+                        : `last recorded ${timeAgo(auditJob.lastRun.finished_at)}`}
+                    {' '}— the figures here may be stale
+                  </span>
+                  <span className="text-red-400 font-bold">System →</span>
+                </Link>
+              )}
+
               {/* Payments and payouts inside the week, plus anything overdue --
                   a missed contribution should not vanish just because its date
                   has passed. */}
@@ -892,6 +934,7 @@ export default function DailyHQ() {
           lastWeekGoals={lastWeekGoals}
           dailyTasks={dayRows}
           isDone={doneOn}
+          isLastWeekGoalDone={(goal) => isTaskDone(goal, lastWeekTransactions)}
           today={todayDate}
         />
       )}

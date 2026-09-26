@@ -65,18 +65,23 @@ export async function generateTasks(client, { today = toDateOnly(new Date()) } =
     const monthStart = startOfMonth(anchor)
     const weekStart = startOfWeek(anchor)
     const weekEnd = endOfWeek(anchor)
+    // Both reads start at the earlier of the month and the week: in the first
+    // days of a month the current week began last month, and reading from the
+    // 1st hid that week's existing rows (so the generator wrote over them) and
+    // its first days' transactions (so its progress was short).
+    const fetchStart = [monthStart, weekStart].sort()[0]
 
     const [goalsRes, txnRes] = await Promise.all([
       // Drafts excluded: a proposal the planner wrote overnight must not
       // decompose into today's tasks before anyone has agreed to it, and a
       // draft weekly row sitting in `existingWeekly` would also confuse
       // reconcileGenerated into treating a suggestion as the stored plan.
-      excludeDrafts(client.from('goals').select('*').gte('target_date', monthStart)),
+      excludeDrafts(client.from('goals').select('*').gte('target_date', fetchStart)),
       excludeVoided(
         client
           .from('transactions')
           .select(transactionSummaryColumns())
-          .gte('transaction_date', monthStart),
+          .gte('transaction_date', fetchStart),
       ),
     ])
 
@@ -86,7 +91,7 @@ export async function generateTasks(client, { today = toDateOnly(new Date()) } =
     const allGoals = goalsRes.data || []
     const transactions = txnRes.data || []
 
-    const monthRows = transactions
+    const monthRows = transactions.filter((t) => t.transaction_date >= monthStart)
     const weekRows = within(transactions, weekStart, weekEnd)
 
     let written = 0

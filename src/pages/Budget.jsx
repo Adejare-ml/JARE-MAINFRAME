@@ -186,8 +186,8 @@ export default function Budget() {
         <div>
           <h1 className="text-2xl font-bold text-white mb-2">No wallets yet</h1>
           <p className="text-muted text-sm max-w-sm mx-auto">
-            Add your bank accounts, Opay and cash in Settings — including the alert sender
-            address so transactions sync automatically.
+            Add your bank accounts, Opay and cash in Settings — each with its slug (gtbank,
+            opay, stanbic), which is how the morning import files bank alerts to it.
           </p>
         </div>
         <Link
@@ -224,7 +224,11 @@ export default function Budget() {
   // was not enough: a GTBank→PiggyVest transfer writes its debit leg on the
   // liquid side, so saving money read as spending it, and ATM cash counted
   // twice. The math lives in src/lib/summary.js with tests.
-  const liquidWalletIds = new Set(liquidWallets.map(w => w.id))
+  // Every liquid wallet, active or not (see DailyHQ): deactivating a wallet
+  // must not erase its past months from these totals.
+  const liquidWalletIds = new Set(
+    wallets.filter(w => ['bank', 'mobile', 'cash'].includes(w.type)).map(w => w.id),
+  )
   const monthSummary = summarizeMonth(monthTransactions, liquidWalletIds)
 
   // category -> target, and category -> historical average, both optional

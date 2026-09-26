@@ -811,7 +811,7 @@ export default function Transactions() {
             <EmptyState
               icon="💳"
               title="No transactions yet"
-              message="Log one by hand, or connect Gmail in Settings to import bank alerts automatically"
+              message="Log one by hand, or wait for the morning import of bank alerts (Settings → System shows when it last ran)"
               actionLabel="Log a transaction"
               onAction={() => openQuickLog('debit')}
             />

@@ -11,12 +11,13 @@ import {
   daysAgo,
   orderGoalsBySlot,
   startOfMonth,
+  startOfWeek,
   excludeVoided,
   excludeDrafts,
   transactionSummaryColumns,
 } from '../lib/queries'
 import { hasColumn } from '../lib/schema'
-import { goalProgress } from '../lib/planning'
+import { goalProgress, periodWindow } from '../lib/planning'
 import ActivityGrid from '../components/daily/ActivityGrid'
 import { GoalsSkeleton } from '../components/ui/PageSkeleton'
 import GoalForm from '../components/goals/GoalForm'
@@ -97,13 +98,15 @@ export default function Goals() {
             .gte('target_date', startOfMonth())
             .order('period', { ascending: true }),
         ),
-        // Scoped to the month: a monthly goal needs the whole month and a
-        // weekly one a subset of it, so one fetch serves both.
+        // From the start of the month or of this week, whichever is earlier:
+        // in the first days of a month the current week began last month, and
+        // a weekly target scored from the 1st missed its first days. Each card
+        // narrows these rows to its own period below.
         excludeVoided(
           supabase
             .from('transactions')
             .select(transactionSummaryColumns())
-            .gte('transaction_date', startOfMonth()),
+            .gte('transaction_date', [startOfMonth(), startOfWeek()].sort()[0]),
         ),
         supabase.from('wallets').select('id, name, is_active'),
         // The planner's two halves, both additive. A page that fails because a
@@ -417,7 +420,13 @@ export default function Goals() {
               <TargetCard
                 key={goal.id}
                 goal={goal}
-                transactions={monthTransactions}
+                // Only the rows inside the goal's own period. goalProgress sums
+                // whatever it is handed, so a weekly target given month-to-date
+                // rows showed the whole month's spend from the second week on.
+                transactions={monthTransactions.filter((t) => {
+                  const w = periodWindow(goal)
+                  return !w || (t.transaction_date >= w.from && t.transaction_date <= w.to)
+                })}
                 today={today}
                 onEdit={(g) => {
                   setEditing(g)

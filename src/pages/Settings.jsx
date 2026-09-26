@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { connectGmail, disconnectGmail, syncGmailEmails } from '../lib/gmailSync'
 import { getParseStrategy, sanitizeSlug } from '../lib/sync'
 import { timeAgo, formatNaira, formatDate } from '../lib/formatters'
 import { toast } from '../lib/toast'
@@ -33,9 +32,9 @@ const PARSE_STRATEGIES = [
 ]
 
 const PARSE_STRATEGY_HELP = {
-  auto: 'Try pattern matching first, fall back to AI. Fine for most banks.',
-  rules: 'Pattern matching only. Fastest, for banks that clearly label DEBIT and CREDIT.',
-  llm: 'Always use AI. Needed where the same wording covers money in and money out (Opay, PiggyVest) — these are skipped by manual sync and picked up by the scheduled one.',
+  auto: 'Only a manual run of the retired Gmail sync reads this; the morning import decides direction itself. Pattern matching first, AI as the fallback.',
+  rules: 'Manual sync only: pattern matching, for banks that clearly label DEBIT and CREDIT.',
+  llm: 'Manual sync only: always use AI, where one word covers money in and money out (Opay, PiggyVest).',
 }
 
 const PRESET_COLORS = [
@@ -46,11 +45,6 @@ const PRESET_COLORS = [
 export default function Settings() {
   const { signOut } = useAuth()
 
-  const [gmailStatus, setGmailStatus] = useState('disconnected')
-  const [lastSync, setLastSync] = useState(null)
-  const [lastChecked, setLastChecked] = useState(null)
-  const [isSyncing, setIsSyncing] = useState(false)
-  const [isConnecting, setIsConnecting] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   // Every other page has had this since Track A; Settings did not, and swallowed
   // its errors instead. A backend failure rendered "no wallets, Gmail
@@ -112,28 +106,6 @@ export default function Settings() {
         setUserEmail(user.email)
       }
 
-      // 2. Fetch Gmail Integration
-      const { data: intData, error: intErr } = await supabase
-        .from('integrations')
-        .select('*')
-        .eq('service', 'gmail')
-        .maybeSingle()
-
-      // PGRST116 is "no rows", which just means Gmail was never connected.
-      // Anything else is a real failure and must not be reported as
-      // "disconnected" -- see the note on pageError below.
-      if (intErr && intErr.code !== 'PGRST116') throw intErr
-
-      if (intData && (intData.status === 'connected' || intData.status === 'active')) {
-        setGmailStatus('connected')
-        setLastSync(intData.last_sync)
-        setLastChecked(intData.last_checked)
-      } else {
-        setGmailStatus('disconnected')
-        setLastSync(null)
-        setLastChecked(null)
-      }
-
       // 3. Fetch Wallets
       // The error was previously not destructured at all, so a failed query
       // rendered as an empty wallet list -- the single most dangerous lie this
@@ -172,40 +144,6 @@ export default function Settings() {
   useEffect(() => {
     loadData()
   }, [])
-
-  // ── Gmail Handlers ──
-
-  const handleConnect = async () => {
-    setIsConnecting(true)
-    const result = await connectGmail((updatedData) => {
-      setGmailStatus('connected')
-      if (updatedData?.last_sync) {
-        setLastSync(updatedData.last_sync)
-      }
-    })
-
-    if (result?.success) {
-      setGmailStatus('connected')
-      loadData()
-    }
-    setIsConnecting(false)
-  }
-
-  const handleDisconnect = async () => {
-    const success = await disconnectGmail()
-    if (success) {
-      setGmailStatus('disconnected')
-      setLastSync(null)
-      setLastChecked(null)
-    }
-  }
-
-  const handleSync = async () => {
-    setIsSyncing(true)
-    await syncGmailEmails()
-    await loadData()
-    setIsSyncing(false)
-  }
 
   // ── Settings Handlers ──
 
@@ -415,23 +353,6 @@ export default function Settings() {
     }
   }
 
-  const isConnected = gmailStatus === 'connected'
-
-  // Exactly the predicate buildWalletIndex uses to decide which senders the
-  // sync will search, so this list is the sync's list rather than a second
-  // opinion about it.
-  //
-  // This used to merge in a hardcoded [GTBank, OPay] pair whenever those two
-  // addresses were absent, which meant the panel headed "Auto-synced senders"
-  // named both of them at all times -- including the weeks when neither wallet
-  // had `alert_sender` set and the sync was searching Stanbic alone. The one
-  // screen you would open to ask "is Opay being watched?" answered from a
-  // constant. A list of what is configured has to be able to be empty,
-  // otherwise it is decoration.
-  const allSenders = wallets
-    .filter((w) => w.alert_sender && w.is_active !== false)
-    .map((w) => ({ name: w.name, sender: w.alert_sender }))
-
   return (
     <div className="space-y-6 pb-8 max-w-2xl mx-auto">
       {/* Header */}
@@ -467,113 +388,27 @@ export default function Settings() {
           )}
 
           {/* ════════════════════════════════════════ */}
-          {/* EMAIL SYNC SECTION */}
+          {/* BANK ALERTS SECTION */}
           {/* ════════════════════════════════════════ */}
-          <section className="bg-card rounded-3xl p-6 border border-white/10 space-y-5">
+          <section className="bg-card rounded-3xl p-6 border border-white/10 space-y-3">
             <h2 className="text-xs font-semibold text-muted uppercase tracking-wider border-b border-white/5 pb-3">
-              Email Sync
+              Bank alerts
             </h2>
-
-            {/* Gmail Connection Card */}
-            <div className="bg-background/50 border border-white/5 rounded-2xl p-5 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">📧</span>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-bold text-white text-base">Gmail</h3>
-                      {isConnected ? (
-                        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-accent/20 text-accent border border-accent/30 flex items-center gap-1">
-                          <span>✓</span> Connected
-                        </span>
-                      ) : (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/5 text-muted border border-white/10 uppercase">
-                          Not Connected
-                        </span>
-                      )}
-                    </div>
-                    {/* Two different facts, previously conflated. last_sync is
-                        a Gmail watermark -- the newest email read, deliberately
-                        pulled back to retry failures -- so rendering it as
-                        "Last sync" reported a perfectly healthy run as "21 days
-                        ago" whenever the newest bank email was three weeks old,
-                        and it can legitimately move backwards. */}
-                    {isConnected && (
-                      <div className="mt-1 space-y-0.5">
-                        {lastChecked && (
-                          <p className="text-xs text-muted">Checked {timeAgo(lastChecked)}</p>
-                        )}
-                        {lastSync && (
-                          <p className="text-[11px] text-muted-dim">
-                            Caught up to {formatDate(String(lastSync).slice(0, 10))}
-                          </p>
-                        )}
-                        {!lastChecked && !lastSync && (
-                          <p className="text-xs text-muted">Not run yet</p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto pt-2 sm:pt-0">
-                  {isConnected ? (
-                    <>
-                      <button
-                        onClick={handleSync}
-                        disabled={isSyncing}
-                        className="w-full sm:w-auto px-5 py-3 bg-accent hover:bg-accent/90 text-black font-bold rounded-xl transition-all min-h-[48px] flex items-center justify-center gap-2 disabled:opacity-50 text-sm"
-                      >
-                        {isSyncing ? (
-                          <>
-                            <span className="animate-spin text-base">⌛</span>
-                            <span>Syncing...</span>
-                          </>
-                        ) : (
-                          'Sync Now'
-                        )}
-                      </button>
-                      <button
-                        onClick={handleDisconnect}
-                        className="w-full sm:w-auto px-4 py-3 bg-white/5 hover:bg-red-500/10 text-muted hover:text-red-400 border border-white/5 rounded-xl transition-all min-h-[48px] text-xs font-bold"
-                      >
-                        Disconnect
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      onClick={handleConnect}
-                      disabled={isConnecting}
-                      className="w-full sm:w-auto px-6 py-3 bg-accent hover:bg-accent/90 text-black font-bold text-sm rounded-xl transition-all min-h-[48px] flex items-center justify-center gap-2 shadow-lg shadow-accent/20 disabled:opacity-50"
-                    >
-                      {isConnecting ? 'Connecting...' : 'Connect Gmail'}
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Auto-synced Senders (dynamic from wallets) */}
-              <div className="pt-3 border-t border-white/5">
-                <p className="text-xs text-muted font-semibold mb-2">Auto-synced senders:</p>
-                {allSenders.length === 0 ? (
-                  <p className="text-xs text-yellow-400 pl-2">
-                    None. No active wallet has an alert sender, so the scheduled sync has
-                    nothing to search and will import nothing. Add one below.
-                  </p>
-                ) : (
-                  <ul className="text-xs text-muted-dim space-y-1 font-mono pl-2">
-                    {allSenders.map((s) => (
-                      <li key={s.sender} className="flex items-center gap-2">
-                        <span className="text-accent">•</span>
-                        <span>{s.sender}</span>
-                        <span className="text-muted-dim text-[10px] font-sans">({s.name})</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </div>
+            {/* The Connect / Sync Now / Disconnect trio lived here until 26 Sep
+                2026. Sync Now re-imported alerts the morning audit had already
+                recorded, and Disconnect deleted the row that audit stamps, so
+                System read "never checked" for good. Nothing here to press now:
+                the reading happens outside the app, and its state is below. */}
+            <p className="text-sm text-white/90 leading-relaxed">
+              Read every morning by the Claude scheduled task, which files each GTBank, OPay and
+              Stanbic alert straight into the ledger. Anything it was unsure about waits in the
+              review queue on Transactions.
+            </p>
+            <p className="text-xs text-muted leading-relaxed">
+              A wallet is matched by its slug (gtbank, opay, stanbic), set under Banks &amp; Wallets
+              below. Whether the import is alive, and when it last ran, is under System at the
+              bottom of this page.
+            </p>
           </section>
 
           {/* ════════════════════════════════════════ */}
@@ -636,7 +471,7 @@ export default function Settings() {
                               {w.alert_sender && getParseStrategy(w) === 'llm' && (
                                 <span
                                   className="text-[9px] bg-accent/10 text-accent px-1.5 py-0.5 rounded-full uppercase font-bold"
-                                  title="Read by AI — skipped by manual sync, picked up by the scheduled one"
+                                  title="Read by AI when the retired sync is run by hand"
                                 >
                                   AI
                                 </span>
@@ -1137,8 +972,8 @@ export default function Settings() {
           </p>
 
           <p className="text-xs text-muted leading-relaxed">
-            If you just don't use this wallet anymore, deactivating it instead keeps
-            everything intact and simply hides it from the wallet snapshot.
+            If you just don't use this wallet anymore, deactivating it instead keeps its
+            history in every month's totals and only leaves its balance out of net worth.
           </p>
 
           <div className="flex gap-2 pt-2">
