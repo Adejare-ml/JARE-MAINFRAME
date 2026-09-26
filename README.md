@@ -121,6 +121,14 @@ only, so the browser's anon key still cannot call them.
 `apply_migration` and is harmless on this path: it only clears
 `claude_audit_%` rows from the migrations ledger, which never appear.
 
+The overnight day draft (`.github/workflows/draft-day.yml`, the "Today's
+shape" card on Daily HQ) was retired the same way on 26 Sep 2026. It
+needed the same Google token and had only been able to write "could not
+read the calendar" markers since 22 Sep. The card simply does not appear
+when there is no brief for the day. The scheduled task holds Claude's own
+Google Calendar connection, so a day brief can come back through it if it
+is ever wanted; the table and `012_day_brief.sql` stay as they are.
+
 ### Parse strategy
 
 Each wallet chooses how its alerts are read, in Settings → Banks & Wallets:

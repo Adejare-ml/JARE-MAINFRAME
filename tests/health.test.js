@@ -35,10 +35,10 @@ describe('summarizeRuns', () => {
 
   it('reads a failed latest run as failing, however recent the success before it', () => {
     const rows = [
-      { job: 'draft-day', finished_at: hoursAgo(2), ok: true },
-      { job: 'draft-day', finished_at: hoursAgo(1), ok: false, summary: 'invalid_grant' },
+      { job: 'snapshot-net-worth', finished_at: hoursAgo(2), ok: true },
+      { job: 'snapshot-net-worth', finished_at: hoursAgo(1), ok: false, summary: 'invalid_grant' },
     ]
-    const job = summarizeRuns(rows, NOW).find((j) => j.id === 'draft-day')
+    const job = summarizeRuns(rows, NOW).find((j) => j.id === 'snapshot-net-worth')
     expect(job.status).toBe(STATUS.FAILING)
     expect(job.lastFailure.summary).toBe('invalid_grant')
     expect(job.lastOk.finished_at).toBe(hoursAgo(2))
