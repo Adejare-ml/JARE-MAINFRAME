@@ -19,7 +19,8 @@ export const JOBS = [
   // 08:00 UTC) since the token-based Gmail sync was retired; it records its
   // run through record_sync_run (migration 032).
   { id: 'claude-audit', label: 'Bank alerts (Claude audit)', staleAfterHours: 30 },
-  { id: 'draft-day', label: 'Day brief', staleAfterHours: 30 },
+  // 'draft-day' was retired with its schedule on 26 Sep 2026 (see
+  // .github/workflows/draft-day.yml); its old rows stay in sync_runs, unread.
   { id: 'verify-repo', label: 'Repo verification', staleAfterHours: 30 },
   { id: 'snapshot-net-worth', label: 'Net worth snapshot', staleAfterHours: 30 },
   { id: 'weekly-recap', label: 'Weekly recap', staleAfterHours: 8 * 24 },

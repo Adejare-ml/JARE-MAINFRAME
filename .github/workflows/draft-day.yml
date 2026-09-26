@@ -1,11 +1,12 @@
 name: Draft Tomorrow
 
 on:
-  schedule:
-    # 22:00 Lagos = 21:00 UTC. Late enough that tomorrow's calendar has settled,
-    # and it writes only context -- no tasks, nothing ticked -- so an overnight
-    # run cannot change what you have agreed to.
-    - cron: '0 21 * * *'
+  # The schedule is retired (26 Sep 2026). This needed the same Google refresh
+  # token as the Gmail sync, which expires every seven days while the OAuth
+  # app is in "Testing" status, and every night since 22 Sep it could only
+  # write an "unavailable" marker. The owner's Claude scheduled task reads
+  # the calendar through Claude's own Google connection if a day brief is
+  # ever wanted again. Manual runs still work here with a fresh token.
   workflow_dispatch:   # manual trigger button
 
 permissions:
