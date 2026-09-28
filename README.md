@@ -273,12 +273,18 @@ OPay prints on every alert. Two ways to teach it:
   `ZBN-ADEJARE` GTBank prints for a Zenith transfer:
   `update jare_owner set own_names = own_names || '{ZBN-ADEJARE}';`
   (matching ignores case, spacing and punctuation);
-- or add a category rule in Settings (recipient contains `PIGGYVEST` →
-  Savings Transfer): your own rule outranks the check.
+- or add a category rule (recipient contains `PIGGYVEST` → Savings
+  Transfer): your own rule outranks the check.
 
 Then pick the right category on the waiting row; nothing is re-filed on its
 own. The other direction never needs teaching: a transfer to a friend or a
 checkout stays spending.
+
+Rules are made where the decision is: open a waiting row, pick the category,
+and tick **Always file <payee> as …** before saving. That writes the rule
+(also listed under Settings → Category Rules) and files every other row from
+that payee still waiting in review, each marked with the rule that did it.
+The next alert from them is filed on arrival.
 
 ## What runs on its own
 
