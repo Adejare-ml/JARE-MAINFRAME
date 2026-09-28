@@ -33,6 +33,7 @@ jobs:
               'plan-month.yml',
               'weekly-recap.yml',
               'remind.yml',
+              'backup.yml',
               'keepalive.yml',
             ]
             const failed = []

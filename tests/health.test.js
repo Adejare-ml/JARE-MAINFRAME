@@ -23,6 +23,11 @@ describe('summarizeRuns', () => {
     expect(summarizeRuns([{ job: 'claude-audit', finished_at: hoursAgo(31), ok: true }], NOW)[0].status).toBe(STATUS.STALE)
   })
 
+  it('waits eight days for the weekly backup before calling it stale', () => {
+    expect(summarizeRuns([{ job: 'backup', finished_at: hoursAgo(7 * 24), ok: true }], NOW).find((j) => j.id === 'backup').status).toBe(STATUS.OK)
+    expect(summarizeRuns([{ job: 'backup', finished_at: hoursAgo(9 * 24), ok: true }], NOW).find((j) => j.id === 'backup').status).toBe(STATUS.STALE)
+  })
+
   it('gives each job its own patience -- a week-old weekly recap is fine, a week-old audit is not', () => {
     const rows = [
       { job: 'weekly-recap', finished_at: hoursAgo(6 * 24), ok: true },
