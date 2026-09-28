@@ -59,7 +59,10 @@ export default function DailyHQ() {
   // activity grid are all derived from this one array.
   const [dailyTasks, setDailyTasks] = useState([])
   const [dayBrief, setDayBrief] = useState(null)
-  const [auditRun, setAuditRun] = useState(null)
+  // Recent sync_runs rows for every scheduled job, not only the bank-alert
+  // audit: a stalled snapshot or recap used to show only in Settings and in
+  // a morning push no phone has subscribed to.
+  const [jobRuns, setJobRuns] = useState([])
   const [togglingId, setTogglingId] = useState(null)
   const [mode, setMode] = useState('day')
   const [unreviewedCount, setUnreviewedCount] = useState(0)
@@ -155,14 +158,15 @@ export default function DailyHQ() {
             ? supabase.from('day_briefs').select('*').eq('brief_date', todayDate).maybeSingle()
             : Promise.resolve({ data: null, error: null }),
           // The one fact every other number on this page depends on: when
-          // bank alerts were last recorded. Additive; behind 025 it is skipped.
+          // bank alerts were last recorded, and whether the other jobs are
+          // still running. Same window as Settings → System, so the month
+          // plan stays in view mid-month. Additive; behind 025 it is skipped.
           hasColumn('sync_runs.job')
             ? supabase
                 .from('sync_runs')
                 .select('job, finished_at, ok, summary')
-                .eq('job', 'claude-audit')
+                .gte('finished_at', new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString())
                 .order('finished_at', { ascending: false })
-                .limit(1)
             : Promise.resolve({ data: [], error: null }),
         ])
 
@@ -180,7 +184,8 @@ export default function DailyHQ() {
 
       if (briefRes.error) console.warn('Day brief unavailable:', briefRes.error.message)
       setDayBrief(briefRes.error ? null : briefRes.data || null)
-      setAuditRun(auditRes.error ? null : (auditRes.data || [])[0] || null)
+      if (auditRes.error) console.warn('Job history unavailable:', auditRes.error.message)
+      setJobRuns(auditRes.error ? [] : auditRes.data || [])
 
       setWallets(walletsRes.data || [])
       setTransactions(recentRes.data || [])
@@ -434,8 +439,17 @@ export default function DailyHQ() {
   // Bank alerts arrive through the morning audit; if it stops, every figure
   // on this page quietly freezes while still looking current. Same 30-hour
   // patience as Settings → System, and "never" counts too.
-  const auditJob = summarizeRuns(auditRun ? [auditRun] : []).find((j) => j.id === 'claude-audit')
+  const jobHealth = summarizeRuns(jobRuns)
+  const auditJob = jobHealth.find((j) => j.id === 'claude-audit')
   const auditUnwell = hasColumn('sync_runs.job') && auditJob && auditJob.status !== STATUS.OK
+  // The other jobs matter less per day, so only a failure or a run that is
+  // overdue by its own patience makes the list; one that has never run is a
+  // Settings fact, not a morning alarm.
+  const stalledJobs = hasColumn('sync_runs.job')
+    ? jobHealth.filter(
+        (j) => j.id !== 'claude-audit' && (j.status === STATUS.FAILING || j.status === STATUS.STALE),
+      )
+    : []
 
   // Monthly Spending Progress. The old version summed the 3-row "recent"
   // query -- the headline card was three transactions divided by a hardcoded
@@ -744,7 +758,7 @@ export default function DailyHQ() {
             <span>⚠️</span> Needs Attention
           </h2>
 
-          {unreviewedCount === 0 && lowWallets.length === 0 && dueDebts.length === 0 && !auditUnwell ? (
+          {unreviewedCount === 0 && lowWallets.length === 0 && dueDebts.length === 0 && !auditUnwell && stalledJobs.length === 0 ? (
             <div className="flex items-center gap-2 text-accent text-sm font-medium pt-1">
               <span>✅</span> All clear! No items require review.
             </div>
@@ -767,6 +781,26 @@ export default function DailyHQ() {
                   <span className="text-red-400 font-bold">System →</span>
                 </Link>
               )}
+
+              {stalledJobs.map((job) => (
+                <Link
+                  key={job.id}
+                  to="/settings"
+                  className={`flex items-center justify-between p-3 rounded-2xl text-xs font-semibold transition-all min-h-[48px] ${
+                    job.status === STATUS.FAILING
+                      ? 'bg-red-500/10 border border-red-500/20 text-red-300 hover:bg-red-500/20'
+                      : 'bg-orange-500/10 border border-orange-500/20 text-orange-300 hover:bg-orange-500/20'
+                  }`}
+                >
+                  <span>
+                    • {job.label}{' '}
+                    {job.status === STATUS.FAILING
+                      ? `is failing (last run ${timeAgo(job.lastRun.finished_at)})`
+                      : `has not run since ${timeAgo(job.lastRun.finished_at)}`}
+                  </span>
+                  <span className="font-bold">System →</span>
+                </Link>
+              ))}
 
               {/* Payments and payouts inside the week, plus anything overdue --
                   a missed contribution should not vanish just because its date
