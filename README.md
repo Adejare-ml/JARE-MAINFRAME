@@ -103,8 +103,16 @@ where every rule lives, so a prompt cannot skip one:
   amount above ₦5m and a date more than a day ahead all land in the review
   queue at LOW confidence; the owner's category rules (Settings) are applied
   in priority order;
+- a transfer category (`Transfer Out`, `Transfer In`, `Savings Transfer`)
+  holds only when the payee -- or the description, if no payee was read --
+  carries one of the owner's own names (`jare_owner.own_names`, 036), or
+  when one of the owner's own category rules chose it. A payment to anyone
+  else is filed as `Uncategorized` at LOW confidence with an explanation,
+  because the app leaves transfer categories out of spending and a friend
+  or a checkout is not a transfer, whatever the bank calls it;
 - a wallet balance follows the alert's stated balance forward only, and
-  never from a future-dated alert.
+  never from a future-dated alert; an alert that states no balance moves the
+  wallet by its amount instead, until the next stated one.
 
 Rows the task was sure about (HIGH) are reviewed on arrival; LOW ones wait in
 the review queue on Transactions, exactly as before.
@@ -254,6 +262,24 @@ In order:
    desc limit 5;` shows what each run recorded; a `refused` in the summary
    names the alert and why.
 
+### A transfer to your own account is waiting in review as Uncategorized
+
+The ingest function accepts a transfer category only when the alert's payee
+(or its description) carries one of your own names. Those names are in
+`jare_owner.own_names`, seeded by migration 036 from the "Dear …," line
+OPay prints on every alert. Two ways to teach it:
+
+- add a name or a short form the banks use for you, for example the
+  `ZBN-ADEJARE` GTBank prints for a Zenith transfer:
+  `update jare_owner set own_names = own_names || '{ZBN-ADEJARE}';`
+  (matching ignores case, spacing and punctuation);
+- or add a category rule in Settings (recipient contains `PIGGYVEST` →
+  Savings Transfer): your own rule outranks the check.
+
+Then pick the right category on the waiting row; nothing is re-filed on its
+own. The other direction never needs teaching: a transfer to a friend or a
+checkout stays spending.
+
 ## What runs on its own
 
 | Job | When (UTC) | Needs | Records as |
@@ -272,7 +298,9 @@ repository private removes that rule and also stops the Actions logs, which
 print balances and bill names, from being world-readable; the keep-alive is
 then harmless. Each Actions job records its run in `sync_runs`, opens or
 reopens one `sync-failure` issue when it fails, and the morning reminder
-repeats any failing or stale job at the top of its digest.
+repeats any failing or stale job at the top of its digest. Until a phone
+has subscribed to that reminder it reaches nobody, so the Needs Attention
+card on Daily HQ lists every failing or overdue job as well.
 
 ## Environment
 

@@ -402,7 +402,8 @@ export default function Settings() {
             <p className="text-sm text-white/90 leading-relaxed">
               Read every morning by the Claude scheduled task, which files each GTBank, OPay and
               Stanbic alert straight into the ledger. Anything it was unsure about waits in the
-              review queue on Transactions.
+              review queue on Transactions, and so does any transfer to someone other than you:
+              a payment the bank calls a transfer is spending here until you say which kind.
             </p>
             <p className="text-xs text-muted leading-relaxed">
               A wallet is matched by its slug (gtbank, opay, stanbic), set under Banks &amp; Wallets
