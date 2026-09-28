@@ -1,12 +1,13 @@
 name: Snapshot Net Worth
 
 on:
-  schedule:
-    # 10:30 Lagos = 09:30 UTC, after the Claude audit (08:08 UTC) has moved
-    # the wallet balances to the last alert of yesterday. The row is dated
-    # yesterday, which is the day those balances describe; a 22:55 run dated
-    # today used to record a balance that had stopped moving a day earlier.
-    - cron: '30 9 * * *'
+  # The schedule is retired (28 Sep 2026): the snapshot runs inside the
+  # database now, as a pg_cron job at 10:00 UTC exactly (migration 037,
+  # snapshot_net_worth()). This was the one job GitHub's scheduling delay on
+  # a public repository could break -- nine hours late on the 28th, and the
+  # row is dated "yesterday" from the moment the script runs, so a delay
+  # past midnight would skip a day. A manual run here still works and
+  # writes the same row the same way.
   workflow_dispatch:   # manual trigger button
 
 permissions:

@@ -1,7 +1,14 @@
 /**
  * Snapshot every wallet's balance, once a day.
  *
- * Runs on a schedule from .github/workflows/snapshot-net-worth.yml. This is
+ * Since 28 Sep 2026 the scheduled copy of this runs inside the database:
+ * snapshot_net_worth() in supabase/migrations/037_snapshot_in_db.sql, on
+ * pg_cron at 10:00 UTC, because GitHub was starting this workflow up to nine
+ * hours late and the row is dated "yesterday" from the moment it runs. This
+ * script is the manual fallback (workflow_dispatch) and writes the same row
+ * the same way. Both record the run as `snapshot-net-worth`.
+ *
+ * It used to run on a schedule from .github/workflows/snapshot-net-worth.yml. This is
  * the only place a wallet's balance is ever written down anywhere but the
  * `wallets` row itself, which only ever holds the current figure -- the
  * moment it changes, what it used to be is gone. Net worth over time cannot

@@ -26,10 +26,11 @@ jobs:
         with:
           script: |
             const { owner, repo } = context.repo
+            // Every workflow with a schedule. snapshot-net-worth.yml is not
+            // one since 28 Sep 2026: that job runs in the database (037).
             const files = [
               'verify-repo.yml',
               'plan-month.yml',
-              'snapshot-net-worth.yml',
               'weekly-recap.yml',
               'remind.yml',
               'keepalive.yml',

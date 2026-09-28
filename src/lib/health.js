@@ -22,6 +22,8 @@ export const JOBS = [
   // 'draft-day' was retired with its schedule on 26 Sep 2026 (see
   // .github/workflows/draft-day.yml); its old rows stay in sync_runs, unread.
   { id: 'verify-repo', label: 'Repo verification', staleAfterHours: 30 },
+  // Runs inside the database since 28 Sep 2026 (pg_cron, 10:00 UTC,
+  // migration 037); records under the same name as the Actions script did.
   { id: 'snapshot-net-worth', label: 'Net worth snapshot', staleAfterHours: 30 },
   { id: 'weekly-recap', label: 'Weekly recap', staleAfterHours: 8 * 24 },
   { id: 'plan-month', label: 'Month plan', staleAfterHours: 33 * 24 },
