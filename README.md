@@ -70,6 +70,35 @@ A device the push service reports gone is removed automatically; any other
 failure is retried the next morning and shown as "Last send failed" in
 Settings.
 
+### Backups
+
+Supabase's free tier keeps no backups. Every Sunday `backup.yml` writes the
+same JSON bundle Settings → Export produces -- every table, bank emails
+included -- to a private repository of yours, as `backups/<date>.json` and
+`latest.json`; git history keeps every version. Four steps, once:
+
+1. Create a **private** repository for it (say `jare-backups`), with a
+   README so the default branch exists. Never this repository: it is
+   public, and the script refuses it whatever `BACKUP_REPO` says.
+2. GitHub → Settings → Developer settings → Fine-grained tokens: one token,
+   repository access limited to that repository, permission **Contents:
+   read and write**, nothing else. Give it an expiry and note the date.
+3. In this repository's Settings → Secrets and variables → Actions: the
+   variable `BACKUP_REPO` = `<you>/jare-backups`, the secret
+   `BACKUP_REPO_TOKEN` = the token.
+4. Run **Weekly Backup** by hand with `dry_run` set to `false` and check
+   the file appears.
+
+Until step 3 is done the job fails every Sunday, on purpose: a backup that
+is silently not configured is the failure it exists to prevent. Settings →
+System, Daily HQ and the morning reminder show it as failing; one
+`sync-failure` issue is opened and commented on.
+
+Restoring is a manual job: the bundle has one array per table in the
+columns the database uses, so rows go back with the service key (or the SQL
+editor) table by table. There is no import button, by design; the day it is
+needed is not the day to discover an untested one.
+
 ## How bank alerts become transactions
 
 ```
@@ -296,6 +325,7 @@ The next alert from them is filed on arrival.
 | Morning reminder (`remind.yml`) | 08:20 daily | same, plus `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` once a phone has subscribed | `remind` |
 | Weekly recap (`weekly-recap.yml`) | Monday 09:17 | same, plus `OLLAMA_KEY` or `NVIDIA_KEY` | `weekly-recap` |
 | Month plan (`plan-month.yml`) | 1st, 05:17 | same, plus an LLM key | `plan-month` |
+| Weekly backup (`backup.yml`) | Sunday 03:41 | same, plus the `BACKUP_REPO` variable and `BACKUP_REPO_TOKEN` secret (see Backups) | `backup` |
 | Keep schedules alive (`keepalive.yml`) | 1st and 15th, 04:23 | `actions: write` (automatic) | — |
 
 The last row exists because GitHub switches off every scheduled workflow in

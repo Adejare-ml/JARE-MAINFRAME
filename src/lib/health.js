@@ -29,6 +29,9 @@ export const JOBS = [
   { id: 'plan-month', label: 'Month plan', staleAfterHours: 33 * 24 },
   // Every morning at 07:30 Lagos.
   { id: 'remind', label: 'Morning reminder', staleAfterHours: 30 },
+  // Sundays, to a private repository of the owner's (scripts/backup.mjs).
+  // Fails, on purpose, until that repository and its token are set up.
+  { id: 'backup', label: 'Weekly backup', staleAfterHours: 8 * 24 },
 ]
 
 export function hoursBetween(from, to) {
