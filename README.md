@@ -292,7 +292,7 @@ The next alert from them is filed on arrival.
 |---|---|---|---|
 | Bank-alert audit (Claude Routine) | 08:00 daily | Gmail + read-write Supabase connectors | `claude-audit` |
 | Repo verification (`verify-repo.yml`) | 21:30 daily | `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` | `verify-repo` |
-| Net-worth snapshot (`snapshot-net-worth.yml`) | 09:30 daily, dated yesterday | same | `snapshot-net-worth` |
+| Net-worth snapshot (pg_cron in the database, migration 037) | 10:00 daily, dated yesterday | nothing outside Postgres | `snapshot-net-worth` |
 | Morning reminder (`remind.yml`) | 08:20 daily | same, plus `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` once a phone has subscribed | `remind` |
 | Weekly recap (`weekly-recap.yml`) | Monday 09:17 | same, plus `OLLAMA_KEY` or `NVIDIA_KEY` | `weekly-recap` |
 | Month plan (`plan-month.yml`) | 1st, 05:17 | same, plus an LLM key | `plan-month` |
@@ -302,7 +302,14 @@ The last row exists because GitHub switches off every scheduled workflow in
 a public repository after 60 days without a commit, silently. Making the
 repository private removes that rule and also stops the Actions logs, which
 print balances and bill names, from being world-readable; the keep-alive is
-then harmless. Each Actions job records its run in `sync_runs`, opens or
+then harmless. GitHub also starts a public repository's scheduled runs
+late, by five to nine hours in the last week of September 2026. The other
+jobs tolerate that; the net-worth snapshot did not (its row is dated
+"yesterday" from the moment it runs), so it runs inside the database on
+pg_cron at 10:00 UTC exactly. `snapshot-net-worth.yml` keeps its manual
+trigger as a fallback and writes the same row. To see the job or its last
+runs: `select * from cron.job;` and
+`select * from cron.job_run_details order by start_time desc limit 5;`. Each Actions job records its run in `sync_runs`, opens or
 reopens one `sync-failure` issue when it fails, and the morning reminder
 repeats any failing or stale job at the top of its digest. Until a phone
 has subscribed to that reminder it reaches nobody, so the Needs Attention
