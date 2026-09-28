@@ -55,6 +55,12 @@ const RUN_STARTED_AT = new Date()
 /** What the run record says, set as main() learns it. */
 let runSummary = null
 
+/** Whether the run record counts as a good run. A dry run that finds no
+ *  destination exits cleanly but is recorded as failing: the backup is
+ *  not happening, and Settings → System should say so, not wait for
+ *  Sunday. */
+let runOk = true
+
 const missingVars = [
   ['SUPABASE_URL', SUPABASE_URL],
   ['SUPABASE_SERVICE_KEY', SUPABASE_SERVICE_KEY],
@@ -162,6 +168,7 @@ async function main() {
         : `Dry run: would write ${kb} KB, but BACKUP_REPO / BACKUP_REPO_TOKEN are not set, so a real run fails here.`,
     )
     runSummary = `dry run: ${rowCount} rows, ${kb} KB${configured ? '' : ', destination not configured'}`
+    runOk = configured
     return
   }
 
@@ -197,7 +204,7 @@ async function main() {
 }
 
 main()
-  .then(() => recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: process.exitCode !== 1, summary: runSummary }))
+  .then(() => recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: runOk && process.exitCode !== 1, summary: runSummary }))
   .catch(async (err) => {
     console.error('❌ Backup failed:', err?.message || err)
     await recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: false, summary: err?.message || String(err) })
