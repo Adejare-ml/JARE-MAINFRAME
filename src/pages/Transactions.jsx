@@ -23,6 +23,7 @@ import {
   SORT_OPTIONS,
 } from '../lib/queries'
 import { validateCorrection, isMissingFunctionError } from '../lib/corrections'
+import { ruleFromTransaction, findMatchingRule, likeLiteral, ruleExplanation } from '../lib/categoryRules'
 import { hasColumn } from '../lib/schema'
 import { pendingTransactions } from '../lib/pendingTransactions'
 import { confirmBuzz } from '../lib/haptics'
@@ -76,6 +77,9 @@ export default function Transactions() {
 
   // Edit state for expanded row
   const [editCategory, setEditCategory] = useState('')
+  // "Always file this payee as <category>": off on every open, so a rule is
+  // only ever made on purpose.
+  const [editMakeRule, setEditMakeRule] = useState(false)
   const [editNote, setEditNote] = useState('')
   const [editWantNeed, setEditWantNeed] = useState(null)
   // A parse can be wrong about more than its category. A flipped direction or a
@@ -383,6 +387,7 @@ export default function Transactions() {
       // Pre-filled with the model's suggestion, so accepting it is one tap and
       // only a disagreement costs a change.
       setEditCategory(txn.category || 'Uncategorized')
+      setEditMakeRule(false)
       // Seeded from the note alone. It used to fall back to `description`,
       // which combined with the write below meant opening a row and saving it
       // unchanged copied the bank's narration into the note.
@@ -496,6 +501,47 @@ export default function Transactions() {
   }
 
   /**
+   * "Always file this payee as <category>": one category rule (020), and
+   * every other row from the same payee still waiting in review gets the
+   * answer now, marked reviewed with a note saying which rule did it. A rule
+   * that already names this payee is updated rather than doubled. Runs after
+   * the edit itself has landed; a failure here is reported, never fatal.
+   *
+   * The re-file mirrors how ingest_alert_transaction applies a rule: a
+   * case-insensitive substring of the recipient.
+   */
+  const teachRule = async (original, category) => {
+    const rule = ruleFromTransaction(original, category)
+    if (!rule) return null
+
+    const { data: existing, error: readError } = await supabase
+      .from('category_rules')
+      .select('id, trigger_field, trigger_value, action_category')
+      .eq('trigger_field', rule.trigger_field)
+    if (readError) throw readError
+
+    const match = findMatchingRule(existing, rule)
+    const { error: writeError } = match
+      ? await supabase.from('category_rules').update({ action_category: rule.action_category }).eq('id', match.id)
+      : await supabase.from('category_rules').insert(rule)
+    if (writeError) throw writeError
+
+    const patch = { category: rule.action_category, reviewed: true }
+    if (hasColumn('transactions.explanation')) patch.explanation = ruleExplanation(rule)
+    const { data: refiled, error: refileError } = await excludeVoided(
+      supabase
+        .from('transactions')
+        .update(patch)
+        .eq('reviewed', false)
+        .neq('id', original.id)
+        .ilike('recipient', `%${likeLiteral(rule.trigger_value)}%`),
+    ).select('id')
+    if (refileError) throw refileError
+
+    return { rule, updated: Boolean(match), refiled: (refiled || []).length }
+  }
+
+  /**
    * Strike a transaction off without deleting it.
    *
    * Soft on purpose: the unique index on (source, transaction_id) is what stops
@@ -582,7 +628,26 @@ export default function Transactions() {
 
       if (categoryChanged) await recordCategoryCorrection(original, editCategory)
 
-      toast.success('Transaction updated ✓')
+      let taught = null
+      if (editMakeRule && original && hasColumn('category_rules.trigger_field')) {
+        try {
+          taught = await teachRule(original, editCategory)
+        } catch (err) {
+          console.warn('Could not save the category rule:', err)
+          toast.error('Saved, but the rule was not: ' + (err.message || 'check connection'))
+        }
+      }
+
+      if (taught) {
+        const verb = taught.updated ? 'updated' : 'saved'
+        toast.success(
+          taught.refiled > 0
+            ? `Rule ${verb} · ${taught.refiled} more from this payee filed as ${taught.rule.action_category}`
+            : `Rule ${verb} ✓`,
+        )
+      } else {
+        toast.success('Transaction updated ✓')
+      }
       setExpandedId(null)
       fetchData()
     } catch (err) {
@@ -1093,6 +1158,29 @@ export default function Transactions() {
                         <span className="text-lg" aria-hidden="true">{getCategoryIcon(editCategory)}</span>
                         <span className="truncate">{editCategory}</span>
                       </button>
+
+                      {/* The decision this queue exists for, offered where it is
+                          made: one rule for the payee, and every other row from
+                          them still waiting gets it too. Only when there is a
+                          payee to key on and a category that is one -- see
+                          ruleFromTransaction. */}
+                      {hasColumn('category_rules.trigger_field') && ruleFromTransaction(t, editCategory) && (
+                        <label className="mt-3 flex items-start gap-3 cursor-pointer min-h-[44px]">
+                          <input
+                            type="checkbox"
+                            checked={editMakeRule}
+                            onChange={(e) => setEditMakeRule(e.target.checked)}
+                            className="mt-0.5 w-4 h-4 accent-accent flex-shrink-0"
+                          />
+                          <span className="text-xs text-muted leading-relaxed">
+                            Always file <span className="text-white font-semibold">{t.recipient}</span> as{' '}
+                            <span className="text-white font-semibold">{editCategory}</span>
+                            <span className="block">
+                              Saves a category rule and files every other row from this payee still waiting for review.
+                            </span>
+                          </span>
+                        </label>
+                      )}
                     </div>
 
                     {/* Note Field */}
