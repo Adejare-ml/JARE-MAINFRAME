@@ -321,20 +321,26 @@ export default function QuickLog() {
           </div>
         </div>
       ) : (
-      <div className="flex bg-[#0f0f0f] rounded-xl p-1 border border-white/5">
+      <div role="tablist" className="flex bg-[#0f0f0f] rounded-xl p-1 border border-white/5">
         <button
+          role="tab"
+          aria-selected={type === 'debit'}
           className={`flex-1 py-3 text-center rounded-lg text-xs font-bold transition-all min-h-[48px] ${type === 'debit' ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'text-muted hover:text-white'}`}
           onClick={() => setType('debit')}
         >
           💸 Debit
         </button>
         <button
+          role="tab"
+          aria-selected={type === 'credit'}
           className={`flex-1 py-3 text-center rounded-lg text-xs font-bold transition-all min-h-[48px] ${type === 'credit' ? 'bg-accent/20 text-accent border border-accent/30' : 'text-muted hover:text-white'}`}
           onClick={() => setType('credit')}
         >
           💰 Credit
         </button>
         <button
+          role="tab"
+          aria-selected={type === 'transfer'}
           className={`flex-1 py-3 text-center rounded-lg text-xs font-bold transition-all min-h-[48px] ${type === 'transfer' ? 'bg-teal-500/20 text-teal-300 border border-teal-500/30' : 'text-muted hover:text-white'}`}
           onClick={() => setType('transfer')}
         >
