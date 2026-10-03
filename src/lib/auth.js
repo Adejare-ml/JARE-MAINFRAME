@@ -62,6 +62,15 @@ export function validateNewPassword(password, confirm) {
   if (password.length < PASSWORD_MIN) {
     return { ok: false, error: `Use at least ${PASSWORD_MIN} characters` }
   }
+  if (!/[A-Z]/.test(password)) {
+    return { ok: false, error: 'Password must contain at least one uppercase letter' }
+  }
+  if (!/[a-z]/.test(password)) {
+    return { ok: false, error: 'Password must contain at least one lowercase letter' }
+  }
+  if (!/[0-9]/.test(password)) {
+    return { ok: false, error: 'Password must contain at least one number' }
+  }
   if (password !== confirm) {
     return { ok: false, error: 'The two passwords do not match' }
   }

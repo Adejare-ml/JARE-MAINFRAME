@@ -37,9 +37,25 @@ describe('isRecoveryUrl', () => {
 })
 
 describe('validateNewPassword', () => {
-  it('accepts a matching pair at the minimum length', () => {
-    const pw = 'x'.repeat(PASSWORD_MIN)
+  it('accepts a matching pair at the minimum length that meets complexity requirements', () => {
+    // 8 characters, 1 uppercase, 1 lowercase, 1 number
+    const pw = 'A1a' + 'x'.repeat(PASSWORD_MIN - 3)
     expect(validateNewPassword(pw, pw)).toEqual({ ok: true })
+  })
+
+  it('refuses passwords missing uppercase letters', () => {
+    const pw = '1a' + 'x'.repeat(PASSWORD_MIN - 2)
+    expect(validateNewPassword(pw, pw).ok).toBe(false)
+  })
+
+  it('refuses passwords missing lowercase letters', () => {
+    const pw = 'A1' + 'X'.repeat(PASSWORD_MIN - 2)
+    expect(validateNewPassword(pw, pw).ok).toBe(false)
+  })
+
+  it('refuses passwords missing numbers', () => {
+    const pw = 'Aa' + 'x'.repeat(PASSWORD_MIN - 2)
+    expect(validateNewPassword(pw, pw).ok).toBe(false)
   })
 
   it('refuses a blank', () => {
