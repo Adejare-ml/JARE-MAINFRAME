@@ -350,12 +350,13 @@ export default function QuickLog() {
       )}
 
       <div className="flex-1 flex flex-col items-center justify-center py-6">
-        <label className="text-xs text-muted font-semibold uppercase tracking-wider mb-2">
+        <label htmlFor="quicklog-amount" className="text-xs text-muted font-semibold uppercase tracking-wider mb-2">
           {isTransfer ? 'Amount to move' : 'Enter Amount'}
         </label>
         <div className="flex items-center text-4xl md:text-5xl font-extrabold text-white">
           <span className="text-accent mr-1">₦</span>
           <input
+            id="quicklog-amount"
             type="number"
             inputMode="decimal"
             autoFocus
@@ -497,8 +498,9 @@ export default function QuickLog() {
 
       <div className="space-y-4 flex-1">
         <div>
-          <label className="block text-xs font-medium text-muted mb-1">Note</label>
+          <label htmlFor="quicklog-note" className="block text-xs font-medium text-muted mb-1">Note</label>
           <input
+            id="quicklog-note"
             type="text"
             value={note}
             onChange={(e) => setNote(e.target.value)}
@@ -524,7 +526,7 @@ export default function QuickLog() {
 
         {!isTransfer && (
           <div>
-            <label className="block text-xs font-medium text-muted mb-1">Tag (Classification)</label>
+            <p className="block text-xs font-medium text-muted mb-1">Tag (Classification)</p>
             <div className="grid grid-cols-2 gap-2">
               {['need', 'want', 'obligation', 'emergency'].map(tag => (
                 <button
