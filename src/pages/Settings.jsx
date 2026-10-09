@@ -492,6 +492,7 @@ export default function Settings() {
                             <button
                               onClick={() => openEditWallet(w)}
                               className="w-9 h-9 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 text-muted hover:text-white transition-colors text-xs"
+                              aria-label={`Edit ${w.name}`}
                               title="Edit"
                             >
                               ✏️
@@ -503,6 +504,7 @@ export default function Settings() {
                                   ? 'bg-accent/10 hover:bg-accent/20 text-accent'
                                   : 'bg-white/5 hover:bg-orange-500/10 text-muted hover:text-orange-400'
                               }`}
+                              aria-label={isInactive ? `Reactivate ${w.name}` : `Deactivate ${w.name}`}
                               title={isInactive ? 'Reactivate' : 'Deactivate'}
                             >
                               {isInactive ? '✅' : '⏸️'}
@@ -510,6 +512,7 @@ export default function Settings() {
                             <button
                               onClick={() => setDeletingWallet(w)}
                               className="w-9 h-9 flex items-center justify-center rounded-lg bg-white/5 hover:bg-red-500/10 text-muted hover:text-red-400 transition-colors text-xs"
+                              aria-label={`Delete ${w.name}`}
                               title="Delete"
                             >
                               🗑️
