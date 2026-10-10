@@ -27,7 +27,7 @@ export const JOBS = [
   { id: 'snapshot-net-worth', label: 'Net worth snapshot', staleAfterHours: 30 },
   { id: 'weekly-recap', label: 'Weekly recap', staleAfterHours: 8 * 24 },
   { id: 'plan-month', label: 'Month plan', staleAfterHours: 33 * 24 },
-  // Every morning at 07:30 Lagos.
+  // Every morning at 09:20 Lagos (08:20 UTC, after the audit).
   { id: 'remind', label: 'Morning reminder', staleAfterHours: 30 },
   // Sundays, to a private repository of the owner's (scripts/backup.mjs).
   // Fails, on purpose, until that repository and its token are set up.

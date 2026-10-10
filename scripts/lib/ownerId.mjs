@@ -18,6 +18,20 @@ export async function resolveOwnerUserId(supabase, explicit = process.env.OWNER_
   const fromEnv = typeof explicit === 'string' ? explicit.trim() : ''
   if (fromEnv) return fromEnv
 
+  // The pin first (jare_owner, 035): the database already knows whose rows
+  // these are, and a second account -- a stray sign-up -- must not stop
+  // every scheduled job on its first line. The service key reads past the
+  // table's RLS; a database behind 035 just falls through.
+  try {
+    const { data: pinned, error: pinError } = await supabase.from('jare_owner').select('user_id').limit(1).maybeSingle()
+    if (!pinError && pinned?.user_id) {
+      console.log(`👤 OWNER_USER_ID is unset; using the pinned owner (jare_owner)`)
+      return pinned.user_id
+    }
+  } catch {
+    // fall through to the single-account rule
+  }
+
   // Two rows is enough: one means "use it", two means "cannot tell".
   const { data, error } = await supabase.auth.admin.listUsers({ page: 1, perPage: 2 })
   if (error) {
