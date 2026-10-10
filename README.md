@@ -198,6 +198,18 @@ Three guards keep the ledger clean:
    `SYN-` id derived from the content with FNV-1a, identical in Node and the
    browser. `tests/dedup.test.js` guards that.
 
+### Refunds and the month in review
+
+A reversed charge comes back as a credit for the same amount on the same
+wallet. Budget pairs such a credit with its charge (same wallet, equal
+amount, within 14 days, and either the narration says refund/reversal or
+the two share a payee word; `src/lib/refunds.js`) and leaves both out of
+the month's spending and income. The "Month in review" card on Budget
+states the viewed month against the one before it in computed sentences
+(spent, income and what stayed, the biggest line, the category that moved
+most, envelopes over budget, savings, refunds netted); on the current
+month it shows last month's for the first week.
+
 ## When something stops working
 
 ### Migrations and the deploy gap
