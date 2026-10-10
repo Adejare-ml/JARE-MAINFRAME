@@ -236,9 +236,8 @@ export function daysAgo(days, date = new Date()) {
  * Local time throughout, like every other date helper here: the UTC form made
  * Daily HQ load *yesterday's* priorities between midnight and 1am Lagos.
  *
- * Note this is NOT what the "This Week" filter chip means. That one is
- * `daysAgo(7)` -- a rolling window, which cannot support week-over-week
- * comparison or carry-over because its boundaries move every time you look.
+ * The ledger's "This Week" chip uses this too, so the chip, the week review
+ * and the weekly goals all agree on which days are "this week".
  *
  * @param {Date} [date]
  * @returns {string}
@@ -404,7 +403,7 @@ export function applyTransactionFilter(query, filter, wallets = [], search = '',
   if (filter === 'Review') {
     query = query.eq(NEEDS_REVIEW_FILTER.column, NEEDS_REVIEW_FILTER.value)
   } else if (filter === 'This Week') {
-    query = query.gte('transaction_date', daysAgo(7))
+    query = query.gte('transaction_date', startOfWeek())
   } else if (filter === 'This Month') {
     query = query.gte('transaction_date', startOfMonth())
   } else if (filter === 'Needs') {

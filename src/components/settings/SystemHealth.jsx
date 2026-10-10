@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { hasColumn, pendingMigrations } from '../../lib/schema'
-import { timeAgo, formatDate } from '../../lib/formatters'
+import { timeAgo } from '../../lib/formatters'
 import { STATUS, summarizeRuns, gmailCursorStatus, overallStatus } from '../../lib/health'
 
 /**
@@ -149,7 +149,7 @@ export default function SystemHealth() {
 
       <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
         <div className="rounded-xl bg-background/60 border border-white/5 p-3">
-          <dt className="text-[11px] text-muted uppercase tracking-wider">Mailbox</dt>
+          <dt className="text-[11px] text-muted uppercase tracking-wider">Bank alerts last recorded</dt>
           <dd className="text-sm text-white mt-1">
             {cursor.status === STATUS.NEVER ? (
               'Never checked'
@@ -160,7 +160,7 @@ export default function SystemHealth() {
             )}
           </dd>
           {cursor.status === STATUS.STALE && (
-            <dd className="text-[11px] text-orange-300 mt-1">Longer than a day since the sync looked -- see the job above.</dd>
+            <dd className="text-[11px] text-orange-300 mt-1">Longer than a day since the audit recorded anything -- see the job above.</dd>
           )}
         </div>
 

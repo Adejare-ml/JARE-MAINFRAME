@@ -76,6 +76,10 @@ export const GATED_COLUMNS = {
   // SafeLock-style goals: money not meant to come out early.
   'goals.locked': '022_lock_goals.sql',
 
+  // The net-worth history behind the Budget sparkline. A database behind
+  // 018 costs the sparkline only, but the banner should still name the file.
+  'wallet_snapshots.total_balance': '018_wallet_snapshots.sql',
+
   // A whole table rather than a column, which is why probeSchema had to learn
   // about 42P01 above. One key is enough to make the banner name the file;
   // `free_minutes` is listed too because it is the figure the page actually

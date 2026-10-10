@@ -19,6 +19,7 @@ export function urlBase64ToUint8Array(base64) {
   if (!trimmed) return new Uint8Array(0)
   const padding = '='.repeat((4 - (trimmed.length % 4)) % 4)
   const standard = (trimmed + padding).replace(/-/g, '+').replace(/_/g, '/')
+  // eslint-disable-next-line no-undef -- Buffer is the Node path, for the tests and scripts
   const raw = typeof atob === 'function' ? atob(standard) : Buffer.from(standard, 'base64').toString('binary')
   const out = new Uint8Array(raw.length)
   for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i)

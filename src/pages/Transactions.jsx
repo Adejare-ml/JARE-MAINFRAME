@@ -984,7 +984,17 @@ export default function Transactions() {
 
                 {/* Main Row */}
                 <div
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={expandedId === t.id}
                   onClick={() => handleRowClick(t)}
+                  onKeyDown={(e) => {
+                    if (e.target !== e.currentTarget) return
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      handleRowClick(t)
+                    }
+                  }}
                   onPointerDown={handleSwipeStart}
                   onPointerUp={handleSwipeEnd(t)}
                   style={{

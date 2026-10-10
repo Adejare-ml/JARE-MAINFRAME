@@ -123,6 +123,21 @@ describe('theme (dark/light/system mode)', () => {
     expect(getThemeMode()).toBe('system')
   })
 
+  // The status bar on an installed app follows this meta, and index.html
+  // only ever knew the dark value.
+  it('repaints the theme-color meta to match the resolved theme', () => {
+    const meta = { content: '#0f0f0f', setAttribute(_, v) { this.content = v } }
+    doc.querySelector = (sel) => (sel.includes('theme-color') ? meta : null)
+    setThemeMode('light')
+    expect(meta.content).toBe('#f5f5f5')
+    setThemeMode('dark')
+    expect(meta.content).toBe('#0f0f0f')
+  })
+
+  it('does not need the meta to exist', () => {
+    expect(() => setThemeMode('light')).not.toThrow()
+  })
+
   it('resolveTheme passes dark and light straight through, without touching matchMedia', () => {
     vi.stubGlobal('window', {
       matchMedia: () => {

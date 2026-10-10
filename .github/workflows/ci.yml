@@ -15,6 +15,10 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
+      # Real mistakes and accessibility only (eslint.config.js); warnings
+      # print but do not fail the build.
+      - name: Lint
+        run: npm run lint
       - name: Tests
         run: npm test
       - name: Build

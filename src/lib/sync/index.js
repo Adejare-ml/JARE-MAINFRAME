@@ -1,7 +1,7 @@
 /**
  * Shared Gmail sync core.
  *
- * Imported by both the frontend manual sync (src/lib/gmailSync.js) and the
+ * Written for both the frontend manual sync (retired) and the
  * background GitHub Action (scripts/gmail-sync.mjs). These two used to be
  * near-identical copies that drifted apart -- different dedup hashes, different
  * page caps -- and every bug that produced lived in the gap between them. There

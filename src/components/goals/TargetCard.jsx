@@ -21,7 +21,7 @@ const EVIDENCE_SHOWN = 3
  * One monthly or weekly goal, with what it is asking for next.
  *
  * A measured goal shows a bar it filled in itself, from the transactions the
- * Gmail sync imported -- and says where the number came from, because a figure
+ * bank-alert ingestion recorded -- and says where the number came from, because a figure
  * the app computed has to be able to explain itself. A `manual` goal has no bar
  * to show, and says that rather than rendering an empty one at 0%.
  *
