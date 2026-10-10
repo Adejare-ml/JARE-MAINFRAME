@@ -6,6 +6,7 @@ import CategoryBreakdown from '../components/ui/CategoryBreakdown'
 import ErrorState from '../components/ui/ErrorState'
 import EmptyState from '../components/ui/EmptyState'
 import NetWorthSparkline from '../components/ui/NetWorthSparkline'
+import MonthRecap from '../components/ui/MonthRecap'
 import { BudgetSkeleton } from '../components/ui/PageSkeleton'
 import { openQuickLog } from '../components/ui/QuickLog'
 import { formatNaira, timeAgo, formatDate } from '../lib/formatters'
@@ -13,9 +14,12 @@ import { getCategoryIcon } from '../lib/constants'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import ProgressRing from '../components/ui/ProgressRing'
 import { summarizeMonth, runway, safeToSpend, budgetPace, categoryAverages } from '../lib/summary'
+import { excludeRefunded } from '../lib/refunds'
+import { buildMonthRecap } from '../lib/monthRecap'
 import {
   transactionListColumns,
   transactionSummaryColumns,
+  transactionRecurrenceColumns,
   startOfMonth,
   endOfMonth,
   shiftMonth,
@@ -84,10 +88,12 @@ export default function Budget() {
         // money moved -- not created_at, which is when the sync happened. A
         // backfill inserts last month's transactions today, and keying on
         // created_at counted every one of them against this month.
+        // Recurrence columns (payee and narration too): a refund is paired
+        // with its charge by payee, see src/lib/refunds.js.
         excludeVoided(
           supabase
             .from('transactions')
-            .select(transactionSummaryColumns())
+            .select(transactionRecurrenceColumns())
             .gte('transaction_date', viewMonthStart)
             .lte('transaction_date', monthEnd),
         ),
@@ -229,7 +235,10 @@ export default function Budget() {
   const liquidWalletIds = new Set(
     wallets.filter(w => ['bank', 'mobile', 'cash'].includes(w.type)).map(w => w.id),
   )
-  const monthSummary = summarizeMonth(monthTransactions, liquidWalletIds)
+  // A refunded charge and its refund are left out of both sides: neither
+  // was spending, neither was income.
+  const { rows: nettedTransactions, netted: refundsNetted } = excludeRefunded(monthTransactions)
+  const monthSummary = summarizeMonth(nettedTransactions, liquidWalletIds)
 
   // category -> target, and category -> historical average, both optional
   // lookups CategoryBreakdown defaults to {} for when 024 has not run or
@@ -241,6 +250,28 @@ export default function Budget() {
     categoryAverages(bucketByMonth(averageWindowTransactions), liquidWalletIds)
       .map((a) => [a.category, a.average]),
   )
+
+  // The month in review: the viewed month against the one before it. On
+  // the current month it appears for the first week only and describes
+  // last month, which has just closed; a past month describes itself.
+  const monthBuckets = new Map(
+    bucketByMonth(averageWindowTransactions).map((rows) => [rows[0].transaction_date.slice(0, 7), rows]),
+  )
+  const monthKey = (d) => startOfMonth(d).slice(0, 7)
+  const viewDate = new Date(viewMonthStart + 'T00:00:00')
+  const recapMonthDate = isCurrent ? shiftMonth(viewDate, -1) : viewDate
+  const showRecap = !isCurrent || new Date().getDate() <= 7
+  const recapRows = isCurrent ? monthBuckets.get(monthKey(recapMonthDate)) || [] : nettedTransactions
+  const recapSentences = showRecap
+    ? buildMonthRecap({
+        thisMonth: recapRows,
+        lastMonth: monthBuckets.get(monthKey(shiftMonth(recapMonthDate, -1))) || [],
+        liquidWalletIds,
+        budgetByCategory,
+        refundsNetted: isCurrent ? 0 : refundsNetted,
+        label: recapMonthDate.toLocaleDateString('en-NG', { month: 'long', year: 'numeric' }),
+      })
+    : []
 
   const thisMonthIncome = monthSummary.income
   const thisMonthSpent = monthSummary.spent
@@ -458,6 +489,9 @@ export default function Budget() {
           </div>
         )}
       </div>
+
+      {/* Month in review */}
+      <MonthRecap sentences={recapSentences} />
 
       {/* Category Breakdown */}
       <CategoryBreakdown
