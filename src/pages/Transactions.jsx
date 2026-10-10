@@ -50,7 +50,10 @@ export default function Transactions() {
   // Deep links from the Budget breakdown arrive as /transactions?category=Rent.
   const [searchParams, setSearchParams] = useSearchParams()
   const initialCategory = searchParams.get('category')
-  const [filter, setFilter] = useState(initialCategory ? `category:${initialCategory}` : 'All')
+  // Daily HQ's "Review →" lands on the queue itself, not the whole ledger.
+  const [filter, setFilter] = useState(
+    searchParams.get('filter') === 'Review' ? 'Review' : initialCategory ? `category:${initialCategory}` : 'All',
+  )
   // Range, direction and order live in the URL too, so a filtered view can
   // be bookmarked or sent, and survives a refresh.
   const [range, setRange] = useState(() => ({
@@ -129,7 +132,10 @@ export default function Transactions() {
   // undoable, and it would teach the corrections table the wrong lesson too.
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState(() => new Set())
-  const [bulkCategory, setBulkCategory] = useState('Uncategorized')
+  // Empty until a category is picked: Apply used to default to Uncategorized,
+  // which cleared rows from the queue still uncategorised and taught the
+  // corrections table that "Uncategorized" was the answer.
+  const [bulkCategory, setBulkCategory] = useState('')
 
   useEffect(() => {
     const timer = setTimeout(() => setActiveSearch(search.trim()), 300)
@@ -327,6 +333,10 @@ export default function Transactions() {
   const handleBulkCategorize = async () => {
     const ids = [...selectedIds]
     if (ids.length === 0) return
+    if (!bulkCategory || bulkCategory === 'Uncategorized') {
+      toast.error('Pick a category first')
+      return
+    }
 
     setUpdating(true)
     try {
@@ -533,6 +543,9 @@ export default function Transactions() {
         .from('transactions')
         .update(patch)
         .eq('reviewed', false)
+        // Same direction only: "Rent" taught on a debit must not file the
+        // landlord's refund credit as Rent income.
+        .eq('type', original.type || 'debit')
         .neq('id', original.id)
         .ilike('recipient', `%${likeLiteral(rule.trigger_value)}%`),
     ).select('id')
@@ -1318,12 +1331,12 @@ export default function Transactions() {
                 onClick={() => setShowBulkCategoryPicker(true)}
                 className="flex-1 min-w-0 px-3 py-3 bg-background border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-accent min-h-[48px] flex items-center gap-2"
               >
-                <span className="text-lg" aria-hidden="true">{getCategoryIcon(bulkCategory)}</span>
-                <span className="truncate">{bulkCategory}</span>
+                <span className="text-lg" aria-hidden="true">{bulkCategory ? getCategoryIcon(bulkCategory) : '🏷️'}</span>
+                <span className={`truncate ${bulkCategory ? '' : 'text-muted'}`}>{bulkCategory || 'Pick a category'}</span>
               </button>
               <button
                 onClick={handleBulkCategorize}
-                disabled={updating}
+                disabled={updating || !bulkCategory}
                 className="px-5 py-3 bg-accent text-black font-bold text-sm rounded-xl min-h-[48px] disabled:opacity-50 whitespace-nowrap"
               >
                 {updating ? 'Applying…' : 'Apply'}

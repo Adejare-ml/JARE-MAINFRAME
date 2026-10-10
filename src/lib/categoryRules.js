@@ -36,10 +36,14 @@ export function normalizePayee(value) {
  * @param {string} category
  * @returns {{trigger_field: string, trigger_value: string, action_category: string, priority: number}|null}
  */
+/** Shorter than this and a payee matches far more than intended ("MTN",
+ *  "OPAY" is inside half the ledger). */
+export const MIN_PAYEE_LENGTH = 4
+
 export function ruleFromTransaction(txn, category) {
   const trigger_value = normalizePayee(txn?.recipient)
   const action_category = normalizePayee(category)
-  if (!trigger_value || !action_category || action_category === 'Uncategorized') return null
+  if (trigger_value.length < MIN_PAYEE_LENGTH || !action_category || action_category === 'Uncategorized') return null
   return { trigger_field: RULE_FIELD, trigger_value, action_category, priority: 0 }
 }
 

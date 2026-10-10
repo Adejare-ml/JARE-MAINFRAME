@@ -32,6 +32,11 @@ describe('ruleFromTransaction', () => {
     expect(ruleFromTransaction(null, 'Transport')).toBeNull()
   })
 
+  it('is null for a payee too short to be specific', () => {
+    expect(ruleFromTransaction({ recipient: 'MTN' }, 'Airtime & Data')).toBeNull()
+    expect(ruleFromTransaction({ recipient: 'OPAY' }, 'Transfer Out')).not.toBeNull()
+  })
+
   it('is null for Uncategorized, which is not a decision', () => {
     expect(ruleFromTransaction({ recipient: 'PAYSTACK CHECKOUT' }, 'Uncategorized')).toBeNull()
     expect(ruleFromTransaction({ recipient: 'PAYSTACK CHECKOUT' }, '')).toBeNull()
