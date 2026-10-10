@@ -37,6 +37,7 @@ const EMPTY_FORM = {
   due_date: '',
   payout_date: '',
   monthly_payment: '',
+  match_payee: '',
   notes: '',
 }
 
@@ -146,6 +147,7 @@ export default function Debts() {
       due_date: debt.due_date || '',
       payout_date: debt.payout_date || '',
       monthly_payment: debt.monthly_payment != null ? String(debt.monthly_payment) : '',
+      match_payee: debt.match_payee || '',
       notes: debt.notes || '',
     })
     setShowModal(true)
@@ -196,6 +198,9 @@ export default function Debts() {
         ...(hasColumn('debts.monthly_payment')
           ? { monthly_payment: rotating ? null : num(form.monthly_payment) }
           : {}),
+        // The payee as the bank prints it; the ingest function links any
+        // alert in the repaying direction that carries it (039).
+        ...(hasColumn('debts.match_payee') ? { match_payee: form.match_payee.trim() || null } : {}),
         notes: form.notes.trim() || null,
         updated_at: new Date().toISOString(),
       }
@@ -632,6 +637,23 @@ export default function Debts() {
                 className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
               />
             </div>
+
+            {hasColumn('debts.match_payee') && (
+              <div>
+                <label className="block text-xs text-muted font-semibold mb-1">
+                  Payee on bank alerts <span className="font-normal">(optional)</span>
+                </label>
+                <input
+                  value={form.match_payee}
+                  onChange={(e) => setForm({ ...form, match_payee: e.target.value })}
+                  placeholder={rotating ? 'As the alert names the group' : 'e.g. OKash'}
+                  className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+                />
+                <p className="text-[11px] text-muted mt-1">
+                  Every {rotating ? 'contribution' : 'repayment'} the bank reports to this payee is linked here on arrival and counts as paid.
+                </p>
+              </div>
+            )}
 
             {rotating ? (
               <>

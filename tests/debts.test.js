@@ -5,6 +5,7 @@ import {
   cycleStatus,
   daysUntil,
   upcomingDebts,
+  nextDueDate,
   debtTotals,
   isRotating,
   payoffProjection,
@@ -159,6 +160,25 @@ describe('upcomingDebts', () => {
     const items = upcomingDebts(debts, 7, NOW)
     expect(items.find((i) => i.debt.id === 'b').kind).toBe('payout')
     expect(items.find((i) => i.debt.id === 'a').kind).toBe('due')
+  })
+
+  it('drops a payout whose date has passed', () => {
+    const items = upcomingDebts([{ id: 'p', kind: 'ajo', payout_date: '2026-07-20' }], 7, NOW)
+    expect(items).toEqual([])
+  })
+
+  it('drops a loan the ledger has already repaid', () => {
+    const loan = { id: 'l', kind: 'loan', direction: 'i_owe', principal: 18000, amount_paid: 0, due_date: '2026-07-15' }
+    expect(upcomingDebts([loan], 7, NOW, { l: 18000 })).toEqual([])
+    expect(upcomingDebts([loan], 7, NOW, { l: 5000 })).toHaveLength(1)
+  })
+
+  it('rolls a monthly loan due date forward instead of reporting it months overdue', () => {
+    const loan = { id: 'm', kind: 'loan', direction: 'i_owe', principal: 90000, monthly_payment: 15000, due_date: '2026-05-31' }
+    const [item] = upcomingDebts([loan], 30, NOW)
+    expect(item.date).toBe('2026-08-31')
+    expect(item.days).toBeGreaterThanOrEqual(0)
+    expect(nextDueDate({ due_date: '2026-05-31' }, NOW)).toBe('2026-05-31')
   })
 
   it('reports both dates when one debt has each', () => {

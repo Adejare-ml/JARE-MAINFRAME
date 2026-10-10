@@ -850,7 +850,7 @@ export default function Transactions() {
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm font-bold text-white truncate">{p.description || p.category}</p>
-                  <p className="text-xs text-muted mt-0.5">Syncing…</p>
+                  <p className="text-xs text-muted mt-0.5">Saving…</p>
                 </div>
               </div>
               <span className={`text-sm font-bold flex-shrink-0 ml-3 money ${p.type === 'credit' ? 'text-accent' : 'text-white'}`}>
