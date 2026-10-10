@@ -831,7 +831,7 @@ export default function DailyHQ() {
 
               {unreviewedCount > 0 && (
                 <Link
-                  to="/transactions"
+                  to="/transactions?filter=Review"
                   className="flex items-center justify-between p-3 rounded-2xl bg-orange-500/10 border border-orange-500/20 text-orange-300 text-xs font-semibold hover:bg-orange-500/20 transition-all min-h-[48px]"
                 >
                   <span>• {unreviewedCount} transaction{unreviewedCount === 1 ? '' : 's'} need categorization/review</span>
