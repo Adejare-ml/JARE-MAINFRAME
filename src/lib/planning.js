@@ -117,8 +117,18 @@ export function weeksRemaining(deadline, today) {
  * @param {Array<object>} transactions - rows already scoped to the goal's period
  * @returns {{measured: boolean, overridable: boolean, checked: boolean, done: number, target: number, share: number, met: boolean, source: string}}
  */
-export function goalProgress(goal, transactions = []) {
+/** The categories that mean money went into savings: the sending leg on a
+ *  spending wallet, or the receiving leg on a savings or investment one. */
+const SAVING_OUT = new Set(['Savings Transfer'])
+const SAVING_IN = new Set(['Savings', 'Investment'])
+
+function isSavingLeg(t) {
+  return (t.type === 'debit' && SAVING_OUT.has(t.category)) || (t.type === 'credit' && SAVING_IN.has(t.category))
+}
+
+export function goalProgress(goal, transactions = [], { liquidWalletIds = null } = {}) {
   const metric = goal?.metric || 'manual'
+  const liquid = liquidWalletIds ? new Set(liquidWalletIds) : null
 
   if (metric === 'manual') {
     return {
@@ -138,6 +148,7 @@ export function goalProgress(goal, transactions = []) {
   const target = Number(goal?.target_amount) || 0
   const wantCredit = metric === 'save_at_least'
   let done = 0
+  const seenSavingLegs = new Set()
 
   for (const t of transactions || []) {
     if (t.voided) continue
@@ -149,9 +160,24 @@ export function goalProgress(goal, transactions = []) {
     if (goal.metric_category && t.category !== goal.metric_category) continue
 
     if (wantCredit) {
-      if (t.type === 'credit') done += amount
+      if (goal.metric_category || goal.metric_wallet_id) {
+        if (t.type === 'credit') done += amount
+      } else if (isSavingLeg(t)) {
+        // With nothing to scope it, "saved" cannot mean "every credit": a
+        // salary day used to meet every save goal and empty Daily HQ's
+        // "money already spoken for". Count the legs of a move into savings
+        // instead, once each when both legs are in the ledger.
+        const key = `${t.transaction_date || ''}:${amount}`
+        if (!seenSavingLegs.has(key)) {
+          seenSavingLegs.add(key)
+          done += amount
+        }
+      }
     } else {
       // A transfer out is not spending, it is the same money in another pocket.
+      // Nor is a debit on a savings or investment wallet: Budget's
+      // summarizeMonth leaves those wallets out, and a cap must agree with it.
+      if (liquid && !goal.metric_wallet_id && t.wallet_id && !liquid.has(t.wallet_id)) continue
       if (t.type === 'debit' && !TRANSFER_CATEGORIES.includes(t.category)) done += amount
     }
   }

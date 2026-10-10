@@ -66,6 +66,9 @@ function debtItems(debts, now) {
 
 function billItems(transactions, today, now) {
   return detectRecurring(transactions || [], today)
+    // A bill is money going out. Monthly salary repeats just as steadily and
+    // used to be pushed as "expected", then "overdue".
+    .filter((bill) => bill.type === 'debit')
     .map((bill) => ({ bill, days: daysUntil(bill.nextExpected, now) }))
     .filter(({ bill, days }) => bill.overdue || (days != null && days <= BILL_WINDOW_DAYS))
     .map(({ bill, days }) => ({

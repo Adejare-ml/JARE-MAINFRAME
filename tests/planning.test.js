@@ -140,6 +140,30 @@ describe('goalProgress', () => {
     expect(result.done).toBe(5000)
   })
 
+  it('leaves savings-wallet debits out of a spending cap when told which wallets are liquid', () => {
+    const cap = { metric: 'spend_under', target_amount: 20000 }
+    const rows = [
+      { type: 'debit', amount: 3000, category: 'Food', wallet_id: 'bank' },
+      { type: 'debit', amount: 50, category: 'Bank Charges', wallet_id: 'piggy' },
+    ]
+    expect(goalProgress(cap, rows, { liquidWalletIds: ['bank'] }).done).toBe(3000)
+    expect(goalProgress(cap, rows).done).toBe(3050)
+  })
+
+  it('does not count salary as saving when the goal names no category or wallet', () => {
+    const g = { metric: 'save_at_least', target_amount: 20000 }
+    const result = goalProgress(g, [
+      { type: 'credit', amount: 150000, category: 'Salary', transaction_date: '2026-10-01' },
+      { type: 'credit', amount: 5000, category: 'Transfer In', transaction_date: '2026-10-02' },
+      { type: 'debit', amount: 8000, category: 'Savings Transfer', transaction_date: '2026-10-03' },
+      { type: 'credit', amount: 8000, category: 'Savings', transaction_date: '2026-10-03' },
+      { type: 'credit', amount: 2500, category: 'Investment', transaction_date: '2026-10-04' },
+    ])
+    // The two legs of the 8,000 move count once; salary and a transfer in not at all.
+    expect(result.done).toBe(10500)
+    expect(result.met).toBe(false)
+  })
+
   it('never divides by a zero target', () => {
     expect(goalProgress({ metric: 'save_at_least', target_amount: 0 }, []).share).toBe(0)
   })

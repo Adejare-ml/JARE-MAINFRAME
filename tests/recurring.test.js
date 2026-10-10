@@ -17,6 +17,16 @@ describe('detectRecurring', () => {
     expect(detectRecurring(rows, '2026-07-15')).toEqual([])
   })
 
+  it('never reports a move between your own accounts as a bill', () => {
+    const rows = [
+      debit('2026-05-01', 5000, { category: 'Savings Transfer', recipient: 'PiggyVest' }),
+      debit('2026-05-08', 5000, { category: 'Savings Transfer', recipient: 'PiggyVest' }),
+      debit('2026-05-15', 5000, { category: 'Savings Transfer', recipient: 'PiggyVest' }),
+      debit('2026-05-22', 5000, { category: 'Savings Transfer', recipient: 'PiggyVest' }),
+    ]
+    expect(detectRecurring(rows, '2026-05-25')).toEqual([])
+  })
+
   it('detects a monthly bill at a consistent amount and interval', () => {
     const rows = [debit('2026-05-01', 3000), debit('2026-06-01', 3000), debit('2026-07-01', 3000)]
     const [candidate] = detectRecurring(rows, '2026-07-15')
