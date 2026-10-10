@@ -30,6 +30,7 @@ import { isTaskDone, goalProgress } from '../src/lib/planning.js'
 import { buildWeekFacts, buildRecapPrompt, RECAP_SYSTEM_PROMPT } from '../src/lib/recapPrompt.js'
 import { reviewRecap } from '../src/lib/recapReview.js'
 import { endOfWeek, weeksAgo, daysAgo } from '../src/lib/queries.js'
+import { fetchAll } from '../src/lib/export.js'
 import { callModel, hasAnyProvider, LLM_CONFIG } from './llm.mjs'
 import { assertProgress } from './lib/assertProgress.mjs'
 import { resolveOwnerUserId } from './lib/ownerId.mjs'
@@ -103,36 +104,49 @@ async function main() {
     )
   }
 
-  const [walletsRes, txRes, dailyRes, weeklyGoalsRes] = await Promise.all([
-    supabase.from('wallets').select('id, type, is_active'),
-    supabase
-      .from('transactions')
-      .select('type, amount, category, wallet_id, transaction_date, voided')
-      .eq('voided', false)
-      // As far back as the streak looks, not just two weeks: a daily task
-      // older than that was being judged with no transactions at all, which
-      // capped every streak at fourteen days. compareWeeks filters its own
-      // fortnight out of this below.
-      .gte('transaction_date', daysAgo(STREAK_LOOKBACK_DAYS, now))
-      .lte('transaction_date', weekEnd),
+  // Every read names the owner: the service key sees every account's rows,
+  // and a stray sign-up's transactions must not feed this recap.
+  const [walletsRes, txRows, dailyRes, weeklyGoalsRes] = await Promise.all([
+    supabase.from('wallets').select('id, type, is_active').eq('user_id', OWNER_USER_ID),
+    // Paged: sixty days can pass PostgREST's silent 1000-row cap, and a
+    // truncated week would be recapped as a quiet one. Ordered by (date, id)
+    // so the pages are stable.
+    fetchAll((from, to) =>
+      supabase
+        .from('transactions')
+        .select('type, amount, category, wallet_id, transaction_date, voided')
+        .eq('user_id', OWNER_USER_ID)
+        .eq('voided', false)
+        // As far back as the streak looks, not just two weeks: a daily task
+        // older than that was being judged with no transactions at all, which
+        // capped every streak at fourteen days. compareWeeks filters its own
+        // fortnight out of this below.
+        .gte('transaction_date', daysAgo(STREAK_LOOKBACK_DAYS, now))
+        .lte('transaction_date', weekEnd)
+        .order('transaction_date', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to),
+    ),
     supabase
       .from('goals')
       // verified_at/evidence included: without them a repo-commit goal's
       // progress (repoProgress() in planning.js) reads as unchecked/zero
       // regardless of what the nightly verifier actually found.
       .select('id, title, period, target_date, metric, target_amount, metric_category, metric_wallet_id, completed, verified_at, evidence')
+      .eq('user_id', OWNER_USER_ID)
       .eq('period', 'daily')
       .gte('target_date', daysAgo(STREAK_LOOKBACK_DAYS, now))
       .lte('target_date', weekEnd),
     supabase
       .from('goals')
       .select('id, title, period, target_date, metric, target_amount, metric_category, metric_wallet_id, completed, verified_at, evidence')
+      .eq('user_id', OWNER_USER_ID)
       .eq('period', 'weekly')
       .eq('target_date', weekStart),
   ])
+  const txRes = { data: txRows, error: null }
 
   if (walletsRes.error) throw walletsRes.error
-  if (txRes.error) throw txRes.error
   if (dailyRes.error) throw dailyRes.error
   if (weeklyGoalsRes.error) throw weeklyGoalsRes.error
 

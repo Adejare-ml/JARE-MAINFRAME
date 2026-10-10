@@ -2,12 +2,14 @@ name: Draft Month Plan
 
 on:
   schedule:
-    # 06:17 Lagos on the 1st = 05:17 UTC. Early enough that the proposal is
-    # waiting when the month starts, and it changes nothing on its own -- every
-    # row it writes is a draft until approved. The odd minute keeps a run that
-    # happens once a month off the top-of-the-hour crowd GitHub sometimes
-    # delays or drops; a dropped monthly run leaves no plan and opens no issue.
-    - cron: '17 5 1 * *'
+    # 06:17 Lagos = 05:17 UTC, on each of the first seven days. One run on the
+    # 1st found no monthly goal yet (1 Oct 2026) and the month went unplanned;
+    # now a goal created on the 2nd still gets its plan, and once the month
+    # has drafts the later runs add nothing (the script checks before it
+    # calls a model). It changes nothing on its own -- every row it writes is
+    # a draft until approved. The odd minute keeps it off the top-of-the-hour
+    # crowd GitHub delays or drops.
+    - cron: '17 5 1-7 * *'
   workflow_dispatch:   # manual trigger button
 
 permissions:
@@ -76,7 +78,7 @@ jobs:
               repo: context.repo.repo,
               state: 'all',
               labels: 'sync-failure',
-              per_page: 10,
+              per_page: 100,
             })
 
             const open = existing.data.find(i => i.title === title)

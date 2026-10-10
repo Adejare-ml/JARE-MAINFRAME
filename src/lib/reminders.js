@@ -112,14 +112,18 @@ function milestoneItems(projects, milestones, today, now) {
  */
 function systemItems(jobs, today) {
   return (jobs || [])
-    .filter((job) => job && (job.status === STATUS.FAILING || job.status === STATUS.STALE))
+    // "Never" counts too: every job in health.js is expected, and one with
+    // no row at all is as silent as a dead one.
+    .filter((job) => job && (job.status === STATUS.FAILING || job.status === STATUS.STALE || job.status === STATUS.NEVER))
     .map((job) => {
       const last = job.lastRun?.finished_at ? String(job.lastRun.finished_at).slice(0, 10) : null
       const days = last ? Math.round((new Date(`${today}T00:00:00`) - new Date(`${last}T00:00:00`)) / 86400000) : null
       const since = days == null ? '' : days <= 0 ? ' today' : days === 1 ? ' yesterday' : ` ${days}d ago`
       const text = job.status === STATUS.FAILING
         ? `${job.label} is failing (last run${since})`
-        : `${job.label} has not run (last${since})`
+        : job.status === STATUS.NEVER
+          ? `${job.label} has never run`
+          : `${job.label} has not run (last${since})`
       return { kind: 'system', text, url: KIND_URLS.system, days: days == null ? 0 : -days }
     })
 }

@@ -61,7 +61,7 @@ let runSummary = null
 
 /** How far back the job-health check reads sync_runs. Wider than the
  *  longest cadence (plan-month, monthly) so "never run" means never. */
-const HEALTH_LOOKBACK_DAYS = 35
+const HEALTH_MAX_ROWS = 1000
 
 const missingVars = [
   ['SUPABASE_URL', SUPABASE_URL],
@@ -131,15 +131,17 @@ async function readTransactions(today) {
  * digest carries it to the phone.
  */
 async function readJobHealth() {
-  const since = new Date(Date.now() - HEALTH_LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString()
+  // No time window: a job dead for longer than any window would fall out of
+  // it, read as "never run", and vanish from the one alarm that mentions it.
+  // Retention is 90 days (recordRun.mjs), so the newest rows are all of them.
   const rows = await optional(
     'sync_runs',
     supabase
       .from('sync_runs')
       .select('job, finished_at, ok, summary')
       .eq('user_id', OWNER_USER_ID)
-      .gte('finished_at', since)
-      .order('finished_at', { ascending: false }),
+      .order('finished_at', { ascending: false })
+      .limit(HEALTH_MAX_ROWS),
   )
   // This job's own row is the one being written right now.
   return summarizeRuns(rows).filter((job) => job.id !== JOB)

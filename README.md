@@ -324,7 +324,7 @@ The next alert from them is filed on arrival.
 | Net-worth snapshot (pg_cron in the database, migration 037) | 10:00 daily, dated yesterday | nothing outside Postgres | `snapshot-net-worth` |
 | Morning reminder (`remind.yml`) | 08:20 daily | same, plus `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` once a phone has subscribed | `remind` |
 | Weekly recap (`weekly-recap.yml`) | Monday 09:17 | same, plus `OLLAMA_KEY` or `NVIDIA_KEY` | `weekly-recap` |
-| Month plan (`plan-month.yml`) | 1st, 05:17 | same, plus an LLM key | `plan-month` |
+| Month plan (`plan-month.yml`) | 1st to 7th, 05:17, until the month has drafts | same, plus an LLM key, and an active monthly coding goal on /goals | `plan-month` |
 | Weekly backup (`backup.yml`) | Sunday 03:41 | same, plus the `BACKUP_REPO` variable and `BACKUP_REPO_TOKEN` secret (see Backups) | `backup` |
 | Keep schedules alive (`keepalive.yml`) | 1st and 15th, 04:23 | `actions: write` (automatic) | — |
 

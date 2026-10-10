@@ -26,7 +26,15 @@ function download(filename, content, type) {
 }
 
 const readTable = (table) =>
-  fetchAll((from, to) => supabase.from(table.name).select('*').order(table.order, { ascending: true }).range(from, to))
+  fetchAll((from, to) =>
+    supabase
+      .from(table.name)
+      .select('*')
+      .order(table.order, { ascending: true })
+      // Ties broken by id, or pages past the first thousand rows overlap.
+      .order(table.name === 'jare_owner' ? 'user_id' : 'id', { ascending: true })
+      .range(from, to),
+  )
 
 export default function ExportData() {
   const [table, setTable] = useState(EXPORT_TABLES[0].name)

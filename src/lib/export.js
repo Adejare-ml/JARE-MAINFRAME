@@ -26,6 +26,11 @@ export const EXPORT_TABLES = [
   { name: 'milestones', order: 'created_at' },
   { name: 'repairs', order: 'created_at' },
   { name: 'category_rules', order: 'priority' },
+  // The owner's own categories (030) and the pinned owner with the names
+  // the ingest function matches on (035/036): a restore without them files
+  // every custom category as Uncategorized and loses the transfer logic.
+  { name: 'categories', order: 'created_at' },
+  { name: 'jare_owner', order: 'pinned_at' },
   { name: 'category_budgets', order: 'category' },
   { name: 'category_corrections', order: 'created_at' },
   { name: 'wallet_snapshots', order: 'snapshot_date' },
@@ -104,6 +109,11 @@ export function toCsv(rows = [], columns = columnsFor(rows)) {
  * Read a whole table a page at a time. PostgREST caps a response at 1000
  * rows silently -- an export that asked once would look complete and be
  * missing everything past the first thousand.
+ *
+ * The page function must order by a column with ties broken by `id`:
+ * ranges over a sort with many equal keys (every transaction of one day,
+ * every rule at priority 0) are not stable between requests, and rows
+ * would be skipped or doubled across the page boundary.
  *
  * @param {(from: number, to: number) => Promise<{data: object[]|null, error: object|null}>} page - runs `.range(from, to)`
  * @returns {Promise<object[]>}

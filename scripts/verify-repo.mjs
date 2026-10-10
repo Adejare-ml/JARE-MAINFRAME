@@ -220,6 +220,7 @@ async function main() {
   const { data: rows, error } = await supabase
     .from('goals')
     .select('id, title, period, target_date, target_amount, evidence, verified_at')
+    .eq('user_id', OWNER_USER_ID)
     .eq('metric', REPO_METRIC)
     .gte('target_date', daysAgo(VERIFY_DAYS + 31))
 

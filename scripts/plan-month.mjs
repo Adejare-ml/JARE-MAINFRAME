@@ -77,6 +77,10 @@ const PLAN_MAX_TOKENS = 900
 let OWNER_USER_ID = process.env.OWNER_USER_ID
 
 const JOB = 'plan-month'
+
+/** What the run record says, set as main() learns it. A run that planned
+ *  nothing used to record a bare green tick. */
+let runSummary = null
 const RUN_STARTED_AT = new Date()
 
 const missingVars = [
@@ -143,21 +147,39 @@ async function main() {
       `${profile.untested.length} module(s) with no test file`,
   )
 
-  const [goalsRes, gapsRes] = await Promise.all([
+  const [goalsRes, gapsRes, draftedRes] = await Promise.all([
     supabase
       .from('goals')
       .select('id, title, period, target_date, metric, target_amount, plan_status')
+      .eq('user_id', OWNER_USER_ID)
       .eq('period', 'monthly')
       .eq('target_date', monthStart)
       .eq('plan_status', PLAN_STATUS.ACTIVE),
     supabase
       .from('knowledge_gaps')
       .select('id, topic, note')
+      .eq('user_id', OWNER_USER_ID)
       .is('resolved_at', null)
       .order('created_at', { ascending: false }),
+    // The workflow runs on the first seven days of the month now, so that a
+    // goal created on the 2nd still gets its plan. Once a month has drafts
+    // the later runs have nothing to add and must not spend a model call.
+    supabase
+      .from('goals')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', OWNER_USER_ID)
+      .eq('period', 'weekly')
+      .gte('target_date', monthStart)
+      .lte('target_date', endOfMonth(new Date(`${monthStart}T00:00:00`)))
+      .gte('slot', PLAN_SLOT_BASE),
   ])
 
   if (goalsRes.error) throw goalsRes.error
+  if (!draftedRes.error && (draftedRes.count || 0) > 0) {
+    console.log(`\nThis month already has ${draftedRes.count} planned week(s). Nothing to add.`)
+    runSummary = `already planned (${draftedRes.count} week(s) on file)`
+    return
+  }
 
   // Gaps are additive, not load-bearing: a missing table means 011 has not run
   // for that half, and a plan from the repository alone is still worth having.
@@ -172,6 +194,8 @@ async function main() {
 
   if (goals.length === 0) {
     console.log('\nNo active monthly coding goal for this month. Nothing to plan.')
+    console.log('   Create one on /goals and run this workflow by hand, or wait for tomorrow\'s run (days 1-7).')
+    runSummary = 'no active monthly coding goal; nothing planned'
     return
   }
 
@@ -259,6 +283,7 @@ async function main() {
 
   console.log('─'.repeat(64))
   console.log(`✅ ${written} week(s) drafted`)
+  runSummary = `${written} week(s) drafted for ${goals.length} goal(s)`
   if (written > 0) {
     console.log('   These are proposals. They appear on /goals for you to approve or')
     console.log('   discard, and nothing derives from them until you do.')
@@ -277,7 +302,7 @@ async function main() {
 }
 
 main()
-  .then(() => recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: process.exitCode !== 1 }))
+  .then(() => recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: process.exitCode !== 1, summary: runSummary }))
   .catch(async (err) => {
     console.error('❌ Month planning failed:', err?.message || err)
     await recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: false, summary: err?.message || String(err) })
