@@ -25,6 +25,10 @@ export const JOBS = [
   // Runs inside the database since 28 Sep 2026 (pg_cron, 10:00 UTC,
   // migration 037); records under the same name as the Actions script did.
   { id: 'snapshot-net-worth', label: 'Net worth snapshot', staleAfterHours: 30 },
+  // Also pg_cron (10:30 UTC, migration 040): ledger balances against the
+  // banks' stated ones, and missed alerts between consecutive ones. A
+  // failing row here is a number to chase, not a job to restart.
+  { id: 'reconcile', label: 'Balance reconciliation', staleAfterHours: 30 },
   { id: 'weekly-recap', label: 'Weekly recap', staleAfterHours: 8 * 24 },
   { id: 'plan-month', label: 'Month plan', staleAfterHours: 33 * 24 },
   // Every morning at 09:20 Lagos (08:20 UTC, after the audit).
