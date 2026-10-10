@@ -510,7 +510,7 @@ export default function DailyHQ() {
   const committedGoals = [...todayTasks, ...weeklyGoals]
     .filter((g) => g.metric === 'save_at_least')
     .reduce((sum, g) => {
-      const progress = goalProgress(g, g.period === 'daily' ? todayTransactions : thisWeekTransactions)
+      const progress = goalProgress(g, g.period === 'daily' ? todayTransactions : thisWeekTransactions, { liquidWalletIds })
       return sum + Math.max(0, (progress.target || 0) - (progress.done || 0))
     }, 0)
 

@@ -32,8 +32,8 @@ const EVIDENCE_SHOWN = 3
  * and found nothing* -- and when it has found something it shows the commits,
  * because a number the app cannot recompute has to be auditable.
  */
-export default function TargetCard({ goal, transactions = [], today, onEdit, onDelete, confirmingDelete }) {
-  const progress = goalProgress(goal, transactions)
+export default function TargetCard({ goal, transactions = [], liquidWalletIds = null, today, onEdit, onDelete, confirmingDelete }) {
+  const progress = goalProgress(goal, transactions, { liquidWalletIds })
   const next = goal.period === 'monthly'
     ? decomposeMonthly(goal, progress, today)
     : decomposeWeekly(goal, progress, today)

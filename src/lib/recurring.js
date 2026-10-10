@@ -13,6 +13,8 @@
  * a page has already fetched.
  */
 
+import { TRANSFER_CATEGORIES } from './summary.js'
+
 /** How far an individual amount may drift from the cluster's median and still count. */
 const AMOUNT_TOLERANCE = 0.05
 
@@ -85,6 +87,9 @@ export function detectRecurring(transactions, today = new Date().toISOString().s
     if (!t || t.voided || !t.transaction_date) continue
     const amount = Number(t.amount)
     if (!(amount > 0)) continue
+    // A weekly auto-save or a regular ATM run repeats at a steady amount
+    // too, but it is the owner's own money moving, not a bill.
+    if (TRANSFER_CATEGORIES.includes(t.category)) continue
     const key = groupingKey(t)
     if (!key) continue
     if (!groups.has(key)) groups.set(key, [])

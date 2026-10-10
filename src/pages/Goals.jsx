@@ -95,7 +95,9 @@ export default function Goals() {
             .from('goals')
             .select('*')
             .in('period', ['monthly', 'weekly'])
-            .gte('target_date', startOfMonth())
+            // Same earliest-date rule as the transactions below: a weekly
+            // goal anchored on Monday 29 Sep must still show on Wed 1 Oct.
+            .gte('target_date', [startOfMonth(), startOfWeek()].sort()[0])
             .order('period', { ascending: true }),
         ),
         // From the start of the month or of this week, whichever is earlier:
@@ -108,7 +110,7 @@ export default function Goals() {
             .select(transactionSummaryColumns())
             .gte('transaction_date', [startOfMonth(), startOfWeek()].sort()[0]),
         ),
-        supabase.from('wallets').select('id, name, is_active'),
+        supabase.from('wallets').select('id, name, type, is_active'),
         // The planner's two halves, both additive. A page that fails because a
         // proposal could not load would make the optional part of this feature
         // able to break the part you rely on.
@@ -328,8 +330,11 @@ export default function Goals() {
   // Today's count can be exact, because today's transactions are loaded: a
   // measured task is done when the ledger says so, a typed one when it is
   // ticked.
+  // Spending caps judge liquid wallets only, the way Budget does.
+  const liquidWalletIds = wallets.filter((w) => ['bank', 'mobile', 'cash'].includes(w.type)).map((w) => w.id)
+
   const doneToday = todayGoals.filter(g => {
-    const p = goalProgress(g, todayTransactions)
+    const p = goalProgress(g, todayTransactions, { liquidWalletIds })
     return p.measured ? p.met : g.completed
   }).length
 
@@ -420,6 +425,7 @@ export default function Goals() {
               <TargetCard
                 key={goal.id}
                 goal={goal}
+                liquidWalletIds={liquidWalletIds}
                 // Only the rows inside the goal's own period. goalProgress sums
                 // whatever it is handed, so a weekly target given month-to-date
                 // rows showed the whole month's spend from the second week on.
