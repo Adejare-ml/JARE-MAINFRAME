@@ -69,6 +69,10 @@ export const GATED_COLUMNS = {
   // What Debts.jsx needs to show a payoff date instead of just a balance.
   'debts.monthly_payment': '021_debt_monthly_payment.sql',
 
+  // The payee the bank prints, so the ingest function can link repayments
+  // to the debt itself. Behind 039 the Debts form simply omits the field.
+  'debts.match_payee': '039_manual_match_debt_link.sql',
+
   // SafeLock-style goals: money not meant to come out early.
   'goals.locked': '022_lock_goals.sql',
 

@@ -180,22 +180,49 @@ export function daysUntil(dateStr, now = new Date()) {
  * @param {Date} [now]
  * @returns {Array<{debt: object, date: string, days: number, kind: 'due'|'payout'}>}
  */
-export function upcomingDebts(debts, withinDays = 7, now = new Date()) {
+export function upcomingDebts(debts, withinDays = 7, now = new Date(), paidByDebt = {}) {
   const items = []
 
   for (const debt of debts || []) {
     if (debt.settled) continue
+    // A loan the ledger has already repaid (linked rows, 029) is not due,
+    // whatever its settled flag says; the owner just has not marked it.
+    const paid = paidByDebt[debt.id]
+    if (!isRotating(debt.kind) && (Number(debt.principal) || 0) > 0 && outstanding(debt, paid) <= 0) continue
 
     for (const [field, kind] of [['due_date', 'due'], ['payout_date', 'payout']]) {
-      const days = daysUntil(debt[field], now)
+      const date = kind === 'due' ? nextDueDate(debt, now) : debt[field]
+      const days = daysUntil(date, now)
       if (days === null) continue
-      // Overdue items stay visible indefinitely; upcoming ones only inside the
-      // window. A payment you missed last month should not quietly disappear.
-      if (days <= withinDays) items.push({ debt, date: debt[field], days, kind })
+      // A payout whose date has passed was either received or missed; either
+      // way it is history, not a reminder. A missed payment stays visible.
+      if (kind === 'payout' && days < 0) continue
+      if (days <= withinDays) items.push({ debt, date, days, kind })
     }
   }
 
   return items.sort((a, b) => a.days - b.days)
+}
+
+/**
+ * The due date to remind about. A loan with a monthly payment has one every
+ * month, so a due_date in the past rolls forward a month at a time until
+ * it is no earlier than today's month; a one-off date stays where it is,
+ * overdue included.
+ */
+export function nextDueDate(debt, now = new Date()) {
+  const start = debt?.due_date
+  if (!start || !(Number(debt?.monthly_payment) > 0)) return start || null
+  const [y, m, d] = start.split('-').map(Number)
+  if (!y || !m || !d) return start
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  let date = new Date(y, m - 1, d)
+  for (let i = 0; i < 120 && date < today; i++) {
+    const next = new Date(date.getFullYear(), date.getMonth() + 1, 1)
+    const lastDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate()
+    date = new Date(next.getFullYear(), next.getMonth(), Math.min(d, lastDay))
+  }
+  return dateOnly(date)
 }
 
 /**

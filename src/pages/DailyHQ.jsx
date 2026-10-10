@@ -9,7 +9,7 @@ import ErrorState from '../components/ui/ErrorState'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import { useAuth } from '../hooks/useAuth'
 import { summarizeMonth, safeToSpend, budgetPace } from '../lib/summary'
-import { upcomingDebts } from '../lib/debts'
+import { upcomingDebts, paidTotals } from '../lib/debts'
 import { generateTasks } from '../lib/generateTasks'
 import { isTaskDone, goalProgress, GENERATED_SLOT_BASE, REPO_METRIC } from '../lib/planning'
 import { dailyInsight } from '../lib/insight'
@@ -55,6 +55,7 @@ export default function DailyHQ() {
   const [transactions, setTransactions] = useState([])
   const [recentRows, setRecentRows] = useState([])
   const [debts, setDebts] = useState([])
+  const [linkedRows, setLinkedRows] = useState([])
   // Every daily row in the grid window. Today's list, yesterday's count and the
   // activity grid are all derived from this one array.
   const [dailyTasks, setDailyTasks] = useState([])
@@ -106,7 +107,7 @@ export default function DailyHQ() {
       // is checked: supabase-js returns errors rather than throwing, so the
       // old destructure-data-only version made the catch unreachable and a
       // total network failure rendered "Total: ₦0.00" and "All clear!".
-      const [walletsRes, recentRes, countRes, settingsRes, monthRes, goalsRes, debtsRes, briefRes, auditRes] =
+      const [walletsRes, recentRes, countRes, settingsRes, monthRes, goalsRes, debtsRes, briefRes, auditRes, linkedRes] =
         await Promise.all([
           supabase.from('wallets').select('*'),
           excludeVoided(
@@ -168,6 +169,12 @@ export default function DailyHQ() {
                 .gte('finished_at', new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString())
                 .order('finished_at', { ascending: false })
             : Promise.resolve({ data: [], error: null }),
+          // Repayments linked to a debt (029, and the ingest function links
+          // them itself since 039): a loan the ledger has paid off must not
+          // keep reading "overdue" here.
+          hasColumn('transactions.debt_id')
+            ? supabase.from('transactions').select('id, debt_id, type, amount, voided').not('debt_id', 'is', null)
+            : Promise.resolve({ data: [], error: null }),
         ])
 
       const firstError =
@@ -181,6 +188,8 @@ export default function DailyHQ() {
       // use.
       if (debtsRes.error) console.warn('Debts unavailable:', debtsRes.error.message)
       setDebts(debtsRes.error ? [] : debtsRes.data || [])
+      if (linkedRes.error) console.warn('Linked repayments unavailable:', linkedRes.error.message)
+      setLinkedRows(linkedRes.error ? [] : linkedRes.data || [])
 
       if (briefRes.error) console.warn('Day brief unavailable:', briefRes.error.message)
       setDayBrief(briefRes.error ? null : briefRes.data || null)
@@ -434,7 +443,7 @@ export default function DailyHQ() {
   // Check Low Balance Alerts against dynamic threshold (liquid wallets only)
   const lowWallets = liquidWallets.filter(w => Number(w.balance || 0) < warnThreshold)
 
-  const dueDebts = upcomingDebts(debts, 7)
+  const dueDebts = upcomingDebts(debts, 7, new Date(), paidTotals(debts, linkedRows))
 
   // Bank alerts arrive through the morning audit; if it stops, every figure
   // on this page quietly freezes while still looking current. Same 30-hour
