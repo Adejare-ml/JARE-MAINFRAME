@@ -30,10 +30,19 @@ import { buildNlQueryPrompt, NL_QUERY_SYSTEM_PROMPT } from '../../../src/lib/nlQ
 import { runQuery } from '../../../src/lib/nlQuery.js'
 import { extractJsonObject } from '../../../src/lib/sync/normalize.js'
 
+// The app's own origin only. A finance app's model endpoint has no business
+// answering a page served from anywhere else. Override with ALLOWED_ORIGIN
+// for a custom domain.
+const ALLOWED_ORIGIN = Deno.env.get('ALLOWED_ORIGIN') || 'https://jare-mainframe.pages.dev'
+
 const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  Vary: 'Origin',
 }
+
+/** A question is a sentence. Anything longer is a prompt, not a question. */
+const MAX_QUESTION_LENGTH = 500
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -90,10 +99,11 @@ async function callOllama(userPrompt) {
   }
 }
 
-/** First of the current UTC month, as YYYY-MM-DD. */
+/** First of the current month in Lagos (UTC+1, no DST), as YYYY-MM-DD.
+ *  Between midnight and 01:00 Lagos on the 1st, UTC is still last month. */
 function startOfMonthISO() {
-  const now = new Date()
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0, 10)
+  const lagos = new Date(Date.now() + 60 * 60 * 1000)
+  return new Date(Date.UTC(lagos.getUTCFullYear(), lagos.getUTCMonth(), 1)).toISOString().slice(0, 10)
 }
 
 Deno.serve(async (req) => {
@@ -121,6 +131,9 @@ Deno.serve(async (req) => {
     return json({ ok: false, reason: 'malformed request body' }, 400)
   }
   if (!question) return json({ ok: false, reason: 'no question given' }, 400)
+  if (question.length > MAX_QUESTION_LENGTH) {
+    return json({ ok: false, reason: `a question is at most ${MAX_QUESTION_LENGTH} characters` }, 413)
+  }
 
   const supabase = createClient(Deno.env.get('SUPABASE_URL'), Deno.env.get('SUPABASE_ANON_KEY'), {
     global: { headers: { Authorization: authHeader } },
@@ -129,6 +142,17 @@ Deno.serve(async (req) => {
   const { data: userData, error: userError } = await supabase.auth.getUser()
   if (userError || !userData?.user) {
     return json({ ok: false, reason: 'not signed in' }, 401)
+  }
+
+  // The owner only. RLS keeps a stray sign-up's data separate, but nothing
+  // in RLS stops them spending the owner's model key one question at a
+  // time. The pin (jare_owner, 035) is read with the service role, which
+  // every edge function holds; a database behind 035 refuses everyone,
+  // which is the safer failure.
+  const admin = createClient(Deno.env.get('SUPABASE_URL'), Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'))
+  const { data: pinned } = await admin.from('jare_owner').select('user_id').limit(1).maybeSingle()
+  if (!pinned?.user_id || pinned.user_id !== userData.user.id) {
+    return json({ ok: false, reason: 'this service answers its owner only' }, 403)
   }
 
   const monthStart = startOfMonthISO()
