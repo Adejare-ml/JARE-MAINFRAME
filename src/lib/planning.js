@@ -10,7 +10,7 @@
  * direction is decided by subtracting two balances instead of asking a model:
  * the sum is explainable, it is the same every run, and it can be checked by
  * hand. It is also the only option that works -- browser code cannot hold an
- * API key (see src/lib/gmailSync.js), so anything model-shaped would have to
+ * API key (the browser sync that once tried was retired), so anything model-shaped would have to
  * live in a scheduled Action.
  *
  * Pure, and importing nothing from supabase.js, so every rule below is testable
@@ -104,7 +104,7 @@ export function weeksRemaining(deadline, today) {
  * How much of a measurable goal is already done, read from the ledger.
  *
  * This is the part worth having. A goal with a metric does not wait to be
- * ticked -- it reads the transactions the Gmail sync imported and answers for
+ * ticked -- it reads the transactions the bank-alert ingestion recorded and answers for
  * itself, the same way the ledger types itself from bank alerts.
  *
  * Transfers are excluded from `spend_under` for the reason summarizeMonth

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import {
   transactionListColumns,
   transactionSummaryColumns,
@@ -9,7 +9,6 @@ import {
   shiftMonth,
   parseMonthParam,
   isCurrentMonth,
-  orderGoalsBySlot,
   toDateOnly,
   startOfMonth,
   endOfMonth,
@@ -187,6 +186,9 @@ describe('applyTransactionFilter', () => {
     applyTransactionFilter(week, 'This Week', wallets)
     expect(week.calls[0].method).toBe('gte')
     expect(week.calls[0].args[0]).toBe('transaction_date')
+    // Monday of this week, the same boundary the week review uses -- not a
+    // rolling seven days, which disagreed with the weekly goals card.
+    expect(week.calls[0].args[1]).toBe(startOfWeek())
 
     const month = fakeQuery()
     applyTransactionFilter(month, 'This Month', wallets)

@@ -70,8 +70,16 @@ export function resolveTheme(mode = getThemeMode()) {
 }
 
 /** Applies the given (or currently stored) mode to the document, resolving 'system' first. */
+/** What the browser chrome is painted, per theme: index.css's --color-background. */
+export const THEME_COLORS = { dark: '#0f0f0f', light: '#f5f5f5' }
+
 export function applyThemePreference(mode = getThemeMode()) {
-  document.documentElement.dataset.theme = resolveTheme(mode)
+  const theme = resolveTheme(mode)
+  document.documentElement.dataset.theme = theme
+  // The status bar and the installed app's title bar follow the page, not
+  // the static meta in index.html, which only ever knew about dark.
+  const meta = document.querySelector?.('meta[name="theme-color"]')
+  if (meta) meta.setAttribute('content', THEME_COLORS[theme] || THEME_COLORS.dark)
 }
 
 export function setThemeMode(mode) {
