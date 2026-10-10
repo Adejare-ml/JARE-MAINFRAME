@@ -111,7 +111,7 @@ Gmail  ──▶  Claude scheduled task ("Daily spending audit", 08:00 UTC)
 ```
 
 Every morning the owner's Claude scheduled task searches yesterday's mail
-from the three bank senders through Claude's own Gmail connection, reads
+from the six bank senders (GTBank, OPay, Stanbic, PalmPay, Zenith, PiggyVest, migration 041) through Claude's own Gmail connection, reads
 each alert, and calls `ingest_alert_transaction` once per alert with the
 slug, the Gmail message id, direction, amount, date, time, description,
 payee, category, stated balance, an excerpt and a confidence. It then calls
@@ -382,5 +382,5 @@ tests/
 
 Parsing correctness is the whole value of this project, so the highest-value
 contribution is a real bank email — **redacted** — added to
-`tests/fixtures/emails/`. Zenith, Polaris and PiggyVest have none yet. See the
+`tests/fixtures/emails/`. Zenith, Polaris, PalmPay and PiggyVest have none yet. See the
 README in that directory.
