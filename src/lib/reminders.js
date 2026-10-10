@@ -18,6 +18,7 @@ import { detectRecurring } from './recurring.js'
 import { urgentRepairs } from './repairs.js'
 import { dueMilestones } from './projects.js'
 import { STATUS } from './health.js'
+import { detectAnomalies } from './anomalies.js'
 
 /** Debts due or paying out within this many days make the digest. */
 export const DEBT_WINDOW_DAYS = 3
@@ -35,6 +36,7 @@ export const KIND_URLS = {
   milestone: '/projects',
   review: '/transactions',
   system: '/settings',
+  anomaly: '/transactions',
 }
 
 const money = (n) => `₦${Math.round(Number(n) || 0).toLocaleString('en-US')}`
@@ -77,6 +79,16 @@ function billItems(transactions, today, now) {
       url: KIND_URLS.bill,
       days,
     }))
+}
+
+/** Yesterday's and today's debits that look wrong: see src/lib/anomalies.js. */
+function anomalyItems(transactions, today) {
+  return detectAnomalies(transactions || [], { today }).map((a) => ({
+    kind: 'anomaly',
+    text: a.text,
+    url: KIND_URLS.anomaly,
+    days: 0,
+  }))
 }
 
 function repairItems(repairs, today, now) {
@@ -176,7 +188,7 @@ export function classifySendError(statusCode) {
  *
  * @param {object} input
  * @param {object[]} [input.debts] - debts rows, settled ones included (they are skipped)
- * @param {object[]} [input.transactions] - recent, non-voided rows with recipient/description
+ * @param {object[]} [input.transactions] - recent, non-voided rows with recipient/description (bills and anomalies)
  * @param {number} [input.unreviewedCount]
  * @param {object[]} [input.repairs]
  * @param {object[]} [input.projects]
@@ -200,6 +212,7 @@ export function buildReminderDigest({
     ...systemItems(jobs, today),
     ...debtItems(debts, now),
     ...billItems(transactions, today, now),
+    ...anomalyItems(transactions, today),
     ...repairItems(repairs, today, now),
     ...milestoneItems(projects, milestones, today, now),
   ]

@@ -214,3 +214,21 @@ describe('system health', () => {
     expect(buildReminderDigest({ today: TODAY, jobs: [ok] })).toBeNull()
   })
 })
+
+describe('anomalies', () => {
+  it('puts a large or doubled debit in the digest, pointing at the ledger', () => {
+    const today = '2026-10-10'
+    const digest = buildReminderDigest({
+      today,
+      transactions: [
+        { type: 'debit', amount: 25000, transaction_date: today, wallet_id: 'w', category: 'Clothing & Fashion', recipient: 'JUMIA' },
+        { type: 'debit', amount: 1200, transaction_date: today, wallet_id: 'w', category: 'Transport', recipient: 'BOLT' },
+        { type: 'debit', amount: 1200, transaction_date: today, wallet_id: 'w', category: 'Transport', recipient: 'BOLT' },
+      ],
+    })
+    expect(digest.items.map((i) => i.kind)).toEqual(['anomaly', 'anomaly'])
+    expect(digest.items[0].text).toContain('₦25,000 to JUMIA')
+    expect(digest.items[1].text).toContain('charged 2 times')
+    expect(digest.url).toBe('/transactions')
+  })
+})

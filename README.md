@@ -322,6 +322,7 @@ The next alert from them is filed on arrival.
 | Bank-alert audit (Claude Routine) | 08:00 daily | Gmail + read-write Supabase connectors | `claude-audit` |
 | Repo verification (`verify-repo.yml`) | 21:30 daily | `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` | `verify-repo` |
 | Net-worth snapshot (pg_cron in the database, migration 037) | 10:00 daily, dated yesterday | nothing outside Postgres | `snapshot-net-worth` |
+| Balance reconciliation (pg_cron, migration 040) | 10:30 daily | nothing outside Postgres | `reconcile` |
 | Morning reminder (`remind.yml`) | 08:20 daily | same, plus `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` once a phone has subscribed | `remind` |
 | Weekly recap (`weekly-recap.yml`) | Monday 09:17 | same, plus `OLLAMA_KEY` or `NVIDIA_KEY` | `weekly-recap` |
 | Month plan (`plan-month.yml`) | 1st to 7th, 05:17, until the month has drafts | same, plus an LLM key, and an active monthly coding goal on /goals | `plan-month` |
@@ -339,7 +340,16 @@ jobs tolerate that; the net-worth snapshot did not (its row is dated
 pg_cron at 10:00 UTC exactly. `snapshot-net-worth.yml` keeps its manual
 trigger as a fallback and writes the same row. To see the job or its last
 runs: `select * from cron.job;` and
-`select * from cron.job_run_details order by start_time desc limit 5;`. Each Actions job records its run in `sync_runs`, opens or
+`select * from cron.job_run_details order by start_time desc limit 5;`.
+The reconciliation (040) checks, per wallet, that the balance the latest
+bank alert stated plus every manual entry typed since equals the wallet's
+balance, and that consecutive alerts in the last 30 days chain (each
+stated balance is the previous one moved by the amount); a drift or a
+missed alert makes the job fail with the wallet and the day in its
+summary, which is where to look in the mailbox. The morning reminder also
+names yesterday's debits that look wrong: one far above the usual (three
+times the median debit of the last three months, never under ₦10,000) or
+the same amount to the same payee twice in a day (`src/lib/anomalies.js`). Each Actions job records its run in `sync_runs`, opens or
 reopens one `sync-failure` issue when it fails, and the morning reminder
 repeats any failing or stale job at the top of its digest. Until a phone
 has subscribed to that reminder it reaches nobody, so the Needs Attention
