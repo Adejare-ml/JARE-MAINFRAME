@@ -19,6 +19,7 @@ import { urgentRepairs } from './repairs.js'
 import { dueMilestones } from './projects.js'
 import { STATUS } from './health.js'
 import { detectAnomalies } from './anomalies.js'
+import { discoveryItems, DISCOVERY_URL } from './discovery.js'
 
 /** Debts due or paying out within this many days make the digest. */
 export const DEBT_WINDOW_DAYS = 3
@@ -37,6 +38,7 @@ export const KIND_URLS = {
   review: '/transactions',
   system: '/settings',
   anomaly: '/transactions',
+  account: DISCOVERY_URL,
 }
 
 const money = (n) => `₦${Math.round(Number(n) || 0).toLocaleString('en-US')}`
@@ -194,6 +196,7 @@ export function classifySendError(statusCode) {
  * @param {object[]} [input.projects]
  * @param {object[]} [input.milestones]
  * @param {object[]} [input.jobs] - summarizeRuns() output; failing or stale jobs lead the digest
+ * @param {object[]} [input.discoveredAccounts] - discovered_accounts rows (043); the undecided ones are asked about weekly
  * @param {string} [input.today] - YYYY-MM-DD
  * @returns {{title: string, body: string, items: object[], url: string} | null}
  */
@@ -205,6 +208,7 @@ export function buildReminderDigest({
   projects = [],
   milestones = [],
   jobs = [],
+  discoveredAccounts = [],
   today = new Date().toISOString().slice(0, 10),
 } = {}) {
   const now = new Date(`${today}T00:00:00`)
@@ -215,6 +219,9 @@ export function buildReminderDigest({
     ...anomalyItems(transactions, today),
     ...repairItems(repairs, today, now),
     ...milestoneItems(projects, milestones, today, now),
+    // An account the mail knows and the app does not: asked on the day it is
+    // first seen and weekly after, never daily (src/lib/discovery.js).
+    ...discoveryItems(discoveredAccounts, today),
   ]
   // The review queue is a count, not a deadline, so it goes last: a debt
   // due today outranks twelve rows the parser was unsure about.

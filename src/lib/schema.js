@@ -130,6 +130,11 @@ export const GATED_COLUMNS = {
   // One row per device that wants the morning reminder. A database behind
   // 031 costs Settings -> Reminders a notice; nothing else reads it.
   'push_subscriptions.endpoint': '031_push_subscriptions.sql',
+
+  // Accounts the daily audit saw in the mail and the app has no wallet for.
+  // A database behind 043 costs the Needs Attention line and the Settings
+  // section a notice naming the file.
+  'discovered_accounts.status': '043_discovered_accounts.sql',
 }
 
 /**

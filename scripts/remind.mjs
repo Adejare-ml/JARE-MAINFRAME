@@ -148,7 +148,7 @@ async function readJobHealth() {
 }
 
 async function readEverything(today) {
-  const [debts, transactions, unreviewed, repairs, projects, milestones, jobs] = await Promise.all([
+  const [debts, transactions, unreviewed, repairs, projects, milestones, jobs, discoveredAccounts] = await Promise.all([
     optional('debts', supabase.from('debts').select('*').eq('user_id', OWNER_USER_ID).eq('settled', false)),
     readTransactions(today),
     supabase
@@ -161,6 +161,9 @@ async function readEverything(today) {
     optional('projects', supabase.from('projects').select('id, name, status').eq('user_id', OWNER_USER_ID).eq('status', 'active')),
     optional('milestones', supabase.from('milestones').select('project_id, title, due_date, completed').eq('user_id', OWNER_USER_ID).eq('completed', false)),
     readJobHealth(),
+    // Accounts the audit found in the mail and the owner has not decided on
+    // (043). Behind the migration the table is missing and this is [].
+    optional('discovered_accounts', supabase.from('discovered_accounts').select('id, slug, label, sender, status, last_balance, last_seen_on, first_seen_at, times_seen').eq('user_id', OWNER_USER_ID).eq('status', 'new')),
   ])
 
   if (unreviewed.error) console.warn(`   (review count unavailable: ${unreviewed.error.message})`)
@@ -173,6 +176,7 @@ async function readEverything(today) {
     projects,
     milestones,
     jobs,
+    discoveredAccounts,
     today,
   }
 }

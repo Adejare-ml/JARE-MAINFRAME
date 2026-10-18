@@ -99,6 +99,32 @@ columns the database uses, so rows go back with the service key (or the SQL
 editor) table by table. There is no import button, by design; the day it is
 needed is not the day to discover an untested one.
 
+### Accounts the mail knows before the app does
+
+The daily audit reads alerts from the senders it has wallets for and used
+to skip everything else. Since migration 043 it notes the rest: a new
+fintech, a loan app, a savings app or a second bank account that mails an
+alert or a statement is written to `discovered_accounts` with the last
+balance and date the mail stated and how many alerts have been seen
+(`note_discovered_account`, which `ingest_alert_transaction` also calls
+before refusing an unknown slug). Nothing from such an account enters the
+ledger until you decide.
+
+You are asked in two places: a "Found in your mail" card on Daily HQ, and a
+line in the morning push on the day the account is first seen and weekly
+after that while it waits (never daily). **Track** creates a wallet with
+that slug and sender address, starting at the last stated balance, so the
+next alert lands in the ledger with no prompt change; **Ignore** mutes it.
+Settings → Accounts found in mail lists every account ever noticed with its
+status, and lets you change your mind either way. The `system` column names
+where a sighting came from (`gmail` today) so a later source, SMS
+forwarding or a bank API, feeds the same table.
+
+Two things to do once: run `supabase/migrations/043_discovered_accounts.sql`,
+and paste the updated prompt from `docs/routine-prompt.md` (step 2b) into
+the "Daily spending audit" routine. There is no email or SMS channel in this
+stack; the push digest is the "text", and the card is the record.
+
 ## How bank alerts become transactions
 
 ```

@@ -14,6 +14,7 @@ import CustomCategories from '../components/settings/CustomCategories'
 import Reminders from '../components/settings/Reminders'
 import SystemHealth from '../components/settings/SystemHealth'
 import ExportData from '../components/settings/ExportData'
+import DiscoveredAccountsSettings from '../components/settings/DiscoveredAccountsSettings'
 import { SettingsSkeleton } from '../components/ui/PageSkeleton'
 import { isOledEnabled, setOledEnabled, getThemeMode, setThemeMode } from '../lib/theme'
 
@@ -689,6 +690,11 @@ export default function Settings() {
               </div>
             </div>
           </section>
+
+          {/* ════════════════════════════════════════ */}
+          {/* ACCOUNTS FOUND IN MAIL (043) */}
+          {/* ════════════════════════════════════════ */}
+          <DiscoveredAccountsSettings />
 
           {/* ════════════════════════════════════════ */}
           {/* CATEGORY RULES */}
