@@ -102,6 +102,7 @@ export default function EndOfDay({ open, onToggle, onSaveReason, busyId }) {
                     setReasonId(task.id)
                     setDraft(task.blocked_reason || '')
                   }}
+                  aria-label={task.blocked_reason ? `Change reason for not completing "${task.title}"` : `Add reason for not completing "${task.title}"`}
                   className="text-[11px] text-muted hover:text-white underline underline-offset-2 pl-8"
                 >
                   {task.blocked_reason ? 'Change why' : 'Say what got in the way'}
