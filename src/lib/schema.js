@@ -131,6 +131,10 @@ export const GATED_COLUMNS = {
   // 031 costs Settings -> Reminders a notice; nothing else reads it.
   'push_subscriptions.endpoint': '031_push_subscriptions.sql',
 
+  // Accounts the daily audit saw in the mail and the app has no wallet for.
+  // A database behind 043 costs the Needs Attention line and the Settings
+  // section a notice naming the file.
+  'discovered_accounts.status': '043_discovered_accounts.sql',
   // Meals logged from a photo. A whole table; a database behind 042 costs
   // the Meals page and the Daily HQ food card a notice naming the file.
   'meals.items': '042_meals.sql',

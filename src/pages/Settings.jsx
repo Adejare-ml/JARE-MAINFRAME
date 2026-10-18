@@ -14,6 +14,7 @@ import CustomCategories from '../components/settings/CustomCategories'
 import Reminders from '../components/settings/Reminders'
 import SystemHealth from '../components/settings/SystemHealth'
 import ExportData from '../components/settings/ExportData'
+import DiscoveredAccountsSettings from '../components/settings/DiscoveredAccountsSettings'
 import { SettingsSkeleton } from '../components/ui/PageSkeleton'
 import { isOledEnabled, setOledEnabled, getThemeMode, setThemeMode } from '../lib/theme'
 import { CALORIE_TARGET_KEY, CALORIE_TARGET_MIN, CALORIE_TARGET_MAX, parseCalorieTarget } from '../lib/meals'
@@ -708,6 +709,9 @@ export default function Settings() {
           </section>
 
           {/* ════════════════════════════════════════ */}
+          {/* ACCOUNTS FOUND IN MAIL (043) */}
+          {/* ════════════════════════════════════════ */}
+          <DiscoveredAccountsSettings />
           {/* MEALS */}
           {/* ════════════════════════════════════════ */}
           <section className="bg-card rounded-3xl p-6 border border-white/10 space-y-4">

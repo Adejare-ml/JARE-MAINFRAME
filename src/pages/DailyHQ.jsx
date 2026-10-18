@@ -23,6 +23,7 @@ import EndOfDay from '../components/daily/EndOfDay'
 import Yesterday from '../components/daily/Yesterday'
 import ActivityGrid from '../components/daily/ActivityGrid'
 import UpcomingBills from '../components/daily/UpcomingBills'
+import DiscoveredAccounts from '../components/daily/DiscoveredAccounts'
 import FoodToday from '../components/daily/FoodToday'
 import { DailyHQSkeleton } from '../components/ui/PageSkeleton'
 import WeekReview from '../components/daily/WeekReview'
@@ -868,6 +869,10 @@ export default function DailyHQ() {
             </div>
           )}
         </section>
+
+        {/* Accounts the morning audit saw in the mail and does not track yet
+            (043). Renders nothing when there is nothing to decide. */}
+        <DiscoveredAccounts />
 
         {/* Bills nobody typed in, found from the pattern alone -- see
             src/lib/recurring.js. Renders nothing when none are due soon. */}
