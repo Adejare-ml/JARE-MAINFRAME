@@ -31,7 +31,7 @@ class ToastManager {
       typeof opts === 'number' ? { duration: opts } : opts
     const resolvedDuration = duration ?? DEFAULT_DURATION[type] ?? 3000
     this.listeners.forEach(l =>
-      l({ message, type, duration: resolvedDuration, color, action, id: Date.now() + Math.random() }),
+      l({ message, type, duration: resolvedDuration, color, action, id: crypto.randomUUID() }),
     )
   }
 
