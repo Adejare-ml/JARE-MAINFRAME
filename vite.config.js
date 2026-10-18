@@ -12,9 +12,12 @@ export default defineConfig({
         // out keeps the hashed filenames stable across app deploys, so the
         // service worker's cache keeps serving them instead of refetching
         // a megabyte after every change to one page.
-        manualChunks: {
-          react: ['react', 'react-dom', 'react-router-dom'],
-          supabase: ['@supabase/supabase-js'],
+        // Rolldown (vite 8) takes the function form only.
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined
+          if (/node_modules\/(react|react-dom|react-router|react-router-dom|scheduler)\//.test(id)) return 'react'
+          if (id.includes('node_modules/@supabase/')) return 'supabase'
+          return undefined
         },
       },
     },

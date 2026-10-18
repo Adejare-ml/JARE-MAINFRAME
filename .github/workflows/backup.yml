@@ -7,8 +7,9 @@ name: Weekly Backup
 # README's "Backups" section for the one-time setup: a private repository,
 # a fine-grained token with Contents read and write on it, the BACKUP_REPO
 # variable and the BACKUP_REPO_TOKEN secret. Until those exist the run
-# fails and says so; a backup that is silently not configured is the
-# failure this exists to prevent.
+# exits cleanly but records itself as a failing job, so Settings → System
+# and the morning digest show "Weekly backup" red without an issue being
+# opened here every Sunday; a token or write error still opens one.
 on:
   schedule:
     # Sunday 03:41 UTC. Nothing else runs then, and a late start (public

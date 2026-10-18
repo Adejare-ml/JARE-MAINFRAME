@@ -180,11 +180,18 @@ async function main() {
     return
   }
 
+  // Not configured yet: say so where it is read (the run record, which
+  // Settings → System and the morning digest show as a failing job) and
+  // exit cleanly. A non-zero exit here made backup.yml open and re-open a
+  // GitHub issue every Sunday for a setup step the owner has not taken,
+  // which is noise, not an alarm; the in-app job line is the alarm.
   if (!configured) {
-    throw new Error(
-      'BACKUP_REPO / BACKUP_REPO_TOKEN are not set. Create a private repository for the backups and a ' +
-        'fine-grained token with Contents read and write on it, then add the variable and the secret (README, "Backups").',
-    )
+    runSummary =
+      'not configured: BACKUP_REPO / BACKUP_REPO_TOKEN are not set. Create a private repository for the backups and a ' +
+      'fine-grained token with Contents read and write on it, then add the variable and the secret (README, "Backups").'
+    runOk = false
+    console.log(`::warning::Weekly backup skipped: ${runSummary}`)
+    return
   }
   if (!isRepoName(BACKUP_REPO)) {
     throw new Error(`BACKUP_REPO must be owner/name, got "${BACKUP_REPO}"`)
