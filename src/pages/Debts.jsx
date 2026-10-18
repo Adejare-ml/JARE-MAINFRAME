@@ -300,7 +300,7 @@ export default function Debts() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+      <div role="tablist" aria-label="Debts filters" className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
         {[
           { id: 'all', label: 'All' },
           { id: 'i_owe', label: 'I owe' },
@@ -309,6 +309,9 @@ export default function Debts() {
         ].map(t => (
           <button
             key={t.id}
+            role="tab"
+            aria-selected={tab === t.id}
+            aria-controls="debts-tabpanel"
             onClick={() => setTab(t.id)}
             className={`px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap min-h-[48px] transition-all ${
               tab === t.id
@@ -323,7 +326,7 @@ export default function Debts() {
 
       {/* List */}
       {visible.length === 0 ? (
-        <div className="bg-card rounded-3xl border border-white/5">
+        <div id="debts-tabpanel" role="tabpanel" className="bg-card rounded-3xl border border-white/5">
           <EmptyState
             icon="🤝"
             title={tab === 'all' ? 'Nothing here yet' : 'Nothing in this tab'}
@@ -337,7 +340,7 @@ export default function Debts() {
           />
         </div>
       ) : (
-        <div className="space-y-3">
+        <div id="debts-tabpanel" role="tabpanel" className="space-y-3">
           {visible.map(debt => {
             const cycle = cycleStatus(debt)
             const paid = paidByDebt[debt.id]
