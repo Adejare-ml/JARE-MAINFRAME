@@ -4,7 +4,23 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    # One PR a week with every minor and patch bump in it, not one PR per
+    # package.
+    groups:
+      npm-minor-and-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      # ESLint 10 cannot install until eslint-plugin-react and
+      # eslint-plugin-jsx-a11y allow it in their peer ranges (7.37.5 stops
+      # at ^9.7, 6.10.2 at ^9). Re-check when either plugin ships a major.
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@eslint/js"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      actions:
+        patterns: ["*"]

@@ -89,10 +89,11 @@ included -- to a private repository of yours, as `backups/<date>.json` and
 4. Run **Weekly Backup** by hand with `dry_run` set to `false` and check
    the file appears.
 
-Until step 3 is done the job fails every Sunday, on purpose: a backup that
-is silently not configured is the failure it exists to prevent. Settings →
-System, Daily HQ and the morning reminder show it as failing; one
-`sync-failure` issue is opened and commented on.
+Until step 3 is done the job records itself as failing every Sunday, on
+purpose: a backup that is silently not configured is the failure it exists
+to prevent. Settings → System, Daily HQ and the morning reminder show it as
+failing. No GitHub issue is opened for the missing setup; a token or write
+error once it is configured still opens one `sync-failure` issue.
 
 Restoring is a manual job: the bundle has one array per table in the
 columns the database uses, so rows go back with the service key (or the SQL
