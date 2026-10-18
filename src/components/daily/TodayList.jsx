@@ -233,6 +233,7 @@ export default function TodayList({
                   setReasonId(task.id)
                   setReasonDraft(task.blocked_reason || '')
                 }}
+                aria-label={task.blocked_reason ? 'Change reason for not completing' : 'Add reason for not completing'}
                 className="text-[11px] text-muted hover:text-white underline underline-offset-2 pl-8"
               >
                 {task.blocked_reason ? 'Change why' : 'Say what got in the way'}
@@ -269,6 +270,7 @@ export default function TodayList({
           <button
             type="button"
             onClick={() => setAdding(true)}
+            aria-label="Add a new priority"
             className="w-full flex items-center gap-3 p-3 rounded-2xl border border-dashed border-white/10 text-muted hover:text-white hover:border-white/20 transition-colors min-h-[48px] text-left text-sm"
           >
             <span className="w-6 h-6 flex items-center justify-center text-base" aria-hidden="true">
