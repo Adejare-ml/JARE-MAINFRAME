@@ -59,7 +59,7 @@ jobs:
       # and commented on, rather than a new one every week.
       - name: Report failure
         if: failure()
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const title = 'Weekly backup is failing'
