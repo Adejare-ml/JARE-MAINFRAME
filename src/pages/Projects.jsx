@@ -44,7 +44,7 @@ const EMPTY_FORM = {
   milestones: [],
 }
 
-const newMilestone = () => ({ key: `new-${Math.random().toString(36).slice(2)}`, title: '', due_date: '', completed: false })
+const newMilestone = () => ({ key: `new-${crypto.randomUUID()}`, title: '', due_date: '', completed: false })
 
 export default function Projects() {
   const available = hasColumn('projects.user_id') && hasColumn('milestones.user_id')
