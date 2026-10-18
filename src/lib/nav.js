@@ -25,6 +25,10 @@ export const NAV_ITEMS = [
 
   { path: '/projects', label: 'Projects', icon: '🛠️', desktopOnly: true, secondary: true },
   { path: '/repairs', label: 'Repairs', icon: '🔧', desktopOnly: true, secondary: true },
+  // Meals is secondary like Projects, but its camera is one tap from Daily
+  // HQ (the food card hosts the capture sheet itself), so the bottom bar
+  // stays at five.
+  { path: '/meals', label: 'Meals', icon: '🍽️', desktopOnly: true, secondary: true },
   { path: '/ask', label: 'Ask', icon: '💬', hidden: true },
 ]
 

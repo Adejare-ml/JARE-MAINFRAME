@@ -99,6 +99,58 @@ columns the database uses, so rows go back with the service key (or the SQL
 editor) table by table. There is no import button, by design; the day it is
 needed is not the day to discover an untested one.
 
+### Meals: calories from a photo
+
+The Meals page (sidebar, or Settings → Modules on a phone; the "Food today"
+card on Daily HQ) photographs a plate, has the vision model name the dishes
+and estimate the calories, lets you fix the portions, and logs the sum
+against a daily target set under Settings → Meals. Three things were asked
+of it: logging must be quick, it must cope with bad light, and it must work
+on a desktop as well as a phone.
+
+- **Quick.** The Daily HQ button *is* the camera: one tap opens the phone's
+  camera app and the sheet is already working on the photo when you come
+  back. "Again" logs a recent meal in one tap. "Describe" takes a sentence
+  ("two wraps of eba with egusi, three pieces of beef") and "Pick" chooses
+  from the dish list without any model at all, which also covers the day
+  the function is down.
+- **Bad light.** Before the photo leaves the phone, `src/lib/imagePrep.js`
+  downscales it (896 px, about 130 KB), measures the light, and corrects
+  brightness and contrast (levels, a clamped gamma lift for a dark kitchen,
+  a gamma drop for a washed-out shot). Colour is left alone on purpose:
+  jollof is red and egusi is yellow, and that is evidence. A frame with
+  nothing lit in it is stopped with "turn on a light" instead of being sent.
+  The model is told what was done and asked to read shape and texture and
+  lower its confidence rather than refuse.
+- **Desktop.** Drop a photo on the sheet, paste one, pick a file, or use
+  the webcam (`Permissions-Policy` now allows the camera for this origin).
+  The sheet is a centred card on a wide screen and a bottom sheet on a phone.
+- **Nigerian food.** The prompt (`src/lib/mealPrompt.js`) carries about
+  eighty anchor servings with calories (one wrap of eba, one ladle of egusi,
+  a stick of suya, a 50 cl Coke) so the estimate starts from the right
+  place. The same table drives the "Pick" list.
+
+The model call runs in the `analyze-meal` edge function, never from the
+browser (the CSP allows only Supabase), with the caller's own session and
+the owner check from `jare_owner`. Ollama Cloud's `gemma4:31b-cloud` (the
+same model the scripts use; it is multimodal) answers first and NVIDIA
+NIM's `meta/llama-3.2-90b-vision-instruct` is the fallback. The photo is
+read and dropped; only the reading is stored, with a thumbnail of a few
+kilobytes so the list is recognisable. Setup, once:
+
+```bash
+supabase functions deploy analyze-meal
+supabase secrets set OLLAMA_API_KEY=...            # required
+supabase secrets set NVIDIA_API_KEY=...            # optional fallback
+# optional: OLLAMA_VISION_MODEL, NVIDIA_VISION_MODEL, ALLOWED_ORIGIN
+```
+
+then run `supabase/migrations/042_meals.sql` (the meals table and the
+`log_meal` function, which re-sums the calories server-side and is
+idempotent on a client id, like QuickLog's). Settings → System shows
+whether the function is deployed and whether it has a key. Every figure is
+an estimate: the review step is where you say "that was half a plate".
+
 ## How bank alerts become transactions
 
 ```
