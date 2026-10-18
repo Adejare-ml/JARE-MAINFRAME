@@ -130,6 +130,10 @@ export const GATED_COLUMNS = {
   // One row per device that wants the morning reminder. A database behind
   // 031 costs Settings -> Reminders a notice; nothing else reads it.
   'push_subscriptions.endpoint': '031_push_subscriptions.sql',
+
+  // Meals logged from a photo. A whole table; a database behind 042 costs
+  // the Meals page and the Daily HQ food card a notice naming the file.
+  'meals.items': '042_meals.sql',
 }
 
 /**

@@ -16,6 +16,7 @@ import SystemHealth from '../components/settings/SystemHealth'
 import ExportData from '../components/settings/ExportData'
 import { SettingsSkeleton } from '../components/ui/PageSkeleton'
 import { isOledEnabled, setOledEnabled, getThemeMode, setThemeMode } from '../lib/theme'
+import { CALORIE_TARGET_KEY, CALORIE_TARGET_MIN, CALORIE_TARGET_MAX, parseCalorieTarget } from '../lib/meals'
 
 const WALLET_TYPES = [
   { value: 'bank', label: 'Bank', icon: '🏦' },
@@ -59,6 +60,10 @@ export default function Settings() {
   const [threshold, setThreshold] = useState('10000')
   const [savingThreshold, setSavingThreshold] = useState(false)
   const [budgetTarget, setBudgetTarget] = useState('85000')
+  // Daily calories for the Meals page. Blank until set; the ring draws an
+  // empty track rather than a target nobody chose.
+  const [calorieTarget, setCalorieTarget] = useState('')
+  const [savingCalorieTarget, setSavingCalorieTarget] = useState(false)
   const [savingBudgetTarget, setSavingBudgetTarget] = useState(false)
 
   // Appearance & planner voice
@@ -121,7 +126,7 @@ export default function Settings() {
       const { data: settingRows, error: setErr } = await supabase
         .from('user_settings')
         .select('key, value')
-        .in('key', ['low_balance_threshold', 'monthly_budget_target', 'planner_tone'])
+        .in('key', ['low_balance_threshold', 'monthly_budget_target', 'planner_tone', CALORIE_TARGET_KEY])
 
       if (setErr) throw setErr
 
@@ -129,6 +134,7 @@ export default function Settings() {
         if (!row.value) continue
         if (row.key === 'low_balance_threshold') setThreshold(row.value)
         if (row.key === 'monthly_budget_target') setBudgetTarget(row.value)
+        if (row.key === CALORIE_TARGET_KEY) setCalorieTarget(row.value ?? '')
         if (row.key === 'planner_tone' && (row.value === 'stern' || row.value === 'encouraging')) {
           setPlannerTone(row.value)
         }
@@ -223,6 +229,17 @@ export default function Settings() {
     setSavingBudgetTarget(true)
     await saveSetting('monthly_budget_target', budgetTarget, 'Budget target')
     setSavingBudgetTarget(false)
+  }
+
+  const handleSaveCalorieTarget = async (e) => {
+    e.preventDefault()
+    if (parseCalorieTarget(calorieTarget) == null) {
+      toast.error(`A daily target is between ${CALORIE_TARGET_MIN} and ${CALORIE_TARGET_MAX} kcal`)
+      return
+    }
+    setSavingCalorieTarget(true)
+    await saveSetting(CALORIE_TARGET_KEY, calorieTarget, 'Calorie target')
+    setSavingCalorieTarget(false)
   }
 
   // ── Wallet CRUD Handlers ──
@@ -400,13 +417,13 @@ export default function Settings() {
                 System read "never checked" for good. Nothing here to press now:
                 the reading happens outside the app, and its state is below. */}
             <p className="text-sm text-white/90 leading-relaxed">
-              Read every morning by the Claude scheduled task, which files each GTBank, OPay and
-              Stanbic alert straight into the ledger. Anything it was unsure about waits in the
+              Read every morning by the Claude scheduled task, which files each GTBank, OPay, Stanbic,
+              PalmPay, Zenith and PiggyVest alert straight into the ledger. Anything it was unsure about waits in the
               review queue on Transactions, and so does any transfer to someone other than you:
               a payment the bank calls a transfer is spending here until you say which kind.
             </p>
             <p className="text-xs text-muted leading-relaxed">
-              A wallet is matched by its slug (gtbank, opay, stanbic), set under Banks &amp; Wallets
+              A wallet is matched by its slug (gtbank, opay, stanbic, palmpay, zenith, piggyvest), set under Banks &amp; Wallets
               below. Whether the import is alive, and when it last ran, is under System at the
               bottom of this page.
             </p>
@@ -685,6 +702,42 @@ export default function Settings() {
                 ))}
               </div>
             </div>
+          </section>
+
+          {/* ════════════════════════════════════════ */}
+          {/* MEALS */}
+          {/* ════════════════════════════════════════ */}
+          <section className="bg-card rounded-3xl p-6 border border-white/10 space-y-4">
+            <h2 className="text-xs font-semibold text-muted uppercase tracking-wider border-b border-white/5 pb-3">Meals</h2>
+            <p className="text-xs text-muted leading-relaxed">
+              The Meals page photographs a plate and estimates its calories (the analyze-meal edge function; see
+              README). The target below is what the day's ring fills towards. Most adults land between 1,800 and
+              2,600 kcal; a dietitian's figure beats a guess.
+            </p>
+            <form onSubmit={handleSaveCalorieTarget} className="flex gap-2">
+              <label htmlFor="calorie-target" className="sr-only">
+                Daily calorie target
+              </label>
+              <input
+                id="calorie-target"
+                type="number"
+                inputMode="numeric"
+                min={CALORIE_TARGET_MIN}
+                max={CALORIE_TARGET_MAX}
+                step="50"
+                value={calorieTarget}
+                onChange={(e) => setCalorieTarget(e.target.value)}
+                placeholder="e.g. 2200"
+                className="flex-1 min-w-0 px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+              />
+              <button
+                type="submit"
+                disabled={savingCalorieTarget}
+                className="px-5 bg-accent text-black rounded-xl font-bold text-sm min-h-[48px] disabled:opacity-50"
+              >
+                {savingCalorieTarget ? 'Saving…' : 'Save'}
+              </button>
+            </form>
           </section>
 
           {/* ════════════════════════════════════════ */}

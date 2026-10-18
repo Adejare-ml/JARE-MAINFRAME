@@ -39,6 +39,7 @@ export default function SystemHealth() {
   const [integration, setIntegration] = useState(null)
   const [failures, setFailures] = useState({ count: 0, recent: [] })
   const [ask, setAsk] = useState('checking')
+  const [meal, setMeal] = useState('checking')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -82,6 +83,19 @@ export default function SystemHealth() {
       })
       .catch(() => {
         if (!cancelled) setAsk('unreachable')
+      })
+
+    // Same question for the meal reader; its GET also says which provider
+    // keys are set, which is the next thing to check when a photo fails.
+    supabase.functions
+      .invoke('analyze-meal', { method: 'GET' })
+      .then(({ data, error }) => {
+        if (cancelled) return
+        if (error || !data?.ok) setMeal('unreachable')
+        else setMeal(data.providers?.ollama || data.providers?.nvidia ? 'reachable' : 'nokey')
+      })
+      .catch(() => {
+        if (!cancelled) setMeal('unreachable')
       })
 
     return () => {
@@ -172,6 +186,25 @@ export default function SystemHealth() {
           {ask === 'unreachable' && (
             <dd className="text-[11px] text-muted-dim mt-1">
               <code className="font-mono">supabase functions deploy ask-question</code>, then set its OLLAMA_API_KEY secret.
+            </dd>
+          )}
+        </div>
+
+        <div className="rounded-xl bg-background/60 border border-white/5 p-3">
+          <dt className="text-[11px] text-muted uppercase tracking-wider">Meal photo reader</dt>
+          <dd className="text-sm text-white mt-1">
+            {meal === 'checking'
+              ? 'Checking…'
+              : meal === 'reachable'
+                ? 'Deployed and answering'
+                : meal === 'nokey'
+                  ? 'Deployed, no model key'
+                  : 'Not deployed'}
+          </dd>
+          {meal !== 'reachable' && meal !== 'checking' && (
+            <dd className="text-[11px] text-muted-dim mt-1">
+              <code className="font-mono">supabase functions deploy analyze-meal</code>, then set its OLLAMA_API_KEY (and optionally
+              NVIDIA_API_KEY) secret.
             </dd>
           )}
         </div>
