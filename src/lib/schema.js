@@ -135,6 +135,9 @@ export const GATED_COLUMNS = {
   // A database behind 043 costs the Needs Attention line and the Settings
   // section a notice naming the file.
   'discovered_accounts.status': '043_discovered_accounts.sql',
+  // Meals logged from a photo. A whole table; a database behind 042 costs
+  // the Meals page and the Daily HQ food card a notice naming the file.
+  'meals.items': '042_meals.sql',
 }
 
 /**

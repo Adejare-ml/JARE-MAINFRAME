@@ -350,10 +350,14 @@ export default function Projects() {
       </section>
 
       {/* Tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+      <div role="tablist" aria-label="Project views" className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
         {TABS.map((t) => (
           <button
             key={t.id}
+            role="tab"
+            aria-selected={tab === t.id}
+            aria-controls={`tabpanel-${t.id}`}
+            id={`tab-${t.id}`}
             onClick={() => setTab(t.id)}
             className={`px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap min-h-[48px] transition-all ${
               tab === t.id ? 'bg-accent text-black' : 'bg-card text-muted hover:text-white border border-white/5'
@@ -365,7 +369,8 @@ export default function Projects() {
       </div>
 
       {/* List */}
-      {visible.length === 0 ? (
+      <div role="tabpanel" id={`tabpanel-${tab}`} aria-labelledby={`tab-${tab}`}>
+        {visible.length === 0 ? (
         <div className="bg-card rounded-3xl border border-white/5">
           <EmptyState
             icon="🛠️"
@@ -519,6 +524,7 @@ export default function Projects() {
           })}
         </div>
       )}
+      </div>
 
       {/* Add / Edit */}
       <Sheet isOpen={showModal} onClose={() => setShowModal(false)} title={editing ? 'Edit project' : 'New project'} desktopCenter>

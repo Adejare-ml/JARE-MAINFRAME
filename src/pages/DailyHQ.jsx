@@ -24,6 +24,7 @@ import Yesterday from '../components/daily/Yesterday'
 import ActivityGrid from '../components/daily/ActivityGrid'
 import UpcomingBills from '../components/daily/UpcomingBills'
 import DiscoveredAccounts from '../components/daily/DiscoveredAccounts'
+import FoodToday from '../components/daily/FoodToday'
 import { DailyHQSkeleton } from '../components/ui/PageSkeleton'
 import WeekReview from '../components/daily/WeekReview'
 import {
@@ -649,6 +650,10 @@ export default function DailyHQ() {
 
         {/* CASH RECONCILIATION PROMPT */}
         <CashReconciliation onReconciled={fetchDailyData} />
+
+        {/* Today's food, with the camera one tap away. Hosts its own
+            capture sheet so a meal is logged without leaving this page. */}
+        <FoodToday />
 
         {/* WALLET SNAPSHOT — Dynamic */}
         <section className="bg-card rounded-3xl p-6 border border-white/10 relative overflow-hidden shadow-xl">
