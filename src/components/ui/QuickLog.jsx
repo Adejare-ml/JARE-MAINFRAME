@@ -321,26 +321,32 @@ export default function QuickLog() {
           </div>
         </div>
       ) : (
-      <div role="tablist" className="flex bg-[#0f0f0f] rounded-xl p-1 border border-white/5">
+      <div role="tablist" aria-label="Transaction type" className="flex bg-[#0f0f0f] rounded-xl p-1 border border-white/5">
         <button
+          id="tab-debit"
           role="tab"
           aria-selected={type === 'debit'}
+          aria-controls="quicklog-amount-panel"
           className={`flex-1 py-3 text-center rounded-lg text-xs font-bold transition-all min-h-[48px] ${type === 'debit' ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'text-muted hover:text-white'}`}
           onClick={() => setType('debit')}
         >
           💸 Debit
         </button>
         <button
+          id="tab-credit"
           role="tab"
           aria-selected={type === 'credit'}
+          aria-controls="quicklog-amount-panel"
           className={`flex-1 py-3 text-center rounded-lg text-xs font-bold transition-all min-h-[48px] ${type === 'credit' ? 'bg-accent/20 text-accent border border-accent/30' : 'text-muted hover:text-white'}`}
           onClick={() => setType('credit')}
         >
           💰 Credit
         </button>
         <button
+          id="tab-transfer"
           role="tab"
           aria-selected={type === 'transfer'}
+          aria-controls="quicklog-amount-panel"
           className={`flex-1 py-3 text-center rounded-lg text-xs font-bold transition-all min-h-[48px] ${type === 'transfer' ? 'bg-teal-500/20 text-teal-300 border border-teal-500/30' : 'text-muted hover:text-white'}`}
           onClick={() => setType('transfer')}
         >
@@ -349,7 +355,7 @@ export default function QuickLog() {
       </div>
       )}
 
-      <div className="flex-1 flex flex-col items-center justify-center py-6">
+      <div id="quicklog-amount-panel" role="tabpanel" aria-labelledby={`tab-${type}`} className="flex-1 flex flex-col items-center justify-center py-6">
         <label className="text-xs text-muted font-semibold uppercase tracking-wider mb-2">
           {isTransfer ? 'Amount to move' : 'Enter Amount'}
         </label>

@@ -25,3 +25,7 @@
 ## 2024-05-24 - Adding Complete ARIA Semantics for Tabs
 **Learning:** Buttons acting as tabs without explicit `tablist`, `tab`, and `tabpanel` roles, along with proper associations (`aria-controls`, `aria-labelledby`), lack context for screen reader users.
 **Action:** Ensure custom tab implementations are correctly wrapped in a `tablist` and corresponding content is housed in an associated `tabpanel`.
+
+## 2026-10-10 - Adding Complete ARIA Semantics for QuickLog Tabs
+**Learning:** The QuickLog component used `role="tab"` buttons within a `role="tablist"` container but lacked explicit `id` values, `aria-controls` bindings to the content area, and a corresponding `role="tabpanel"`, significantly reducing clarity for screen reader users trying to understand the active tab and its controlled content.
+**Action:** Always ensure complete semantic structures for custom tabs by adding `id`, `aria-controls`, and an appropriately labelled `role="tabpanel"` element to bind the navigation clearly to the content.
