@@ -309,6 +309,7 @@ export default function Debts() {
         ].map(t => (
           <button
             key={t.id}
+            id={`tab-${t.id}`}
             role="tab"
             aria-selected={tab === t.id}
             aria-controls="debts-tabpanel"
@@ -326,7 +327,7 @@ export default function Debts() {
 
       {/* List */}
       {visible.length === 0 ? (
-        <div id="debts-tabpanel" role="tabpanel" className="bg-card rounded-3xl border border-white/5">
+        <div id="debts-tabpanel" role="tabpanel" aria-labelledby={`tab-${tab}`} className="bg-card rounded-3xl border border-white/5">
           <EmptyState
             icon="🤝"
             title={tab === 'all' ? 'Nothing here yet' : 'Nothing in this tab'}
@@ -340,7 +341,7 @@ export default function Debts() {
           />
         </div>
       ) : (
-        <div id="debts-tabpanel" role="tabpanel" className="space-y-3">
+        <div id="debts-tabpanel" role="tabpanel" aria-labelledby={`tab-${tab}`} className="space-y-3">
           {visible.map(debt => {
             const cycle = cycleStatus(debt)
             const paid = paidByDebt[debt.id]
