@@ -37,7 +37,7 @@ jobs:
       # issue, reopened and commented on, rather than a new one every night.
       - name: Report failure
         if: failure()
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const title = 'Net worth snapshot is failing'
