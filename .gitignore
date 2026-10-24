@@ -23,3 +23,7 @@ __pycache__/
 *.pkl
 *.onnx
 *.pth
+
+# Personal lifestyle profile (repo is public)
+lifestyle/PROFILE.md
+lifestyle/LOG.md
