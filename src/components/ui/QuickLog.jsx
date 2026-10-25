@@ -411,10 +411,12 @@ export default function QuickLog() {
                 return (
                   <button
                     key={cat}
+                    type="button"
                     onClick={() => {
                       setCategory(cat);
                       setStep(STEPS.WALLET);
                     }}
+                    aria-pressed={isSelected}
                     className={`flex items-center gap-2 p-3 rounded-xl border text-left text-xs font-medium transition-all min-h-[48px] ${
                       isSelected ? 'bg-accent/20 border-accent text-white font-bold' : 'bg-white/5 border-white/5 text-muted hover:text-white hover:bg-white/10'
                     }`}
@@ -463,7 +465,9 @@ export default function QuickLog() {
             return (
               <button
                 key={w.id}
+                type="button"
                 onClick={() => onSelect(w)}
+                aria-pressed={isSelected}
                 className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-all min-h-[56px] ${
                   isSelected ? 'bg-accent/20 border-accent text-white' : 'bg-white/5 border-white/5 text-muted hover:text-white'
                 }`}
@@ -542,6 +546,7 @@ export default function QuickLog() {
                   key={tag}
                   type="button"
                   onClick={() => setWantOrNeed(wantOrNeed === tag ? '' : tag)}
+                  aria-pressed={wantOrNeed === tag}
                   className={`py-3 px-3 rounded-xl border text-xs font-bold uppercase tracking-wider transition-all min-h-[48px] ${
                     wantOrNeed === tag ? 'bg-accent/20 border-accent text-accent' : 'bg-white/5 border-white/5 text-muted hover:text-white'
                   }`}
