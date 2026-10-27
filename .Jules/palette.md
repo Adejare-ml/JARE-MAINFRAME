@@ -29,3 +29,7 @@
 ## 2026-10-25 - ARIA Selection States on Custom Option Buttons
 **Learning:** Custom selection or toggle buttons inside components (like QuickLog's category, wallet, and tag pickers) often lack `aria-pressed` states and explicit `type="button"` attributes, leaving screen readers unaware of the active selection and risking accidental form submissions.
 **Action:** When auditing custom selection lists, ensure the selected state is conveyed via `aria-pressed={true/false}` on each button, and that `type="button"` is explicitly set to prevent unintended default behaviors.
+
+## 2026-10-25 - Explicit Button Types in Tabs
+**Learning:** React button components used as custom tabs (like in QuickLog) without an explicit `type="button"` attribute will default to behaving like form submitters, potentially causing unintended UI refreshes.
+**Action:** When implementing or updating custom tab controls using button elements, ensure they explicitly define `type="button"`.
