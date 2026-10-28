@@ -29,3 +29,7 @@
 ## 2026-10-25 - ARIA Selection States on Custom Option Buttons
 **Learning:** Custom selection or toggle buttons inside components (like QuickLog's category, wallet, and tag pickers) often lack `aria-pressed` states and explicit `type="button"` attributes, leaving screen readers unaware of the active selection and risking accidental form submissions.
 **Action:** When auditing custom selection lists, ensure the selected state is conveyed via `aria-pressed={true/false}` on each button, and that `type="button"` is explicitly set to prevent unintended default behaviors.
+
+## 2026-10-25 - ARIA Tab Patterns with Dynamic Rendered Panels
+**Learning:** In tab interfaces where the tab content (tabpanel) is dynamically replaced instead of toggled, setting `aria-controls` on the tabs to point to dynamically changing IDs based on the active tab creates broken references for inactive tabs.
+**Action:** Ensure that the `tabpanel` container has a stable, persistent `id` and all `tab` buttons point their `aria-controls` to this single stable ID. The `aria-labelledby` on the tabpanel should dynamically update to match the active tab.
