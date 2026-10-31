@@ -309,6 +309,7 @@ export default function Debts() {
         ].map(t => (
           <button
             key={t.id}
+            type="button"
             id={`tab-${t.id}`}
             role="tab"
             aria-selected={tab === t.id}

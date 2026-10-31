@@ -324,6 +324,7 @@ export default function QuickLog() {
       <div role="tablist" aria-label="Transaction Type" className="flex bg-[#0f0f0f] rounded-xl p-1 border border-white/5">
         <button
           id="quicklog-tab-debit"
+          type="button"
           role="tab"
           aria-controls="quicklog-amount-panel"
           aria-selected={type === 'debit'}
@@ -334,6 +335,7 @@ export default function QuickLog() {
         </button>
         <button
           id="quicklog-tab-credit"
+          type="button"
           role="tab"
           aria-controls="quicklog-amount-panel"
           aria-selected={type === 'credit'}
@@ -344,6 +346,7 @@ export default function QuickLog() {
         </button>
         <button
           id="quicklog-tab-transfer"
+          type="button"
           role="tab"
           aria-controls="quicklog-amount-panel"
           aria-selected={type === 'transfer'}
