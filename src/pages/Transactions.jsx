@@ -1128,6 +1128,7 @@ export default function Transactions() {
                             key={value}
                             type="button"
                             onClick={() => setEditType(value)}
+                            aria-pressed={editType === value}
                             className={`py-3 rounded-xl text-xs font-bold border transition-all min-h-[48px] ${
                               editType === value
                                 ? 'bg-accent/20 border-accent text-accent'
