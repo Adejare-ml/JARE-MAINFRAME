@@ -605,10 +605,11 @@ export default function DailyHQ() {
           ].map((tab) => (
             <button
               key={tab.id}
+              type="button"
               id={`tab-${tab.id}`}
               role="tab"
               aria-selected={mode === tab.id}
-              aria-controls={`panel-${tab.id}`}
+              aria-controls="dailyhq-tabpanel"
               onClick={() => setMode(tab.id)}
               className={`px-5 py-2 rounded-lg text-xs font-bold transition-colors min-h-[44px] ${
                 mode === tab.id ? 'bg-accent text-black' : 'text-muted hover:text-white'
@@ -620,7 +621,7 @@ export default function DailyHQ() {
         </div>
       </div>
 
-      <div id={`panel-${mode}`} role="tabpanel" aria-labelledby={`tab-${mode}`}>
+      <div id="dailyhq-tabpanel" role="tabpanel" aria-labelledby={`tab-${mode}`}>
       {mode === 'day' ? (
         <>
         {/* One proactive sentence, chosen deterministically from numbers this
