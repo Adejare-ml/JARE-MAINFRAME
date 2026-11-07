@@ -18,10 +18,10 @@ const FILES = [
   'src/lib/toast.js',
   'src/lib/parsers/gtbank.js',
   'src/lib/parsers/opay.js',
-  'src/lib/sync/index.js',
+  'src/lib/parsers/index.js',
   'src/components/daily/TodayList.jsx',
   'src/pages/Goals.jsx',
-  'scripts/gmail-sync.mjs',
+  'scripts/remind.mjs',
   'tests/planning.test.js',
   'tests/queries.test.js',
   'tests/parsers.test.js',
@@ -44,7 +44,7 @@ describe('buildRepoProfile', () => {
     const profile = buildRepoProfile(FILES)
     expect(profile.untested).toContain('src/lib/constants.js')
     expect(profile.untested).toContain('src/lib/toast.js')
-    expect(profile.untested).toContain('scripts/gmail-sync.mjs')
+    expect(profile.untested).toContain('scripts/remind.mjs')
   })
 
   it('does not call a module untested because the test is named for its folder', () => {
@@ -60,7 +60,7 @@ describe('buildRepoProfile', () => {
     // An index re-exports. There is nothing in it to test, and suggesting
     // otherwise would burn a week of the plan.
     const profile = buildRepoProfile(FILES)
-    expect(profile.untested).not.toContain('src/lib/sync/index.js')
+    expect(profile.untested).not.toContain('src/lib/parsers/index.js')
   })
 
   it('leaves tested modules out of the untested list', () => {

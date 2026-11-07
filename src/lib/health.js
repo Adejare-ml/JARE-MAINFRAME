@@ -126,8 +126,8 @@ export const JOBS = [
   // run through record_sync_run (migration 032). Thirty hours of patience
   // covers a late start.
   { id: 'claude-audit', label: 'Bank alerts (Claude audit)', staleAfterHours: 30, readReport: readAuditReport },
-  // 'draft-day' was retired with its schedule on 26 Sep 2026 (see
-  // .github/workflows/draft-day.yml); its old rows stay in sync_runs, unread.
+  // 'draft-day' and 'gmail-sync' were retired on 26 and 23 Sep 2026 with
+  // the Google token; their old rows stay in sync_runs, unread.
   { id: 'verify-repo', label: 'Repo verification', staleAfterHours: 30 },
   // Runs inside the database since 28 Sep 2026 (pg_cron, 10:00 UTC,
   // migration 037); records under the same name as the Actions script did.

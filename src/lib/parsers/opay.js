@@ -10,7 +10,7 @@ export function parseOpayEmail(emailBody) {
 
   // Direction is a guess here, and a bad one. Opay describes money in and money
   // out with the same word ("transfer"), so no keyword rule recovers it. That is
-  // why Opay wallets are routed to the LLM (see src/lib/sync/wallets.js); this
+  // why Opay wallets are routed to the LLM (see src/lib/walletRouting.js); this
   // path is only the fallback when no LLM is configured, and everything it
   // produces is marked LOW confidence so it lands in the review queue.
   const isCredit = emailBody.toLowerCase().includes('received') || emailBody.toLowerCase().includes('credited');

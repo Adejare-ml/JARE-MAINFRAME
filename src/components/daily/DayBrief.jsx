@@ -25,9 +25,8 @@ export default function DayBrief({ brief }) {
       <section className="bg-card rounded-3xl p-5 border border-yellow-500/20">
         <p className="text-xs text-yellow-200/90 leading-relaxed">
           <span className="font-bold">Couldn’t read your calendar.</span> Today’s figures
-          below assume an empty day, which may not be true. If this keeps happening, the
-          Google token probably needs the calendar scope — re-run{' '}
-          <code className="font-mono text-yellow-100">scripts/get-refresh-token.mjs</code>.
+          below assume an empty day, which may not be true. The day draft was retired
+          with the Google token; this brief is from an older run.
         </p>
       </section>
     )

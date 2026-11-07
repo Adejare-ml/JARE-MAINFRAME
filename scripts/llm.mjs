@@ -11,13 +11,13 @@
  */
 
 import { ALL_CATEGORIES } from '../src/lib/constants.js'
-import { extractJsonObject } from '../src/lib/sync/normalize.js'
+import { extractJsonObject } from '../src/lib/normalize.js'
 import {
   CATEGORIZE_SYSTEM_PROMPT,
   BATCH_MAX_TOKENS,
   buildBatchPrompt,
   parseBatchResponse,
-} from '../src/lib/sync/batchPrompt.js'
+} from '../src/lib/batchPrompt.js'
 
 /**
  * Read an env var, treating blank as absent.

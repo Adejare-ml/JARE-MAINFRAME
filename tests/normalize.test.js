@@ -5,7 +5,7 @@ import {
   isValidDate,
   RAW_EMAIL_MAX_CHARS,
   VALID_CONFIDENCE,
-} from '../src/lib/sync/normalize.js'
+} from '../src/lib/normalize.js'
 
 const valid = {
   type: 'debit',

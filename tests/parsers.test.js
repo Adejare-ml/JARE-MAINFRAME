@@ -98,7 +98,7 @@ describe('parseOpayEmail', () => {
   // than to these rules. Opay says "transfer" for money in and money out, so
   // direction is not recoverable from the wording. The assertion below records
   // the failure deliberately: if someone ever "fixes" the rules parser, this
-  // test tells them to re-check the routing in src/lib/sync/wallets.js.
+  // test tells them to re-check the routing in src/lib/walletRouting.js.
   it('cannot determine direction from wording alone (known limitation)', () => {
     const incoming = parseOpayEmail(fixture('opay-in'))
 

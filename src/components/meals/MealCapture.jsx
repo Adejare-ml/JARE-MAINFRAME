@@ -6,7 +6,7 @@ import { toDateOnly } from '../../lib/queries'
 import { isMissingFunctionError } from '../../lib/corrections'
 import { prepareImage, captureFrame, isSupportedImage } from '../../lib/imagePrep'
 import { mealTypeFor, itemsForStorage, sumCalories, LIMITS, newItem } from '../../lib/meals'
-import { isValidDate } from '../../lib/sync/normalize'
+import { isValidDate } from '../../lib/normalize'
 import Sheet from '../ui/Sheet'
 import MealReview, { searchDishes } from './MealReview'
 

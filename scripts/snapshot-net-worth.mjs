@@ -16,7 +16,7 @@
  *
  * Deliberately the simplest of the five scheduled scripts: one table, one
  * read, one upsert, no external API, no LLM. It does NOT call
- * assertProgress.mjs -- unlike gmail-sync.mjs, every failure path here
+ * assertProgress.mjs -- every failure path here
  * already throws (the query error, the upsert error) and is caught by
  * main().catch() below, the same shape verify-repo.mjs already has and
  * needed no correctness-spine change for. A write that finds zero active

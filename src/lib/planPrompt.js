@@ -2,7 +2,7 @@
  * What the planner asks for, and how it asks.
  *
  * Kept out of scripts/ so the prompt is testable and reviewable like anything
- * else. `src/lib/sync/batchPrompt.js` is the precedent and the reason: the
+ * else. `src/lib/batchPrompt.js` is the precedent and the reason: the
  * categorization prompt is the one prompt in this codebase with a proven hit
  * rate, and it earned that by being a file with tests rather than a template
  * literal buried in a script.

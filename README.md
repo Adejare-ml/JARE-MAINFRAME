@@ -14,7 +14,7 @@ Live at [jare-mainframe.pages.dev](https://jare-mainframe.pages.dev/).
 | Backend | Supabase (Postgres, Auth, Realtime) |
 | Hosting | Cloudflare Pages — pushes to `main` deploy automatically |
 | Bank alerts | A Claude scheduled task reads Gmail and writes through two SQL functions (no Google token) |
-| Other jobs | GitHub Actions cron; Ollama Cloud / NVIDIA NIM for the two that use a model |
+| Other jobs | GitHub Actions cron and pg_cron; Ollama Cloud / NVIDIA NIM for the two that use a model |
 
 ## Setup
 
@@ -238,47 +238,25 @@ granted to `postgres` and `service_role` only, so the browser's anon key
 still cannot call them. `033_claude_audit_channel.sql` is an unused
 fallback for sending a day as one `apply_migration` batch.
 
-**The retired token sync.** `scripts/gmail-sync.mjs` and
-`.github/workflows/gmail-sync.yml` still exist for a manual run with a fresh
-Google refresh token, and only for dates **before 23 Sep 2026**: the script
-does not know about `CLA-` ids, so a backfill over days the task already
-covered inserts every alert a second time. The browser "Sync now" button
-was removed for the same reason. The overnight day draft
-(`draft-day.yml`, the "Today's shape" card on Daily HQ) was retired on
-26 Sep 2026 for the same token; the task holds Claude's own Calendar
-connection if a day brief is ever wanted back, and `012_day_brief.sql`
-stays.
-
-### Parse strategy
-
-Only a manual run of the retired token sync reads this; the Claude task
-decides direction itself. Each wallet chooses, in Settings → Banks & Wallets:
-
-| Strategy | Behaviour |
-|---|---|
-| `rules` | Pattern matching only. For banks that clearly label DEBIT and CREDIT. |
-| `auto` | Rules first, LLM if they come up empty. The default. |
-| `llm` | Always the LLM. |
-
-`llm` exists because some providers cannot be read by rules at all. Opay and
-PiggyVest describe money in and money out with the same word — "transfer" — so
-no keyword can tell the direction, and a wrong direction quietly corrupts the
-monthly totals. Those wallets go to the LLM, which reasons about who sent and
-who received.
+**The retired token sync.** Until 23 Sep 2026 a GitHub Actions script read
+the mailbox with a Google refresh token and parsed each alert itself
+(`src/lib/parsers/` and the email fixtures under `tests/` are what remain
+of it, kept as a record of each bank's mail format). The Claude task holds
+its own Gmail and Calendar connections, so no Google token exists anywhere
+in this stack any more; the `GOOGLE_*` repository secrets can be deleted.
+The overnight day draft (the "Today's shape" card on Daily HQ) was retired
+with the same token on 26 Sep 2026 and `012_day_brief.sql` stays for its
+old rows.
 
 ### Deduplication
 
-Three guards keep the ledger clean:
+Two guards keep the ledger clean:
 
 1. A unique index on `(source, transaction_id)`. The task's id is
    `CLA-<gmail message id>`, so the same alert read twice inserts nothing.
 2. The natural key: an alert whose wallet, day, direction, amount and payee
-   match a non-voided row from the old sync is refused as already imported.
-   This runs one way only, which is why the old sync must not be run over
-   days the task has covered.
-3. For the retired sync's alerts that carry no bank reference, a synthetic
-   `SYN-` id derived from the content with FNV-1a, identical in Node and the
-   browser. `tests/dedup.test.js` guards that.
+   match a non-voided row from the retired sync (`SYN-` ids) is refused as
+   already imported, so the two eras never double up.
 
 ### Refunds and the month in review
 
@@ -465,16 +443,14 @@ OLLAMA_API_KEY=... NVIDIA_API_KEY=... node scripts/test-llm.mjs
 
 ## Tests
 
-```
-tests/
-  dedup.test.js       synthetic ID determinism, FNV-1a vectors
-  parsers.test.js     GTBank and Opay against email fixtures
-  normalize.test.js   validation, LLM JSON extraction
-  gmailQuery.test.js  query building, pagination, body extraction
-  wallets.test.js     sender routing, parse strategy
-```
+`npm test` runs every file under `tests/`: one per module in `src/lib`
+(money maths, dates, health, reminders, export, backup, the planners), the
+parsers against the email fixtures, and the scripts' shared helpers. Every
+module in `src/lib` must also load under plain Node, which CI checks.
 
-Parsing correctness is the whole value of this project, so the highest-value
-contribution is a real bank email — **redacted** — added to
-`tests/fixtures/emails/`. Zenith, Polaris, PalmPay and PiggyVest have none yet. See the
-README in that directory.
+The bank-alert rules now live in `ingest_alert_transaction` (SQL), which no
+test executes yet; a CI Postgres harness for the migrations is the next
+step. Until then the highest-value contribution is still a real bank email,
+**redacted**, added to `tests/fixtures/emails/` as the record of that bank's
+format: Zenith, Stanbic, PalmPay and PiggyVest have none yet. See the README
+in that directory.

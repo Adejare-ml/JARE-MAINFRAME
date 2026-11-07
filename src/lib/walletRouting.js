@@ -33,7 +33,11 @@ export function getParseStrategy(wallet) {
   return DEFAULT_PARSE_STRATEGY
 }
 
-import { getDomain } from './email.js'
+/** The part after the last @, lowercased; '' when there is none. */
+export function getDomain(email) {
+  const at = String(email || '').lastIndexOf('@')
+  return at >= 0 ? email.slice(at + 1).toLowerCase() : ''
+}
 
 /**
  * Build lookup structures from the wallets table. Senders are data, not

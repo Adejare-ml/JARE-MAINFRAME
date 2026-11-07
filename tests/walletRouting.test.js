@@ -4,7 +4,7 @@ import {
   buildWalletIndex,
   matchWallet,
   walletSource,
-} from '../src/lib/sync/wallets.js'
+} from '../src/lib/walletRouting.js'
 
 const WALLETS = [
   { id: 'w1', name: 'GTBank', alert_sender: 'GeNS@gtbank.com', is_active: true, parse_strategy: 'auto' },

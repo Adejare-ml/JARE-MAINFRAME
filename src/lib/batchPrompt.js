@@ -1,5 +1,19 @@
-import { ALL_CATEGORIES } from '../constants.js'
-import { coerceCategory } from './categorize.js'
+import { ALL_CATEGORIES } from './constants.js'
+
+/**
+ * Coerce a model-supplied category to one the app can display. A case-only
+ * mismatch is the model being sloppy, not wrong.
+ *
+ * @param {string} category
+ * @returns {{category: string, known: boolean}}
+ */
+export function coerceCategory(category) {
+  const trimmed = typeof category === 'string' ? category.trim() : ''
+  if (ALL_CATEGORIES.includes(trimmed)) return { category: trimmed, known: true }
+  const caseInsensitive = ALL_CATEGORIES.find((c) => c.toLowerCase() === trimmed.toLowerCase())
+  if (caseInsensitive) return { category: caseInsensitive, known: true }
+  return { category: 'Uncategorized', known: false }
+}
 
 /**
  * Building the categorization request and reading its answer.

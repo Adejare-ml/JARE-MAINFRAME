@@ -46,7 +46,6 @@ export default function SystemHealth() {
   const [runs, setRuns] = useState([])
   const [runsError, setRunsError] = useState(null)
   const [integration, setIntegration] = useState(null)
-  const [failures, setFailures] = useState({ count: 0, recent: [] })
   // The two edge-function probes, shared with Daily HQ's setup checklist.
   const { ask, meal } = useEdgeFunctionStatus()
   const [loading, setLoading] = useState(true)
@@ -55,7 +54,7 @@ export default function SystemHealth() {
     let cancelled = false
 
     async function load() {
-      const [runsRes, intRes, countRes, recentRes] = await Promise.all([
+      const [runsRes, intRes] = await Promise.all([
         available
           ? supabase
               .from('sync_runs')
@@ -67,18 +66,11 @@ export default function SystemHealth() {
               .gte('finished_at', new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString())
           : Promise.resolve({ data: [] }),
         supabase.from('integrations').select('last_checked, last_sync').eq('service', 'gmail').maybeSingle(),
-        supabase.from('sync_failures').select('id', { count: 'exact', head: true }),
-        supabase
-          .from('sync_failures')
-          .select('id, source, last_error, last_failed_at, attempts')
-          .order('last_failed_at', { ascending: false })
-          .limit(5),
       ])
       if (cancelled) return
       setRuns(runsRes.data || [])
       setRunsError(runsRes.error?.message || null)
       setIntegration(intRes.data || null)
-      setFailures({ count: countRes.count || 0, recent: recentRes.data || [] })
       setLoading(false)
     }
     load()
@@ -216,20 +208,6 @@ export default function SystemHealth() {
           )}
         </div>
 
-        <div className="rounded-xl bg-background/60 border border-white/5 p-3">
-          <dt className="text-[11px] text-muted uppercase tracking-wider">Emails the retired sync gave up on</dt>
-          <dd className="text-sm text-white mt-1">{loading ? '…' : failures.count}</dd>
-          {failures.recent.length > 0 && (
-            <dd className="mt-2 space-y-1">
-              {failures.recent.map((f) => (
-                <p key={f.id} className="text-[11px] text-muted-dim truncate">
-                  <span className="text-muted">{f.source || 'unknown'}</span> · {f.last_error || 'no error recorded'}
-                  {f.last_failed_at && <span> · {timeAgo(f.last_failed_at)}</span>}
-                </p>
-              ))}
-            </dd>
-          )}
-        </div>
       </dl>
     </section>
   )

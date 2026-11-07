@@ -8,7 +8,7 @@ import { toDateOnly } from '../../lib/queries';
 import { pendingTransactions } from '../../lib/pendingTransactions';
 import { confirmBuzz } from '../../lib/haptics';
 import { isMissingFunctionError } from '../../lib/corrections';
-import { isValidDate } from '../../lib/sync/normalize';
+import { isValidDate } from '../../lib/normalize';
 import { transferCategories, validateTransfer } from '../../lib/transfers';
 import Sheet from './Sheet';
 

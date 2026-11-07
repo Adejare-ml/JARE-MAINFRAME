@@ -6,7 +6,7 @@
  * isn't debit/credit corrupts the monthly totals. Nothing is trusted here.
  */
 
-import { ALL_CATEGORIES } from '../constants.js'
+import { ALL_CATEGORIES } from './constants.js'
 
 export const VALID_TYPES = ['debit', 'credit']
 
