@@ -11,6 +11,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:db": "node scripts/db-test.mjs",
     "lint": "eslint .",
     "test:watch": "vitest"
   },
@@ -30,6 +31,7 @@
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.13.0",
+    "pg": "^8.23.1",
     "tailwindcss": "^4.3.3",
     "vite": "^8.3.5",
     "vitest": "^5.0.5",

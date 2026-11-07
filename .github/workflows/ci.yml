@@ -30,6 +30,7 @@ jobs:
         run: |
           node --check scripts/llm.mjs
           node --check scripts/test-llm.mjs
+          node --check scripts/db-test.mjs
           node --check scripts/verify-repo.mjs
           node --check scripts/plan-month.mjs
           node --check scripts/snapshot-net-worth.mjs
@@ -61,3 +62,30 @@ jobs:
             || { echo "::error::scripts/lib/ownerId.mjs does not load under Node"; exit 1; }
           node --input-type=module -e "await import('./scripts/lib/recordRun.mjs')" \
             || { echo "::error::scripts/lib/recordRun.mjs does not load under Node"; exit 1; }
+
+  # The SQL layer, executed: every migration applied to a real Postgres in
+  # the README's fresh-project order, then the functions the Routine and the
+  # app call exercised (scripts/db-test.mjs). The runner image ships with
+  # PostgreSQL installed and stopped; pg_cron is stubbed (tests/sql).
+  db-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Start PostgreSQL with the pg_cron stub
+        run: |
+          sudo cp tests/sql/pg_cron-stub/pg_cron.control tests/sql/pg_cron-stub/pg_cron--1.6.sql "$(pg_config --sharedir)/extension/"
+          sudo systemctl start postgresql
+          sudo -u postgres psql -c "alter user postgres password 'postgres';"
+          pg_isready -h localhost
+      - name: Apply every migration and exercise the functions
+        run: npm run test:db
+        env:
+          PGHOST: localhost
+          PGPORT: '5432'
+          PGUSER: postgres
+          PGPASSWORD: postgres

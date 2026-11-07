@@ -137,12 +137,14 @@ create or replace function jare_meal_calories(p_items jsonb) returns integer
 language sql
 immutable
 as $$
-  select coalesce(least(8000, sum(
+  -- coalesce inside least, not outside: least() skips a null, so with no
+  -- items `least(8000, null)` was 8000 and an empty meal logged a day's food.
+  select least(8000, coalesce(sum(
     least(3000, greatest(0, round(
       coalesce(nullif(regexp_replace(i->>'calories', '[^0-9.\-]', '', 'g'), '')::numeric, 0)
       * least(10, greatest(0.25, coalesce(nullif(regexp_replace(i->>'quantity', '[^0-9.]', '', 'g'), '')::numeric, 1)))
     )))
-  ))::integer, 0)
+  ), 0))::integer
   from jsonb_array_elements(case when jsonb_typeof(p_items) = 'array' then p_items else '[]'::jsonb end) as i
   where jsonb_typeof(i) = 'object';
 $$;
