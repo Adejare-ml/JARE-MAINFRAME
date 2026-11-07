@@ -389,7 +389,7 @@ async function runChecks() {
       await ingest({ slug: 'gtbank', msgid: `gap${d}`, type: 'debit', amount: 10, date: await daysAgo(9 - d), time: '08:00:00', description: 'Charge', category: 'Bank Charges', balance: 90000 - d * 1000 })
     }
     const r = (await one('select reconcile_balances() as r')).r
-    assert(/unverifiable \(no stated balance\): PiggyVest/.test(r.summary), `PiggyVest not named: ${r.summary}`)
+    assert(/unverifiable \(no stated balance\): [^;]*PiggyVest/.test(r.summary), `PiggyVest not named: ${r.summary}`)
     assert(Array.isArray(r.unverified) && r.unverified.includes('PiggyVest'), 'unverified in the result')
     assert(/GTBank: \d+ missed alert\(s\) around [^;]* and \d+ more day\(s\)/.test(r.summary), `gap list not capped: ${r.summary}`)
     assert(r.summary.length <= 500, `summary is ${r.summary.length} characters`)
