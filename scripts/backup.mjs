@@ -26,9 +26,9 @@
 import { createClient } from '@supabase/supabase-js'
 import { EXPORT_TABLES, fetchAll, buildBundle } from '../src/lib/export.js'
 import { toDateOnly } from '../src/lib/queries.js'
+import { isSafeBackupTarget, unsafeTargetReason, contentsHeaders, assertBundleHasLedger, runRecordFor } from '../src/lib/backup.js'
 import { resolveOwnerUserId } from './lib/ownerId.mjs'
 import { recordRun } from './lib/recordRun.mjs'
-import { assertProgress } from './lib/assertProgress.mjs'
 
 // ───────────────────────────────────────────────────────────────
 // 1. Configuration
@@ -52,14 +52,11 @@ let OWNER_USER_ID = process.env.OWNER_USER_ID
 const JOB = 'backup'
 const RUN_STARTED_AT = new Date()
 
-/** What the run record says, set as main() learns it. */
-let runSummary = null
-
-/** Whether the run record counts as a good run. A dry run that finds no
- *  destination exits cleanly but is recorded as failing: the backup is
- *  not happening, and Settings → System should say so, not wait for
- *  Sunday. */
-let runOk = true
+/** What the run record says: { ok, summary } from runRecordFor, set at the
+ *  end of main(). A dry run is never a good run (nothing was written), and
+ *  an unconfigured one is recorded as "not configured", which Settings →
+ *  System reads as a setup step rather than a failing job. */
+let runRecord = { ok: false, summary: null }
 
 const missingVars = [
   ['SUPABASE_URL', SUPABASE_URL],
@@ -109,22 +106,30 @@ function isRepoName(value) {
   return /^[\w.-]+\/[\w.-]+$/.test(String(value || ''))
 }
 
-const headers = () => ({
-  authorization: `Bearer ${BACKUP_REPO_TOKEN}`,
-  accept: 'application/vnd.github+json',
-  'x-github-api-version': '2022-11-28',
-  'user-agent': 'jare-mainframe-backup',
-})
+const headers = (purpose) => contentsHeaders(BACKUP_REPO_TOKEN, { purpose })
+
+/**
+ * The target repository as GitHub describes it, or null when the token
+ * cannot read it. A fine-grained token always carries Metadata: read on
+ * the repositories it covers, so this needs no extra permission.
+ */
+async function readTargetRepo() {
+  const res = await fetch(`https://api.github.com/repos/${BACKUP_REPO}`, { headers: headers('lookup') })
+  if (!res.ok) return null
+  return res.json()
+}
 
 /**
  * Create or update one file through the contents API. Updating needs the
  * blob's current sha, so a read comes first; a 404 there means "new file".
+ * The read asks for the `object` media type: the default one refuses to
+ * describe a blob over 1 MB, which latest.json reaches within months.
  */
 async function putFile(path, content, message) {
   const url = `https://api.github.com/repos/${BACKUP_REPO}/contents/${path}`
 
   let sha = null
-  const head = await fetch(`${url}?ref=${encodeURIComponent(BRANCH)}`, { headers: headers() })
+  const head = await fetch(`${url}?ref=${encodeURIComponent(BRANCH)}`, { headers: headers('lookup') })
   if (head.status === 200) {
     sha = (await head.json()).sha
   } else if (head.status !== 404) {
@@ -133,7 +138,7 @@ async function putFile(path, content, message) {
 
   const res = await fetch(url, {
     method: 'PUT',
-    headers: { ...headers(), 'content-type': 'application/json' },
+    headers: { ...headers('write'), 'content-type': 'application/json' },
     body: JSON.stringify({
       message,
       content: Buffer.from(content, 'utf8').toString('base64'),
@@ -162,10 +167,13 @@ async function main() {
   console.log(`   ${rowCount} row(s) across ${tableCount} table(s)`)
   for (const skip of bundle.skipped) console.log(`   · skipped ${skip.table}: ${skip.reason}`)
 
-  const json = JSON.stringify(bundle, null, 2)
+  // Compact, not pretty-printed: the file is half the size, and git
+  // history, not whitespace, is what makes it readable later.
+  const json = JSON.stringify(bundle)
   const kb = Math.round(Buffer.byteLength(json, 'utf8') / 1024)
   const paths = backupPaths(today)
   const configured = Boolean(BACKUP_REPO && BACKUP_REPO_TOKEN)
+  const facts = { dryRun: DRY_RUN, configured, written: false, rowCount, tableCount, kb, target: `${BACKUP_REPO}/${paths[0]}` }
 
   // A dry run proves the reading half without the repository, so the
   // bundle can be checked in the Actions log before the token exists.
@@ -175,22 +183,18 @@ async function main() {
         ? `Dry run: would write ${kb} KB to ${BACKUP_REPO} as ${paths.join(' and ')}`
         : `Dry run: would write ${kb} KB, but BACKUP_REPO / BACKUP_REPO_TOKEN are not set, so a real run fails here.`,
     )
-    runSummary = `dry run: ${rowCount} rows, ${kb} KB${configured ? '' : ', destination not configured'}`
-    runOk = configured
+    runRecord = runRecordFor(facts)
     return
   }
 
   // Not configured yet: say so where it is read (the run record, which
-  // Settings → System and the morning digest show as a failing job) and
-  // exit cleanly. A non-zero exit here made backup.yml open and re-open a
-  // GitHub issue every Sunday for a setup step the owner has not taken,
-  // which is noise, not an alarm; the in-app job line is the alarm.
+  // Settings → System reads as a setup step and Daily HQ's checklist names)
+  // and exit cleanly. A non-zero exit here made backup.yml open and re-open
+  // a GitHub issue every Sunday for a setup step the owner has not taken,
+  // which is noise, not an alarm; the in-app line is the alarm.
   if (!configured) {
-    runSummary =
-      'not configured: BACKUP_REPO / BACKUP_REPO_TOKEN are not set. Create a private repository for the backups and a ' +
-      'fine-grained token with Contents read and write on it, then add the variable and the secret (README, "Backups").'
-    runOk = false
-    console.log(`::warning::Weekly backup skipped: ${runSummary}`)
+    runRecord = runRecordFor(facts)
+    console.log(`::warning::Weekly backup skipped: ${runRecord.summary}`)
     return
   }
   if (!isRepoName(BACKUP_REPO)) {
@@ -200,26 +204,29 @@ async function main() {
     throw new Error(`BACKUP_REPO is this repository (${THIS_REPO}), which is public. The backup holds every transaction; give it a private repository of its own.`)
   }
 
+  // The name alone does not say whether the repository is private, and a
+  // repository created with GitHub's default visibility is public. Ask.
+  const target = await readTargetRepo()
+  if (!isSafeBackupTarget(target, THIS_REPO)) {
+    throw new Error(`Refusing to write: ${unsafeTargetReason(target, THIS_REPO)}.`)
+  }
+
+  // A bundle without the ledger in it is not a backup, however cleanly it
+  // would upload: checked before anything is written, so a transient read
+  // error on transactions can never overwrite latest.json.
+  assertBundleHasLedger(bundle)
+
   for (const path of paths) {
     const outcome = await putFile(path, json, `Backup ${today}`)
     console.log(`   ${outcome} ${path}`)
   }
 
-  runSummary = `${rowCount} rows across ${tableCount} tables, ${kb} KB → ${BACKUP_REPO}/${paths[0]}`
-  console.log(`✅ ${runSummary}`)
-
-  // A bundle without the ledger in it is not a backup, however cleanly it
-  // was written: transactions is the table this exists for.
-  assertProgress([
-    {
-      ok: Array.isArray(bundle.tables.transactions),
-      reason: `transactions were not read: ${bundle.skipped.find((s) => s.table === 'transactions')?.reason || 'unknown'}`,
-    },
-  ])
+  runRecord = runRecordFor({ ...facts, written: true })
+  console.log(`✅ ${runRecord.summary}`)
 }
 
 main()
-  .then(() => recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: runOk && process.exitCode !== 1, summary: runSummary }))
+  .then(() => recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: runRecord.ok && process.exitCode !== 1, summary: runRecord.summary }))
   .catch(async (err) => {
     console.error('❌ Backup failed:', err?.message || err)
     await recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: false, summary: err?.message || String(err) })

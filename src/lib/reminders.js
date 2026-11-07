@@ -13,7 +13,7 @@
  * every morning trains the reader to swipe it away, and the one that
  * matters goes with it.
  */
-import { upcomingDebts, outstanding, cycleStatus, daysUntil, isRotating } from './debts.js'
+import { upcomingDebts, outstanding, cycleStatus, daysUntil, isRotating, paidTotals } from './debts.js'
 import { detectRecurring } from './recurring.js'
 import { urgentRepairs } from './repairs.js'
 import { dueMilestones } from './projects.js'
@@ -51,8 +51,16 @@ function when(days, { past = 'overdue', future = 'in' } = {}) {
   return `${future} ${days}d`
 }
 
-function debtItems(debts, now) {
-  return upcomingDebts(debts, DEBT_WINDOW_DAYS, now).map(({ debt, days, kind }) => {
+/**
+ * @param {object[]} debts
+ * @param {Date} now
+ * @param {object[]} linkedRows - transactions linked to a debt (029), so a
+ *   loan the ledger has repaid is not pushed as due, and the figure is what
+ *   is actually left: the same `paidTotals` Daily HQ and Debts use.
+ */
+function debtItems(debts, now, linkedRows) {
+  const paidByDebt = paidTotals(debts, linkedRows)
+  return upcomingDebts(debts, DEBT_WINDOW_DAYS, now, paidByDebt).map(({ debt, days, kind }) => {
     const rotating = isRotating(debt.kind)
     let text
     if (kind === 'payout') {
@@ -61,7 +69,7 @@ function debtItems(debts, now) {
     } else if (rotating) {
       text = `${debt.counterparty}: ${debt.contribution ? `${money(debt.contribution)} ` : ''}contribution due ${when(days)}`
     } else {
-      const left = outstanding(debt)
+      const left = outstanding(debt, paidByDebt[debt.id])
       text = `${debt.counterparty}: ${left > 0 ? `${money(left)} ` : ''}due ${when(days)}`
     }
     return { kind: 'debt', text, url: KIND_URLS.debt, days }
@@ -127,19 +135,70 @@ function milestoneItems(projects, milestones, today, now) {
 function systemItems(jobs, today) {
   return (jobs || [])
     // "Never" counts too: every job in health.js is expected, and one with
-    // no row at all is as silent as a dead one.
-    .filter((job) => job && (job.status === STATUS.FAILING || job.status === STATUS.STALE || job.status === STATUS.NEVER))
+    // no row at all is as silent as a dead one. ATTENTION (the job ran and
+    // found a data problem) is carried with what it found, except the
+    // backup's "not configured", which is a setup step the app's checklist
+    // owns and not a thing to push every morning.
+    .filter(
+      (job) =>
+        job &&
+        (job.status === STATUS.FAILING ||
+          job.status === STATUS.STALE ||
+          job.status === STATUS.NEVER ||
+          job.suspect ||
+          (job.status === STATUS.ATTENTION && !job.report?.setup)),
+    )
     .map((job) => {
       const last = job.lastRun?.finished_at ? String(job.lastRun.finished_at).slice(0, 10) : null
       const days = last ? Math.round((new Date(`${today}T00:00:00`) - new Date(`${last}T00:00:00`)) / 86400000) : null
       const since = days == null ? '' : days <= 0 ? ' today' : days === 1 ? ' yesterday' : ` ${days}d ago`
-      const text = job.status === STATUS.FAILING
-        ? `${job.label} is failing (last run${since})`
-        : job.status === STATUS.NEVER
-          ? `${job.label} has never run`
-          : `${job.label} has not run (last${since})`
+      const text = job.suspect
+        ? `${job.label} ${job.suspectReason}`
+        : job.status === STATUS.ATTENTION
+          ? `${job.label}: ${job.reason}`
+          : job.status === STATUS.FAILING
+            ? `${job.label} is failing (last run${since})`
+            : job.status === STATUS.NEVER
+              ? `${job.label} has never run`
+              : `${job.label} has not run (last${since})`
       return { kind: 'system', text, url: KIND_URLS.system, days: days == null ? 0 : -days }
     })
+}
+
+/**
+ * The one condition worth failing the reminder workflow for when no phone
+ * is subscribed: the bank-alert audit itself is broken, stopped, never ran,
+ * or recorded nothing on a busy mailbox. Every other number in the app
+ * depends on it, and a failed workflow run is the only channel that reaches
+ * the owner's inbox without a subscription. Any wider rule (every failing
+ * job) would fire every morning while the backup waits for its repository.
+ *
+ * @param {object[]} jobs - summarizeRuns() output
+ * @returns {string|null} the reason to fail with, or null
+ */
+export function alarmWithoutSubscriber(jobs) {
+  const audit = (jobs || []).find((j) => j && j.id === 'claude-audit')
+  if (!audit) return null
+  if (audit.suspect) return `the bank-alert audit ${audit.suspectReason}`
+  if (audit.status === STATUS.FAILING) return 'the bank-alert audit is failing'
+  if (audit.status === STATUS.STALE) return 'the bank-alert audit has stopped running'
+  if (audit.status === STATUS.NEVER) return 'the bank-alert audit has never run'
+  return null
+}
+
+/**
+ * The digest as counts only, for a log that is world-readable: the
+ * repository is public and its Actions logs with it. "7 item(s): 2 system,
+ * 1 debt, 3 bill, 1 review" says what the morning held without a payee
+ * name or a naira figure. The full text prints only on a dry run.
+ */
+export function describeDigest(digest) {
+  if (!digest || !Array.isArray(digest.items)) return 'no digest'
+  const counts = new Map()
+  for (const item of digest.items) counts.set(item.kind, (counts.get(item.kind) || 0) + 1)
+  const order = [...Object.keys(KIND_URLS), ...[...counts.keys()].filter((k) => !(k in KIND_URLS))]
+  const parts = order.filter((k) => counts.has(k)).map((k) => `${counts.get(k)} ${k}`)
+  return `${digest.items.length} item(s)${parts.length ? `: ${parts.join(', ')}` : ''}`
 }
 
 const cut = (text, max) => (text.length <= max ? text : `${text.slice(0, max - 1).trimEnd()}…`)
@@ -197,6 +256,7 @@ export function classifySendError(statusCode) {
  * @param {object[]} [input.milestones]
  * @param {object[]} [input.jobs] - summarizeRuns() output; failing or stale jobs lead the digest
  * @param {object[]} [input.discoveredAccounts] - discovered_accounts rows (043); the undecided ones are asked about weekly
+ * @param {object[]} [input.linkedRows] - transactions linked to a debt (029): debt_id, type, amount, voided
  * @param {string} [input.today] - YYYY-MM-DD
  * @returns {{title: string, body: string, items: object[], url: string} | null}
  */
@@ -209,12 +269,13 @@ export function buildReminderDigest({
   milestones = [],
   jobs = [],
   discoveredAccounts = [],
+  linkedRows = [],
   today = new Date().toISOString().slice(0, 10),
 } = {}) {
   const now = new Date(`${today}T00:00:00`)
   const items = [
     ...systemItems(jobs, today),
-    ...debtItems(debts, now),
+    ...debtItems(debts, now, linkedRows),
     ...billItems(transactions, today, now),
     ...anomalyItems(transactions, today),
     ...repairItems(repairs, today, now),

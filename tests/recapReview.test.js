@@ -76,7 +76,7 @@ describe('reviewRecap', () => {
       facts,
     )
     expect(accepted).toEqual([])
-    expect(rejected[0].reason).toMatch(/52000, which is not one of the numbers spent actually has/)
+    expect(rejected[0].reason).toMatch(/a number that is not one of the numbers spent actually has/)
   })
 
   it('accepts a number written with different punctuation, same digits', () => {
@@ -98,7 +98,7 @@ describe('reviewRecap', () => {
     )
     expect(accepted.map((a) => a.cites)).toEqual(['spent', 'streak'])
     expect(rejected).toHaveLength(1)
-    expect(rejected[0].reason).toMatch(/9999/)
+    expect(rejected[0].reason).toMatch(/category:Transport actually has/)
   })
 
   it('gives every rejection a reason in words', () => {
@@ -162,5 +162,14 @@ describe('reviewRecap', () => {
     const { accepted, rejected } = reviewRecap([item()], [])
     expect(accepted).toEqual([])
     expect(rejected).toHaveLength(1)
+  })
+})
+
+describe('rejection reasons in a public log', () => {
+  it('never echoes the made-up figure', () => {
+    const facts = [{ key: 'spent', numbers: [142300], text: 'spent ₦142,300 this week' }]
+    const { rejected } = reviewRecap([{ sentence: 'You spent ₦999,999 this week on nothing much.', cites: 'spent' }], facts)
+    expect(rejected).toHaveLength(1)
+    expect(rejected[0].reason).not.toMatch(/999/)
   })
 })

@@ -106,7 +106,8 @@ export default function ExportData() {
         <div>
           <p className="text-sm text-white font-semibold">Everything, as one file</p>
           <p className="text-[11px] text-muted-dim mt-0.5">
-            Every table you own, including bank email bodies. The Gmail connection itself is never exported.
+            Every table you own, including bank email bodies and meal photos. The Gmail connection and your phones&apos; push
+            subscriptions are never exported.
           </p>
         </div>
         <button

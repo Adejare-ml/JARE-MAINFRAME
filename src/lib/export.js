@@ -40,7 +40,26 @@ export const EXPORT_TABLES = [
   { name: 'user_settings', order: 'key' },
   { name: 'sync_failures', order: 'last_failed_at' },
   { name: 'sync_runs', order: 'finished_at' },
+  // Meals logged from a photo (042). The thumbnail is a few kilobytes of
+  // base64 per row: kept in the JSON bundle, dropped from the CSV, for the
+  // same reason as transactions.raw_email.
+  { name: 'meals', order: 'eaten_on', csvOmit: ['thumbnail'] },
+  // Accounts the audit found in the mail and what was decided about them
+  // (043). A restore without them asks every question again.
+  { name: 'discovered_accounts', order: 'first_seen_at' },
 ]
+
+/**
+ * Tables that exist and are left out on purpose, each with its reason. A
+ * table that is in neither list is a mistake: tests/export.test.js reads
+ * every `create table` in supabase/migrations and fails on the omission,
+ * because buildBundle reports only tables whose read failed and an absent
+ * name was silent for four migrations.
+ */
+export const EXPORT_EXCLUDED = {
+  integrations: 'holds the Google token; a backup that leaks a credential is worse than an incomplete one',
+  push_subscriptions: 'endpoint, p256dh and auth are the device\'s push credentials; a phone re-subscribes in one tap',
+}
 
 /** PostgREST answers at most this many rows per request, whatever you ask. */
 export const PAGE_SIZE = 1000

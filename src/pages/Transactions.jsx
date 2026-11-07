@@ -21,7 +21,10 @@ import {
   voidedOnly,
   applyTransactionSort,
   SORT_OPTIONS,
+  queueAge,
+  toDateOnly,
 } from '../lib/queries'
+import { createSequence } from '../lib/latest'
 import { validateCorrection, isMissingFunctionError } from '../lib/corrections'
 import { ruleFromTransaction, findMatchingRule, likeLiteral, ruleExplanation } from '../lib/categoryRules'
 import { hasColumn } from '../lib/schema'
@@ -47,12 +50,22 @@ export default function Transactions() {
   const [wallets, setWallets] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
+  // A refetch after the first load (a chip, a search keystroke, a sort)
+  // keeps the list and the search box mounted and shows this instead of the
+  // skeleton: swapping the page out closed the phone keyboard on every
+  // keystroke.
+  const [refreshing, setRefreshing] = useState(false)
+  const firstLoad = useRef(true)
+  // Only the newest request may write the list: see src/lib/latest.js.
+  const fetchSeq = useRef(createSequence())
+  // The date of the oldest row waiting in review, so the queue has an age.
+  const [oldestUnreviewed, setOldestUnreviewed] = useState(null)
   // Deep links from the Budget breakdown arrive as /transactions?category=Rent.
   const [searchParams, setSearchParams] = useSearchParams()
   const initialCategory = searchParams.get('category')
   // Daily HQ's "Review →" lands on the queue itself, not the whole ledger.
   const [filter, setFilter] = useState(
-    searchParams.get('filter') === 'Review' ? 'Review' : initialCategory ? `category:${initialCategory}` : 'All',
+    searchParams.get('filter') ? searchParams.get('filter') : initialCategory ? `category:${initialCategory}` : 'All',
   )
   // Range, direction and order live in the URL too, so a filtered view can
   // be bookmarked or sent, and survives a refresh.
@@ -184,9 +197,12 @@ export default function Transactions() {
   )
 
   const fetchData = useCallback(async () => {
+    const token = fetchSeq.current.next()
+    const current = () => fetchSeq.current.isCurrent(token)
     try {
       setPageError(null)
       const { data: wData, error: wError } = await supabase.from('wallets').select('*')
+      if (!current()) return
       if (wError) throw wError
       const walletList = wData || []
       setWallets(walletList)
@@ -196,7 +212,7 @@ export default function Transactions() {
       // the other 150 the user had loaded, and so did every realtime event.
       const loaded = Math.max(loadedCountRef.current, PAGE_SIZE)
 
-      const [page, countRes] = await Promise.all([
+      const [page, countRes, oldestRes] = await Promise.all([
         fetchRange(0, loaded, walletList),
         // Counted across the whole table, not the loaded page -- a head query
         // returns the number without transferring any rows.
@@ -206,33 +222,61 @@ export default function Transactions() {
             .select('id', { count: 'exact', head: true })
             .eq(NEEDS_REVIEW_FILTER.column, NEEDS_REVIEW_FILTER.value),
         ),
+        // The oldest row still waiting: one row, so the queue has an age.
+        excludeVoided(
+          supabase
+            .from('transactions')
+            .select('transaction_date')
+            .eq(NEEDS_REVIEW_FILTER.column, NEEDS_REVIEW_FILTER.value),
+        )
+          .order('transaction_date', { ascending: true })
+          .limit(1)
+          .maybeSingle(),
       ])
+      // A newer fetch started while this one was in flight (a second chip
+      // tap, an Undo toast's captured callback): its answer, not this one.
+      if (!current()) return
 
       setTransactions(page.rows)
       loadedCountRef.current = page.rows.length
       setHasMore(page.hasMore)
       setUnreviewedCount(countRes.count || 0)
+      setOldestUnreviewed(oldestRes.error ? null : oldestRes.data?.transaction_date || null)
     } catch (err) {
+      if (!current()) return
       console.error('Error fetching transactions:', err)
       // The empty-list state below says "No transactions found", which is a
       // wrong answer when the truth is "could not ask".
       setPageError(err.message || 'Failed to load')
     } finally {
-      setLoading(false)
+      if (current()) {
+        firstLoad.current = false
+        setLoading(false)
+        setRefreshing(false)
+      }
     }
   }, [fetchRange])
 
+  // The latest fetcher, for callbacks that outlive a render: a toast's Undo
+  // fires seconds later, with whatever chip is active then.
+  const fetchDataRef = useRef(fetchData)
+  fetchDataRef.current = fetchData
+
   // Changing the filter is the one case that *should* go back to one page.
+  // The skeleton is for the first load only; after that the list stays
+  // mounted (and the search box keeps focus) while the new answer arrives.
   useEffect(() => {
     loadedCountRef.current = 0
-    setLoading(true)
+    if (firstLoad.current) setLoading(true)
+    else setRefreshing(true)
     fetchData()
   }, [fetchData])
 
   useRealtimeRefresh(['transactions'], fetchData, { channelPrefix: 'transactions_page' })
 
-  // Mirror range, direction and order into the URL; defaults are dropped so
-  // a plain visit keeps a plain address.
+  // Mirror the chip, range, direction and order into the URL; defaults are
+  // dropped so a plain visit keeps a plain address. The chip was read from
+  // the URL once and never written back, so a refresh lost it.
   useEffect(() => {
     const next = new URLSearchParams(searchParams)
     const wanted = [
@@ -240,6 +284,8 @@ export default function Transactions() {
       ['to', range.to, ''],
       ['type', range.type, 'all'],
       ['sort', sort, 'newest'],
+      ['filter', filter.startsWith('category:') ? '' : filter, 'All'],
+      ['category', filter.startsWith('category:') ? filter.slice('category:'.length) : '', ''],
     ]
     for (const [key, value, fallback] of wanted) {
       if (value && value !== fallback) next.set(key, value)
@@ -247,7 +293,7 @@ export default function Transactions() {
     }
     if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [range, sort])
+  }, [range, sort, filter])
 
   const rangeSummary = [
     range.from && range.to
@@ -269,8 +315,13 @@ export default function Transactions() {
 
   const handleLoadMore = async () => {
     setLoadingMore(true)
+    // Not a new sequence token: a chip change mid-flight starts its own
+    // fetch, which supersedes this one, and the page must not be appended
+    // to a list that belongs to another chip.
+    const token = fetchSeq.current.current
     try {
       const page = await fetchRange(transactions.length, PAGE_SIZE, wallets)
+      if (!fetchSeq.current.isCurrent(token)) return
       setTransactions(prev => {
         const next = [...prev, ...page.rows]
         loadedCountRef.current = next.length
@@ -308,6 +359,32 @@ export default function Transactions() {
 
   const filteredTransactions = transactions
   const groupedTransactions = groupByDate(filteredTransactions)
+  const reviewAge = queueAge(oldestUnreviewed, toDateOnly(new Date()))
+
+  /**
+   * Accept the rows as they are: the audit's category stands, the row
+   * leaves the queue. For rows whose only flag was LOW confidence, this is
+   * the whole review. No corrections row is written -- agreeing with the
+   * model is not a correction, and storing it as one would drown the real
+   * signal.
+   */
+  const handleBulkMarkReviewed = async () => {
+    const ids = [...selectedIds]
+    if (ids.length === 0) return
+    setUpdating(true)
+    try {
+      const { error } = await supabase.from('transactions').update({ reviewed: true }).in('id', ids)
+      if (error) throw error
+      toast.success(`${ids.length} transaction${ids.length === 1 ? '' : 's'} marked reviewed ✓`)
+      exitSelectMode()
+      fetchData()
+    } catch (err) {
+      console.error('Error marking reviewed:', err)
+      toast.error('Failed to mark reviewed: ' + (err.message || 'check connection'))
+    } finally {
+      setUpdating(false)
+    }
+  }
 
   const toggleSelected = (id) => {
     setSelectedIds((prev) => {
@@ -612,7 +689,7 @@ export default function Transactions() {
         voided: false,
       })
       toast.success('Restored')
-      fetchData()
+      fetchDataRef.current()
     } catch (err) {
       console.error('Error restoring transaction:', err)
       toast.error('Could not restore: ' + (err.message || 'check connection'))
@@ -685,8 +762,17 @@ export default function Transactions() {
             <span className="text-xs bg-white/10 px-3 py-1 rounded-full text-muted font-normal">
               {filteredTransactions.length}{hasMore ? '+' : ''}
             </span>
+            {refreshing && (
+              <span className="text-xs text-muted font-normal animate-pulse" role="status" aria-live="polite">
+                Updating…
+              </span>
+            )}
           </h1>
-          <p className="text-muted text-sm mt-0.5">Filter, review, and categorize transactions</p>
+          <p className="text-muted text-sm mt-0.5">
+            {filter === 'Review' && unreviewedCount > 0
+              ? `${unreviewedCount} waiting${reviewAge ? `, ${reviewAge.label}` : ''}`
+              : 'Filter, review, and categorize transactions'}
+          </p>
         </div>
         <button
           onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
@@ -1335,6 +1421,19 @@ export default function Transactions() {
                 Clear
               </button>
             </div>
+            {/* Accept-as-is: the audit's category stands and the rows leave
+                the queue. Most LOW rows carry a real category and only a
+                confidence flag; this is their whole review. */}
+            {filter === 'Review' && (
+              <button
+                type="button"
+                onClick={handleBulkMarkReviewed}
+                disabled={updating}
+                className="w-full px-3 py-3 bg-background border border-white/10 rounded-xl text-white text-sm font-semibold min-h-[48px] disabled:opacity-50 hover:border-accent/50"
+              >
+                {updating ? 'Working…' : `Mark ${selectedIds.size} reviewed as ${selectedIds.size === 1 ? 'it is' : 'they are'}`}
+              </button>
+            )}
             <div className="flex items-center gap-2">
               <button
                 type="button"

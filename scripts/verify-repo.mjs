@@ -99,6 +99,8 @@ const VERIFY_DAYS = Number(process.env.VERIFY_DAYS) || 14
 let OWNER_USER_ID = process.env.OWNER_USER_ID
 
 const JOB = 'verify-repo'
+/** What the run record says, set at the end of main(). */
+let runSummary = null
 const RUN_STARTED_AT = new Date()
 
 const missingVars = [
@@ -296,18 +298,21 @@ async function main() {
           ? '· no repo signal'
           : '◐ partial'
 
+    // The goal's id, not its title: titles are the owner's plans and this
+    // log is public with the repository.
     console.log(
       `${verdict.padEnd(18)} ${goal.period.padEnd(8)} ${evidence.from}→${evidence.to}  ` +
-        `${evidence.counted}/${target}  ${wrote ? '(written)' : '(unchanged)'}  ${goal.title}`,
+        `${evidence.counted}/${target}  ${wrote ? '(written)' : '(unchanged)'}  goal ${String(goal.id).slice(0, 8)}`,
     )
   }
   console.log('─'.repeat(64))
   console.log(`\n✅ ${written} goal(s) updated, ${unchanged} unchanged`)
   console.log('   Days with no commits are recorded as checked-and-empty, not as missed.')
+  runSummary = `${report.length} goal(s) checked: ${written} updated, ${unchanged} unchanged`
 }
 
 main()
-  .then(() => recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: process.exitCode !== 1 }))
+  .then(() => recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: process.exitCode !== 1, summary: runSummary }))
   .catch(async (err) => {
     console.error('❌ Repo verification failed:', err?.message || err)
     await recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: false, summary: err?.message || String(err) })

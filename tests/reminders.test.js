@@ -1,5 +1,16 @@
 import { describe, it, expect } from 'vitest'
-import { buildReminderDigest, toPushPayload, classifySendError, KIND_URLS, BODY_MAX, TITLE_MAX, PAYLOAD_MAX_BYTES } from '../src/lib/reminders.js'
+import {
+  buildReminderDigest,
+  toPushPayload,
+  classifySendError,
+  alarmWithoutSubscriber,
+  describeDigest,
+  KIND_URLS,
+  BODY_MAX,
+  TITLE_MAX,
+  PAYLOAD_MAX_BYTES,
+} from '../src/lib/reminders.js'
+import { STATUS } from '../src/lib/health.js'
 
 const TODAY = '2026-08-08'
 
@@ -230,5 +241,67 @@ describe('anomalies', () => {
     expect(digest.items[0].text).toContain('₦25,000 to JUMIA')
     expect(digest.items[1].text).toContain('charged 2 times')
     expect(digest.url).toBe('/transactions')
+  })
+})
+
+describe('ledger-linked repayments', () => {
+  const loan = { id: 'loan', kind: 'loan', direction: 'i_owe', counterparty: 'Tolu', principal: 50000, amount_paid: 0, due_date: TODAY }
+
+  it('does not push a loan the ledger has already repaid', () => {
+    const linkedRows = [{ debt_id: 'loan', type: 'debit', amount: 50000, voided: false }]
+    expect(buildReminderDigest({ today: TODAY, debts: [loan], linkedRows })).toBeNull()
+  })
+
+  it('states what is actually left after linked repayments, ignoring voided rows', () => {
+    const linkedRows = [
+      { debt_id: 'loan', type: 'debit', amount: 20000, voided: false },
+      { debt_id: 'loan', type: 'debit', amount: 20000, voided: true },
+    ]
+    const digest = buildReminderDigest({ today: TODAY, debts: [loan], linkedRows })
+    expect(digest.items[0].text).toBe('Tolu: ₦30,000 due today')
+  })
+})
+
+describe('attention and suspect jobs', () => {
+  it('carries a reconcile report and a suspect audit, but never the unconfigured backup', () => {
+    const jobs = [
+      { id: 'reconcile', label: 'Balance reconciliation', status: STATUS.ATTENTION, reason: 'OPay: 3 missed alert(s) around 2026-10-02', report: { setup: false }, lastRun: { finished_at: `${TODAY}T10:30:00Z` } },
+      { id: 'backup', label: 'Weekly backup', status: STATUS.ATTENTION, reason: 'not configured', report: { setup: true }, lastRun: { finished_at: `${TODAY}T03:41:00Z` } },
+      { id: 'claude-audit', label: 'Bank alerts (Claude audit)', status: STATUS.OK, suspect: true, suspectReason: 'recorded nothing (usually 9 a day): check the Gmail connector', lastRun: { finished_at: `${TODAY}T08:10:00Z` } },
+    ]
+    const digest = buildReminderDigest({ today: TODAY, jobs })
+    expect(digest.items.map((i) => i.text)).toEqual([
+      'Balance reconciliation: OPay: 3 missed alert(s) around 2026-10-02',
+      'Bank alerts (Claude audit) recorded nothing (usually 9 a day): check the Gmail connector',
+    ])
+  })
+})
+
+describe('alarmWithoutSubscriber', () => {
+  const audit = (over) => ({ id: 'claude-audit', status: STATUS.OK, suspect: false, ...over })
+
+  it('fails only for the audit itself, never for other jobs', () => {
+    expect(alarmWithoutSubscriber([audit({ status: STATUS.FAILING })])).toMatch(/failing/)
+    expect(alarmWithoutSubscriber([audit({ status: STATUS.STALE })])).toMatch(/stopped/)
+    expect(alarmWithoutSubscriber([audit({ status: STATUS.NEVER })])).toMatch(/never run/)
+    expect(alarmWithoutSubscriber([audit({ suspect: true, suspectReason: 'recorded nothing' })])).toMatch(/recorded nothing/)
+    expect(alarmWithoutSubscriber([audit({}), { id: 'backup', status: STATUS.FAILING }])).toBeNull()
+    expect(alarmWithoutSubscriber([audit({ status: STATUS.ATTENTION })])).toBeNull()
+    expect(alarmWithoutSubscriber([])).toBeNull()
+  })
+})
+
+describe('describeDigest', () => {
+  it('counts by kind and never names a payee or a figure', () => {
+    const digest = buildReminderDigest({
+      today: TODAY,
+      unreviewedCount: 4,
+      debts: [{ id: 'a', kind: 'loan', direction: 'i_owe', counterparty: 'Tolu', principal: 100, due_date: TODAY }],
+    })
+    const line = describeDigest(digest)
+    expect(line).toBe('2 item(s): 1 debt, 1 review')
+    expect(line).not.toContain('Tolu')
+    expect(line).not.toContain('₦')
+    expect(describeDigest(null)).toBe('no digest')
   })
 })

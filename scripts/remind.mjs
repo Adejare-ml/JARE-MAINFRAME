@@ -13,8 +13,18 @@
  * morning. A run that had devices and a digest and reached none of them
  * fails, so the Actions issue says so.
  *
- * REMIND_DRY_RUN=1 prints what would be sent and to how many devices,
- * without sending -- the way to watch a morning before trusting it.
+ * REMIND_DRY_RUN=1 prints the digest in full and who would get it, without
+ * sending -- the way to watch a morning before trusting it. A scheduled
+ * run prints counts only: the repository is public and so are its Actions
+ * logs, and the digest names payees and naira amounts.
+ *
+ * No device subscribed: the run is recorded as ok (the setup checklist on
+ * Daily HQ owns that nag), unless the bank-alert audit itself is unwell --
+ * then the run fails so remind.yml opens its issue, the one channel that
+ * reaches an inbox without a subscription. Narrow on purpose: the audit is
+ * the job every other number depends on, and a rule that fired for any
+ * failing job would fire every morning while the backup awaits its
+ * repository.
  *
  * All the judgment lives in src/lib/reminders.js so it can be tested
  * without a network or a database. This file is wiring.
@@ -22,9 +32,9 @@
 
 import { createClient } from '@supabase/supabase-js'
 import webpush from 'web-push'
-import { buildReminderDigest, toPushPayload, classifySendError } from '../src/lib/reminders.js'
+import { buildReminderDigest, toPushPayload, classifySendError, alarmWithoutSubscriber, describeDigest } from '../src/lib/reminders.js'
 import { toDateOnly, daysAgo } from '../src/lib/queries.js'
-import { summarizeRuns, STATUS } from '../src/lib/health.js'
+import { summarizeRuns, unwellJobs } from '../src/lib/health.js'
 import { resolveOwnerUserId } from './lib/ownerId.mjs'
 import { recordRun } from './lib/recordRun.mjs'
 import { assertProgress } from './lib/assertProgress.mjs'
@@ -148,7 +158,7 @@ async function readJobHealth() {
 }
 
 async function readEverything(today) {
-  const [debts, transactions, unreviewed, repairs, projects, milestones, jobs, discoveredAccounts] = await Promise.all([
+  const [debts, transactions, unreviewed, repairs, projects, milestones, jobs, discoveredAccounts, linkedRows] = await Promise.all([
     optional('debts', supabase.from('debts').select('*').eq('user_id', OWNER_USER_ID).eq('settled', false)),
     readTransactions(today),
     supabase
@@ -164,6 +174,9 @@ async function readEverything(today) {
     // Accounts the audit found in the mail and the owner has not decided on
     // (043). Behind the migration the table is missing and this is [].
     optional('discovered_accounts', supabase.from('discovered_accounts').select('id, slug, label, sender, status, last_balance, last_seen_on, first_seen_at, times_seen').eq('user_id', OWNER_USER_ID).eq('status', 'new')),
+    // Repayments linked to a debt (029): the same rows Daily HQ and Debts
+    // read, so the digest never says a loan is due that the ledger has paid.
+    optional('linked repayments', supabase.from('transactions').select('id, debt_id, type, amount, voided').eq('user_id', OWNER_USER_ID).not('debt_id', 'is', null)),
   ])
 
   if (unreviewed.error) console.warn(`   (review count unavailable: ${unreviewed.error.message})`)
@@ -177,6 +190,7 @@ async function readEverything(today) {
     milestones,
     jobs,
     discoveredAccounts,
+    linkedRows,
     today,
   }
 }
@@ -232,7 +246,9 @@ async function sendToAll(subscriptions, payload) {
   return outcome
 }
 
-const describe = (row) => `${(row.user_agent || 'unknown device').slice(0, 60)} …${row.endpoint.slice(-12)}`
+/** The device, by its user agent only: the endpoint is part of a per-device
+ *  credential and the log is public. The row id tells devices apart. */
+const describe = (row) => `${(row.user_agent || 'unknown device').slice(0, 60)} #${String(row.id).slice(0, 8)}`
 
 // ───────────────────────────────────────────────────────────────
 // 4. Run
@@ -244,11 +260,12 @@ async function main() {
   console.log(`🔔 Reminder digest for ${today}${DRY_RUN ? ' (dry run)' : ''}`)
 
   const input = await readEverything(today)
+  const unwell = unwellJobs(input.jobs)
   console.log(
     `   read: ${input.debts.length} open debt(s), ${input.transactions.length} transaction(s), ` +
       `${input.unreviewedCount} to review, ${input.repairs.length} open repair(s), ` +
       `${input.projects.length} active project(s), ${input.milestones.length} open milestone(s), ` +
-      `${input.jobs.filter((j) => j.status === STATUS.FAILING || j.status === STATUS.STALE).length} job(s) unwell`,
+      `${unwell.length} job(s) unwell${unwell.length ? ` (${unwell.map((j) => j.label).join(', ')})` : ''}`,
   )
 
   const digest = buildReminderDigest(input)
@@ -257,21 +274,35 @@ async function main() {
   if (!digest) {
     console.log('Nothing needs you today. No digest, on purpose.')
     console.log('─'.repeat(64))
-    runSummary = 'nothing to send'
+    runSummary = DRY_RUN ? 'dry run: nothing to send' : 'nothing to send'
     return
   }
 
-  console.log(`📣 ${digest.title}`)
-  console.log(`   ${digest.body}`)
-  console.log(`   → ${digest.url}`)
-  console.log('')
-  for (const item of digest.items) console.log(`   • [${item.kind}] ${item.text}`)
+  if (DRY_RUN) {
+    console.log(`📣 ${digest.title}`)
+    console.log(`   ${digest.body}`)
+    console.log(`   → ${digest.url}`)
+    console.log('')
+    for (const item of digest.items) console.log(`   • [${item.kind}] ${item.text}`)
+  } else {
+    // Counts only: this log is world-readable while the repository is public.
+    // A manual dry run (remind.yml, dry_run=true) prints the text.
+    console.log(`📣 ${describeDigest(digest)}`)
+  }
   console.log('─'.repeat(64))
 
   const subscriptions = await readSubscriptions()
   if (subscriptions.length === 0) {
     console.log('No device has turned reminders on (Settings → Reminders). Nothing to send to.')
-    runSummary = 'no device subscribed'
+    const alarm = alarmWithoutSubscriber(input.jobs)
+    runSummary = `${DRY_RUN ? 'dry run: ' : ''}no device subscribed${alarm ? `; ${alarm}` : ''}`
+    if (alarm && DRY_RUN) {
+      console.log(`Dry run: a real run would fail here, because ${alarm} and nobody is subscribed to hear it.`)
+    } else if (alarm) {
+      // The one alarm worth an issue: the job every number depends on, and
+      // no phone to say so. remind.yml opens or reopens its issue on exit 1.
+      assertProgress([{ ok: false, reason: `${alarm}, and no device is subscribed to hear it (Settings → Reminders)` }])
+    }
     return
   }
 
@@ -279,6 +310,7 @@ async function main() {
   if (DRY_RUN) {
     console.log(`Dry run: would send ${payload.length}-byte payload to ${subscriptions.length} device(s):`)
     for (const row of subscriptions) console.log(`   · ${describe(row)}`)
+    runSummary = `dry run: would send to ${subscriptions.length} device(s)`
     return
   }
 
@@ -306,7 +338,10 @@ async function main() {
 }
 
 main()
-  .then(() => recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: process.exitCode !== 1, summary: runSummary }))
+  // A dry run sent nothing, so it is never recorded as a morning that did:
+  // Settings → System and the digest read the newest row, and a green
+  // dry-run row would hide a week of real failures.
+  .then(() => recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: !DRY_RUN && process.exitCode !== 1, summary: runSummary }))
   .catch(async (err) => {
     console.error('❌ Reminder digest failed:', err?.message || err)
     await recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: false, summary: err?.message || String(err) })

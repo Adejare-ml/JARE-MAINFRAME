@@ -1,15 +1,35 @@
 import { describe, it, expect } from 'vitest'
-import { EXPORT_TABLES, PAGE_SIZE, BOM, columnsFor, csvCell, toCsv, fetchAll, buildBundle, filenameFor } from '../src/lib/export.js'
+import { readdirSync, readFileSync } from 'node:fs'
+import { EXPORT_TABLES, EXPORT_EXCLUDED, PAGE_SIZE, BOM, columnsFor, csvCell, toCsv, fetchAll, buildBundle, filenameFor } from '../src/lib/export.js'
 
 describe('EXPORT_TABLES', () => {
-  it('never includes the table that holds a Google token', () => {
-    expect(EXPORT_TABLES.map((t) => t.name)).not.toContain('integrations')
+  it('never includes the tables that hold credentials', () => {
+    const names = EXPORT_TABLES.map((t) => t.name)
+    expect(names).not.toContain('integrations')
+    expect(names).not.toContain('push_subscriptions')
+    expect(Object.keys(EXPORT_EXCLUDED)).toEqual(expect.arrayContaining(['integrations', 'push_subscriptions']))
   })
 
-  it('drops bank email bodies from the transactions CSV only', () => {
+  it('drops bank email bodies and meal thumbnails from the CSV only', () => {
     const tx = EXPORT_TABLES.find((t) => t.name === 'transactions')
     expect(tx.csvOmit).toContain('raw_email')
-    expect(EXPORT_TABLES.filter((t) => t.csvOmit?.length).map((t) => t.name)).toEqual(['transactions'])
+    expect(EXPORT_TABLES.filter((t) => t.csvOmit?.length).map((t) => t.name)).toEqual(['transactions', 'meals'])
+  })
+
+  it('accounts for every table a migration creates, exported or excluded by name', () => {
+    const dir = new URL('../supabase/migrations/', import.meta.url)
+    const created = new Set()
+    for (const file of readdirSync(dir)) {
+      if (!file.endsWith('.sql')) continue
+      const sql = readFileSync(new URL(file, dir), 'utf8')
+      for (const m of sql.matchAll(/create table if not exists\s+(\w+)/gi)) created.add(m[1])
+    }
+    expect(created.size).toBeGreaterThan(15)
+    const exported = new Set(EXPORT_TABLES.map((t) => t.name))
+    const missing = [...created].filter((name) => !exported.has(name) && !(name in EXPORT_EXCLUDED))
+    expect(missing).toEqual([])
+    // And nothing is in both lists.
+    expect(Object.keys(EXPORT_EXCLUDED).filter((name) => exported.has(name))).toEqual([])
   })
 
   it('names every table once, with a column to order by', () => {

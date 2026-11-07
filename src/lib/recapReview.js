@@ -114,7 +114,10 @@ export function reviewRecap(proposal, facts = [], { maxSentences = DEFAULT_MAX_S
       // citation can be real while the number sitting next to it is invented.
       rejected.push({
         item,
-        reason: `mentions ${bogus}, which is not one of the numbers ${fact.key} actually has`,
+        // The figure itself is left out: the reason is printed by a script
+        // whose log is public, and a made-up number can still be close to a
+        // real one.
+        reason: `mentions a number that is not one of the numbers ${fact.key} actually has`,
       })
       continue
     }
