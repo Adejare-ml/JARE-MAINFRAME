@@ -29,3 +29,7 @@
 ## 2026-10-25 - ARIA Selection States on Custom Option Buttons
 **Learning:** Custom selection or toggle buttons inside components (like QuickLog's category, wallet, and tag pickers) often lack `aria-pressed` states and explicit `type="button"` attributes, leaving screen readers unaware of the active selection and risking accidental form submissions.
 **Action:** When auditing custom selection lists, ensure the selected state is conveyed via `aria-pressed={true/false}` on each button, and that `type="button"` is explicitly set to prevent unintended default behaviors.
+
+## 2026-10-31 - Missing type attribute on custom UI buttons
+**Learning:** Custom UI buttons that are handled entirely by `onClick` event listeners in React (like navigation, toggle, clear buttons) are omitting the explicit `type="button"` attribute. Browsers default button types to "submit", which can accidentally trigger unwanted form submissions if the button is within or near a `<form>` context, causing disruptive page reloads.
+**Action:** Added `type="button"` explicitly to all non-submitting action buttons in `QuickLog.jsx` to prevent unintentional default behaviors and stabilize the user experience.
