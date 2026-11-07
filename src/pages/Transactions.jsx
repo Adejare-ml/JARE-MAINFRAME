@@ -25,6 +25,7 @@ import {
   toDateOnly,
 } from '../lib/queries'
 import { createSequence } from '../lib/latest'
+import { linkableDebts } from '../lib/debts'
 import { validateCorrection, isMissingFunctionError } from '../lib/corrections'
 import { ruleFromTransaction, findMatchingRule, likeLiteral, ruleExplanation } from '../lib/categoryRules'
 import { hasColumn } from '../lib/schema'
@@ -125,15 +126,22 @@ export default function Transactions() {
   // rather than just that it paid someone. Loaded once; the table is tiny
   // and a database behind 029 has no rows that would need it.
   const [debtNames, setDebtNames] = useState({})
+  // The open debts a row can be attached to from the editor ("Counts
+  // toward"): the ingest function links repayments on arrival only, and
+  // a loan showed ₦0 paid with three matching repayments in the ledger.
+  const [debts, setDebts] = useState([])
+  // The debt chosen in the expanded row editor; '' for none.
+  const [editDebtId, setEditDebtId] = useState('')
   useEffect(() => {
     if (!hasColumn('transactions.debt_id')) return
     let cancelled = false
     supabase
       .from('debts')
-      .select('id, counterparty')
+      .select('id, counterparty, direction, kind, settled')
       .then(({ data, error }) => {
         if (cancelled || error || !data) return
         setDebtNames(Object.fromEntries(data.map((d) => [d.id, d.counterparty])))
+        setDebts(data)
       })
     return () => {
       cancelled = true
@@ -483,6 +491,7 @@ export default function Transactions() {
       setEditType(txn.type || 'debit')
       setEditAmount(txn.amount != null ? String(txn.amount) : '')
       setEditDate(txn.transaction_date || '')
+      setEditDebtId(txn.debt_id || '')
     }
   }
 
@@ -717,6 +726,14 @@ export default function Transactions() {
       })
 
       if (categoryChanged) await recordCategoryCorrection(original, editCategory)
+
+      // The debt link is a plain column write under RLS: correct_transaction
+      // has no debt parameter, and Debts.jsx sums linked rows itself.
+      const nextDebtId = editDebtId || null
+      if (hasColumn('transactions.debt_id') && (original?.debt_id || null) !== nextDebtId) {
+        const { error: linkError } = await supabase.from('transactions').update({ debt_id: nextDebtId }).eq('id', txnId)
+        if (linkError) throw linkError
+      }
 
       let taught = null
       if (editMakeRule && original && hasColumn('category_rules.trigger_field')) {
@@ -1305,6 +1322,30 @@ export default function Transactions() {
                         className="w-full px-4 py-3 bg-card border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
                       />
                     </div>
+
+                    {/* Counts toward a debt. Only the open loans this row can
+                        repay are offered: a debit for what I owe, a credit
+                        for what is owed to me. */}
+                    {hasColumn('transactions.debt_id') && linkableDebts(debts, { type: editType }).length > 0 && (
+                      <div>
+                        <label htmlFor={`debt-${t.id}`} className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">
+                          Counts toward
+                        </label>
+                        <select
+                          id={`debt-${t.id}`}
+                          value={editDebtId}
+                          onChange={(e) => setEditDebtId(e.target.value)}
+                          className="w-full px-4 py-3 bg-card border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-accent min-h-[48px]"
+                        >
+                          <option value="">No debt</option>
+                          {linkableDebts(debts, { type: editType }).map((d) => (
+                            <option key={d.id} value={d.id}>
+                              {d.counterparty}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
 
                     {/* Want or Need Selector */}
                     <div>

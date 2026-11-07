@@ -24,6 +24,7 @@ import {
   repayingType,
 } from '../lib/debts'
 import { hasColumn } from '../lib/schema'
+import PayoffPlan from '../components/debts/PayoffPlan'
 
 const EMPTY_FORM = {
   direction: 'i_owe',
@@ -298,6 +299,10 @@ export default function Debts() {
           <p className="text-lg font-bold text-blue-400 tabular-nums money">{formatNaira(totals.inCycles)}</p>
         </div>
       </div>
+
+      {/* In what order, and when the last loan is gone. Renders nothing
+          while nothing is owed. */}
+      <PayoffPlan debts={debts} paidByDebt={paidByDebt} />
 
       {/* Tabs */}
       <div role="tablist" aria-label="Debts filters" className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">

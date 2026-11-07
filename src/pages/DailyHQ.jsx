@@ -11,7 +11,7 @@ import { useAuth } from '../hooks/useAuth'
 import { summarizeMonth, safeToSpend, budgetPace } from '../lib/summary'
 import { upcomingDebts, paidTotals } from '../lib/debts'
 import { generateTasks } from '../lib/generateTasks'
-import { isTaskDone, goalProgress, GENERATED_SLOT_BASE, REPO_METRIC } from '../lib/planning'
+import { isTaskDone, goalProgress, GENERATED_SLOT_BASE, REPO_METRIC, staleGoals, STALE_GOAL_DAYS } from '../lib/planning'
 import { dailyInsight } from '../lib/insight'
 import { currentStreak } from '../lib/activity'
 import { hasColumn, pendingMigrations } from '../lib/schema'
@@ -77,6 +77,7 @@ export default function DailyHQ() {
   const [mode, setMode] = useState('day')
   const [unreviewedCount, setUnreviewedCount] = useState(0)
   const [oldestUnreviewed, setOldestUnreviewed] = useState(null)
+  const [staleGoalCount, setStaleGoalCount] = useState(0)
   const [warnThreshold, setWarnThreshold] = useState(10000)
   // Default until the user sets one in Settings; the bar hides at 0.
   const [budgetTarget, setBudgetTarget] = useState(85000)
@@ -117,7 +118,7 @@ export default function DailyHQ() {
       // is checked: supabase-js returns errors rather than throwing, so the
       // old destructure-data-only version made the catch unreachable and a
       // total network failure rendered "Total: ₦0.00" and "All clear!".
-      const [walletsRes, recentRes, countRes, settingsRes, monthRes, goalsRes, debtsRes, briefRes, auditRes, linkedRes, pushRes, oldestRes] =
+      const [walletsRes, recentRes, countRes, settingsRes, monthRes, goalsRes, debtsRes, briefRes, auditRes, linkedRes, pushRes, oldestRes, staleRes] =
         await Promise.all([
           supabase.from('wallets').select('*'),
           excludeVoided(
@@ -200,6 +201,17 @@ export default function DailyHQ() {
             .order('transaction_date', { ascending: true })
             .limit(1)
             .maybeSingle(),
+          // Open, hand-made goals from periods long over: a line here, and
+          // Close / Roll on the Goals page. Additive.
+          excludeDrafts(
+            supabase
+              .from('goals')
+              .select('id, title, period, target_date, completed, parent_id')
+              .eq('completed', false)
+              .is('parent_id', null)
+              .lt('target_date', daysAgo(STALE_GOAL_DAYS))
+              .limit(50),
+          ),
         ])
 
       const firstError =
@@ -223,6 +235,8 @@ export default function DailyHQ() {
       if (pushRes.error) console.warn('Reminder devices unavailable:', pushRes.error.message)
       setSubscriberCount(pushRes.error ? null : pushRes.count ?? null)
       setOldestUnreviewed(oldestRes.error ? null : oldestRes.data?.transaction_date || null)
+      if (staleRes.error) console.warn('Stale goals unavailable:', staleRes.error.message)
+      setStaleGoalCount(staleRes.error ? 0 : staleGoals(staleRes.data || [], todayDate).length)
 
       setWallets(walletsRes.data || [])
       setTransactions(recentRes.data || [])
@@ -825,6 +839,7 @@ export default function DailyHQ() {
           stalledJobs.length === 0 &&
           attentionJobs.length === 0 &&
           silentWallets.length === 0 &&
+          staleGoalCount === 0 &&
           setupRows.length === 0 ? (
             <div className="flex items-center gap-2 text-accent text-sm font-medium pt-1">
               <span>✅</span> All clear! No items require review.
@@ -955,6 +970,19 @@ export default function DailyHQ() {
                     })()}
                   </span>
                   <span className="text-orange-400 font-bold">Review →</span>
+                </Link>
+              )}
+
+              {staleGoalCount > 0 && (
+                <Link
+                  to="/goals"
+                  className="flex items-center justify-between p-3 rounded-2xl bg-orange-500/10 border border-orange-500/20 text-orange-300 text-xs font-semibold hover:bg-orange-500/20 transition-all min-h-[48px]"
+                >
+                  <span>
+                    • {staleGoalCount} goal{staleGoalCount === 1 ? ' is' : 's are'} past {staleGoalCount === 1 ? 'its' : 'their'} date — close or roll{' '}
+                    {staleGoalCount === 1 ? 'it' : 'them'}
+                  </span>
+                  <span className="text-orange-400 font-bold">Goals →</span>
                 </Link>
               )}
 

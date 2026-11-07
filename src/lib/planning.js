@@ -67,6 +67,48 @@ export function periodWindow(goal) {
   return { from: anchor, to: anchor }
 }
 
+/** A goal older than this past the end of its period is one to close or roll. */
+export const STALE_GOAL_DAYS = 14
+
+/**
+ * Open goals whose period ended more than `days` ago: a monthly goal for
+ * September is stale from 15 October. Generated rows (parent_id) and
+ * drafts are left out; they belong to their parent and the planner. On
+ * 18 Oct seven open goals from July and August were still "open" and no
+ * screen said so.
+ *
+ * @param {object[]} goals
+ * @param {string} today - YYYY-MM-DD
+ * @param {{days?: number}} [options]
+ * @returns {Array<{goal: object, endedOn: string, daysPast: number}>} oldest first
+ */
+export function staleGoals(goals, today, { days = STALE_GOAL_DAYS } = {}) {
+  const out = []
+  for (const goal of goals || []) {
+    if (!goal || goal.completed || goal.parent_id) continue
+    if (goal.plan_status && goal.plan_status !== 'active') continue
+    const window = periodWindow(goal)
+    if (!window) continue
+    const daysPast = daysBetween(window.to, today) - 1
+    if (daysPast > days) out.push({ goal, endedOn: window.to, daysPast })
+  }
+  return out.sort((a, b) => b.daysPast - a.daysPast)
+}
+
+/**
+ * Where a stale goal would land if rolled into the current period: the
+ * same period and slot, anchored on today's month, week or day.
+ *
+ * @param {{period?: string}} goal
+ * @param {string} today - YYYY-MM-DD
+ */
+export function rolledTargetDate(goal, today) {
+  const date = new Date(`${today}T00:00:00`)
+  if (goal?.period === 'weekly') return startOfWeek(date)
+  if (goal?.period === 'monthly') return startOfMonth(date)
+  return today
+}
+
 /**
  * Whole days from `from` to `to`, inclusive of both ends.
  *

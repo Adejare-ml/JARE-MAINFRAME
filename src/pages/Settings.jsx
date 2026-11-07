@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { getParseStrategy, sanitizeSlug } from '../lib/sync'
 import { walletUpdatePayload } from '../lib/wallets'
-import { formatNaira } from '../lib/formatters'
+import { formatNaira, timeAgo } from '../lib/formatters'
+import { walletAlertStatus } from '../lib/health'
 import { toast } from '../lib/toast'
 import { useAuth } from '../hooks/useAuth'
 import { secondaryItems } from '../lib/nav'
@@ -493,6 +494,20 @@ export default function Settings() {
                             {w.alert_sender && (
                               <p className="text-[10px] text-muted-dim font-mono truncate">{w.alert_sender}</p>
                             )}
+                            {/* Whether this bank has been heard from: the one
+                                code-side sign that the audit reads this sender.
+                                From balance_as_of, which the ingest function
+                                stamps on every alert that moves the balance. */}
+                            {(() => {
+                              const heard = walletAlertStatus(w)
+                              if (heard.status === 'n/a') return null
+                              const quiet = heard.status === 'quiet' || heard.status === 'never'
+                              return (
+                                <p className={`text-[10px] ${quiet ? 'text-orange-300' : 'text-muted-dim'}`}>
+                                  {heard.status === 'never' ? 'No alert recorded yet' : `Last alert ${timeAgo(heard.lastAlertAt)}`}
+                                </p>
+                              )
+                            })()}
                           </div>
                         </div>
 

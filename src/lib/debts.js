@@ -143,8 +143,131 @@ export function payoffProjection(debt, monthlyPayment, now = new Date(), paid) {
   if (payment <= 0) return null
 
   const monthsRemaining = Math.ceil(remaining / payment)
-  const target = new Date(now.getFullYear(), now.getMonth() + monthsRemaining, now.getDate())
-  return { monthsRemaining, payoffDate: dateOnly(target) }
+  return { monthsRemaining, payoffDate: dateOnly(addMonths(now, monthsRemaining)) }
+}
+
+/**
+ * `months` months after `date`, on the same day of the month or the last
+ * day the target month has. `new Date(y, m + 1, 31)` from 31 January lands
+ * on 3 March; this lands on 28 February, the way nextDueDate already did.
+ */
+export function addMonths(date, months) {
+  const first = new Date(date.getFullYear(), date.getMonth() + months, 1)
+  const lastDay = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate()
+  return new Date(first.getFullYear(), first.getMonth(), Math.min(date.getDate(), lastDay))
+}
+
+/**
+ * The open debts a ledger row could count toward: direction must match
+ * (a debit repays what I owe, a credit what is owed to me), rotating
+ * savings are contributions rather than repayments, and a settled debt is
+ * done. Sorted by counterparty for a picker.
+ *
+ * @param {object[]} debts
+ * @param {{type?: string}} row
+ */
+export function linkableDebts(debts, row) {
+  if (!row?.type) return []
+  return (debts || [])
+    .filter((d) => d && !d.settled && !isRotating(d.kind) && repayingType(d) === row.type)
+    .sort((a, b) => String(a.counterparty || '').localeCompare(String(b.counterparty || '')))
+}
+
+export const PAYOFF_STRATEGIES = [
+  { value: 'snowball', label: 'Snowball', hint: 'smallest balance first' },
+  { value: 'avalanche', label: 'Avalanche', hint: 'largest balance first' },
+]
+
+/** Longer than this and the plan is "not with this budget". */
+export const PAYOFF_MAX_MONTHS = 120
+
+/**
+ * A payoff plan across every open loan I owe, at one monthly budget.
+ *
+ * Each month every debt with a `monthly_payment` gets at least that much,
+ * then whatever is left of the budget goes to the first debt in the chosen
+ * order; a debt that reaches zero frees its payment for the next one. No
+ * interest: these are personal loans, so "avalanche" here means largest
+ * balance first (the honest reading without a rate), and the two orders
+ * only differ when there is more than one debt.
+ *
+ * @param {object[]} debts
+ * @param {number} monthlyBudget
+ * @param {'snowball'|'avalanche'} [strategy]
+ * @param {{now?: Date, paidByDebt?: Record<string, number>}} [options]
+ * @returns {{
+ *   order: Array<{debt: object, outstanding: number, payoffDate: string, monthsRemaining: number, paid: number}>,
+ *   months: number, totalOutstanding: number, minimums: number, budget: number, feasible: boolean, reason: string|null,
+ *   schedule: Array<{month: number, allocations: Record<string, number>}>
+ * }}
+ */
+export function planPayoff(debts, monthlyBudget, strategy = 'snowball', { now = new Date(), paidByDebt = {} } = {}) {
+  const budget = Number(monthlyBudget) || 0
+  const open = (debts || [])
+    .filter((d) => d && !d.settled && !isRotating(d.kind) && d.direction === 'i_owe')
+    .map((d) => ({ debt: d, left: outstanding(d, paidByDebt[d.id]), minimum: Math.max(0, Number(d.monthly_payment) || 0) }))
+    .filter((d) => d.left > 0)
+  const totalOutstanding = open.reduce((s, d) => s + d.left, 0)
+  const minimums = open.reduce((s, d) => s + Math.min(d.minimum, d.left), 0)
+  const base = { order: [], months: 0, totalOutstanding, minimums, budget, schedule: [] }
+
+  if (open.length === 0) return { ...base, feasible: true, reason: null }
+  if (budget <= 0) return { ...base, feasible: false, reason: 'set a monthly amount to put toward debts' }
+  if (budget < minimums) {
+    return { ...base, feasible: false, reason: `the monthly payments you have set add up to more than this budget` }
+  }
+
+  const ordered = open
+    .slice()
+    .sort((a, b) => (strategy === 'avalanche' ? b.left - a.left : a.left - b.left) || String(a.debt.counterparty || '').localeCompare(String(b.debt.counterparty || '')))
+  const state = ordered.map((d) => ({ ...d, remaining: d.left, paid: 0, doneMonth: null }))
+  const schedule = []
+
+  for (let month = 1; month <= PAYOFF_MAX_MONTHS; month++) {
+    let pool = budget
+    const allocations = {}
+    // Minimums first, so a payment the owner promised is always honoured.
+    for (const d of state) {
+      if (d.remaining <= 0) continue
+      const pay = Math.min(d.minimum, d.remaining, pool)
+      if (pay > 0) {
+        allocations[d.debt.id] = (allocations[d.debt.id] || 0) + pay
+        d.remaining -= pay
+        d.paid += pay
+        pool -= pay
+      }
+    }
+    // Then the rest of the budget, to the first debt still open in order.
+    for (const d of state) {
+      if (pool <= 0) break
+      if (d.remaining <= 0) continue
+      const pay = Math.min(d.remaining, pool)
+      allocations[d.debt.id] = (allocations[d.debt.id] || 0) + pay
+      d.remaining -= pay
+      d.paid += pay
+      pool -= pay
+    }
+    for (const d of state) if (d.remaining <= 0 && d.doneMonth == null) d.doneMonth = month
+    schedule.push({ month, allocations })
+    if (state.every((d) => d.remaining <= 0)) break
+  }
+
+  const feasible = state.every((d) => d.doneMonth != null)
+  const months = feasible ? Math.max(...state.map((d) => d.doneMonth)) : PAYOFF_MAX_MONTHS
+  return {
+    ...base,
+    feasible,
+    reason: feasible ? null : `not within ${PAYOFF_MAX_MONTHS / 12} years at this budget`,
+    months,
+    schedule,
+    order: state.map((d) => ({
+      debt: d.debt,
+      outstanding: d.left,
+      paid: d.paid,
+      monthsRemaining: d.doneMonth ?? PAYOFF_MAX_MONTHS,
+      payoffDate: d.doneMonth == null ? null : dateOnly(addMonths(now, d.doneMonth)),
+    })),
+  }
 }
 
 /** Local YYYY-MM-DD, kept in this module rather than importing queries.js so

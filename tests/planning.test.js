@@ -14,6 +14,8 @@ import {
   GENERATED_SLOT_BASE,
   MAX_GENERATED_PER_DAY,
   REPO_METRIC,
+  staleGoals,
+  rolledTargetDate,
 } from '../src/lib/planning.js'
 
 /** August 2026: the 1st is a Saturday, the 10th a Monday, the 31st a Monday. */
@@ -825,5 +827,33 @@ describe('a planned row is owned twice', () => {
       const { write } = reconcileGenerated([candidate], existing)
       expect(write[0].slot).toBe(31)
     }
+  })
+})
+
+describe('staleGoals / rolledTargetDate', () => {
+  const today = '2026-11-07'
+  const goals = [
+    { id: 'sep', period: 'monthly', target_date: '2026-09-01', completed: false, plan_status: 'active' },
+    { id: 'oct', period: 'monthly', target_date: '2026-10-01', completed: false },
+    { id: 'wk', period: 'weekly', target_date: '2026-10-12', completed: false },
+    { id: 'done', period: 'monthly', target_date: '2026-08-01', completed: true },
+    { id: 'child', period: 'daily', target_date: '2026-09-03', completed: false, parent_id: 'sep' },
+    { id: 'draft', period: 'monthly', target_date: '2026-08-01', completed: false, plan_status: 'draft' },
+    { id: 'day', period: 'daily', target_date: '2026-10-20', completed: false },
+  ]
+
+  it('lists open, hand-made goals whose period ended more than two weeks ago, oldest first', () => {
+    const stale = staleGoals(goals, today)
+    expect(stale.map((s) => s.goal.id)).toEqual(['sep', 'wk', 'day'])
+    expect(stale[0]).toMatchObject({ endedOn: '2026-09-30', daysPast: 38 })
+    // October ended 7 days ago: not stale yet.
+    expect(stale.find((s) => s.goal.id === 'oct')).toBeUndefined()
+    expect(staleGoals(goals, '2026-11-15').map((s) => s.goal.id)).toContain('oct')
+  })
+
+  it('rolls into the current period of the same cadence', () => {
+    expect(rolledTargetDate({ period: 'monthly' }, today)).toBe('2026-11-01')
+    expect(rolledTargetDate({ period: 'weekly' }, today)).toBe('2026-11-02')
+    expect(rolledTargetDate({ period: 'daily' }, today)).toBe(today)
   })
 })

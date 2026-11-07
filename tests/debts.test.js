@@ -13,6 +13,9 @@ import {
   linkedPayments,
   paidTotal,
   paidTotals,
+  addMonths,
+  linkableDebts,
+  planPayoff,
 } from '../src/lib/debts.js'
 
 const NOW = new Date(2026, 7, 8) // 8 Aug 2026, local
@@ -343,5 +346,72 @@ describe('the paid override', () => {
     expect(debtTotals(debts, { a: 30000, b: 15000 })).toMatchObject({ iOwe: 20000, owedToMe: 0 })
     // A debt missing from the map keeps its typed figure.
     expect(debtTotals(debts, { a: 30000 })).toMatchObject({ iOwe: 20000, owedToMe: 15000 })
+  })
+})
+
+describe('addMonths and payoffProjection day clamping', () => {
+  it('lands on the last day of a shorter month instead of spilling over', () => {
+    expect(addMonths(new Date(2027, 0, 31), 1)).toEqual(new Date(2027, 1, 28))
+    expect(addMonths(new Date(2026, 9, 31), 1)).toEqual(new Date(2026, 10, 30))
+    expect(addMonths(new Date(2026, 10, 7), 3)).toEqual(new Date(2027, 1, 7))
+    const debt = { principal: 10000, amount_paid: 0, direction: 'i_owe', kind: 'loan' }
+    expect(payoffProjection(debt, 10000, new Date(2027, 0, 31)).payoffDate).toBe('2027-02-28')
+  })
+})
+
+describe('linkableDebts', () => {
+  const debts = [
+    { id: 'a', counterparty: 'Tolu', direction: 'i_owe', kind: 'loan', settled: false },
+    { id: 'b', counterparty: 'Ada', direction: 'owed_to_me', kind: 'loan', settled: false },
+    { id: 'c', counterparty: 'Ajo group', direction: 'i_owe', kind: 'ajo', settled: false },
+    { id: 'd', counterparty: 'Bayo', direction: 'i_owe', kind: 'loan', settled: true },
+  ]
+  it('offers only open loans in the repaying direction, by name', () => {
+    expect(linkableDebts(debts, { type: 'debit' }).map((d) => d.id)).toEqual(['a'])
+    expect(linkableDebts(debts, { type: 'credit' }).map((d) => d.id)).toEqual(['b'])
+    expect(linkableDebts(debts, {})).toEqual([])
+  })
+})
+
+describe('planPayoff', () => {
+  const NOW = new Date(2026, 10, 7)
+  const okash = { id: 'okash', counterparty: 'OKash', direction: 'i_owe', kind: 'loan', principal: 45000, amount_paid: 0, monthly_payment: 15000, settled: false }
+  const tolu = { id: 'tolu', counterparty: 'Tolu', direction: 'i_owe', kind: 'loan', principal: 100000, amount_paid: 20000, monthly_payment: null, settled: false }
+  const ada = { id: 'ada', counterparty: 'Ada', direction: 'owed_to_me', kind: 'loan', principal: 30000, amount_paid: 0, settled: false }
+
+  it('pays the smallest first on snowball and rolls the freed payment forward', () => {
+    const plan = planPayoff([okash, tolu, ada], 40000, 'snowball', { now: NOW })
+    expect(plan.feasible).toBe(true)
+    expect(plan.order.map((o) => o.debt.id)).toEqual(['okash', 'tolu'])
+    // Month 1: 15,000 minimum to OKash, the other 25,000 also to OKash (it is first).
+    expect(plan.schedule[0].allocations).toEqual({ okash: 40000 })
+    // Month 2: the last 5,000 clears OKash and the freed 35,000 starts on Tolu.
+    expect(plan.schedule[1].allocations).toEqual({ okash: 5000, tolu: 35000 })
+    expect(plan.order[0]).toMatchObject({ monthsRemaining: 2, payoffDate: '2027-01-07', paid: 45000 })
+    expect(plan.order[1].outstanding).toBe(80000)
+    expect(plan.order[1].monthsRemaining).toBe(4)
+    expect(plan.months).toBe(4)
+    expect(plan.totalOutstanding).toBe(125000)
+    expect(plan.minimums).toBe(15000)
+  })
+
+  it('pays the largest first on avalanche while honouring minimums', () => {
+    const plan = planPayoff([okash, tolu], 40000, 'avalanche', { now: NOW })
+    expect(plan.order.map((o) => o.debt.id)).toEqual(['tolu', 'okash'])
+    expect(plan.schedule[0].allocations).toEqual({ okash: 15000, tolu: 25000 })
+    expect(plan.months).toBe(4)
+  })
+
+  it('uses ledger-linked repayments when given', () => {
+    const plan = planPayoff([okash], 40000, 'snowball', { now: NOW, paidByDebt: { okash: 45000 } })
+    expect(plan.order).toEqual([])
+    expect(plan.totalOutstanding).toBe(0)
+  })
+
+  it('says why when the budget does not work', () => {
+    expect(planPayoff([okash], 0, 'snowball', { now: NOW })).toMatchObject({ feasible: false, reason: expect.stringMatching(/set a monthly amount/) })
+    expect(planPayoff([okash], 10000, 'snowball', { now: NOW })).toMatchObject({ feasible: false, reason: expect.stringMatching(/add up to more/) })
+    const huge = { ...tolu, principal: 100_000_000 }
+    expect(planPayoff([huge], 1000, 'snowball', { now: NOW })).toMatchObject({ feasible: false, reason: expect.stringMatching(/10 years/) })
   })
 })

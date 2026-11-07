@@ -17,7 +17,7 @@ import {
   transactionSummaryColumns,
 } from '../lib/queries'
 import { hasColumn } from '../lib/schema'
-import { goalProgress, periodWindow } from '../lib/planning'
+import { goalProgress, periodWindow, staleGoals, rolledTargetDate, STALE_GOAL_DAYS } from '../lib/planning'
 import ActivityGrid from '../components/daily/ActivityGrid'
 import { GoalsSkeleton } from '../components/ui/PageSkeleton'
 import GoalForm from '../components/goals/GoalForm'
@@ -42,6 +42,9 @@ const HISTORY_DAYS = 30
 export default function Goals() {
   const [goals, setGoals] = useState([])
   const [targets, setTargets] = useState([])
+  // Open goals whose period ended more than two weeks ago (src/lib/planning.js).
+  const [stale, setStale] = useState([])
+  const [staleBusy, setStaleBusy] = useState(null)
   const [monthTransactions, setMonthTransactions] = useState([])
   const [wallets, setWallets] = useState([])
   const [loading, setLoading] = useState(true)
@@ -76,7 +79,7 @@ export default function Goals() {
       // any database. Filtering or ordering on `metric` would not be: that is a
       // 42703 on a database behind the app, which is the outage schema.js
       // exists to prevent.
-      const [dailyRes, targetRes, txnRes, walletRes, draftRes, gapRes] = await Promise.all([
+      const [dailyRes, targetRes, txnRes, walletRes, draftRes, gapRes, staleRes] = await Promise.all([
         orderGoalsBySlot(
           excludeDrafts(
             supabase
@@ -127,6 +130,20 @@ export default function Goals() {
               .select('*')
               .order('created_at', { ascending: false })
           : Promise.resolve({ data: [], error: null }),
+        // Open goals from periods that ended a while ago, to close or roll.
+        // The two queries above stop at this month and this week, so these
+        // rows are never on screen otherwise. Additive: staleGoals filters
+        // the rest (generated rows, drafts) in code.
+        excludeDrafts(
+          supabase
+            .from('goals')
+            .select('*')
+            .eq('completed', false)
+            .is('parent_id', null)
+            .lt('target_date', daysAgo(STALE_GOAL_DAYS))
+            .order('target_date', { ascending: true })
+            .limit(50),
+        ),
       ])
 
       if (dailyRes.error) throw dailyRes.error
@@ -143,6 +160,8 @@ export default function Goals() {
       setWallets(walletRes.data || [])
       setDrafts(draftRes.error ? [] : draftRes.data || [])
       setGaps(gapRes.error ? [] : gapRes.data || [])
+      if (staleRes.error) console.warn('Stale goals unavailable:', staleRes.error.message)
+      setStale(staleRes.error ? [] : staleGoals(staleRes.data || [], toDateOnly(new Date())))
     } catch (err) {
       console.error('Error loading goals:', err)
       setPageError(err.message || 'Failed to load')
@@ -160,6 +179,37 @@ export default function Goals() {
    * `on conflict (period, target_date, slot)` -- so it would look saved while
    * every later write inserted another copy beside it.
    */
+  /**
+   * A stale goal is closed as done-with (completed, so it leaves every list)
+   * or rolled into the current period of its cadence, same slot. Rolling can
+   * collide with a goal already in that slot this period (009's unique key):
+   * that is a 23505, and the owner is told rather than silently overwritten.
+   */
+  const resolveStale = async (goal, action) => {
+    setStaleBusy(goal.id)
+    try {
+      const row =
+        action === 'close'
+          ? { completed: true }
+          : { target_date: rolledTargetDate(goal, today) }
+      const { error } = await supabase.from('goals').update(row).eq('id', goal.id)
+      if (error) {
+        if (error.code === '23505') {
+          toast.error('That slot already has a goal this period — edit it there, or close this one')
+          return
+        }
+        throw error
+      }
+      toast.success(action === 'close' ? 'Closed' : 'Rolled into this period ✓')
+      fetchGoals()
+    } catch (err) {
+      console.error('Error resolving stale goal:', err)
+      toast.error('Failed: ' + (err.message || 'check connection'))
+    } finally {
+      setStaleBusy(null)
+    }
+  }
+
   const handleSave = async (payload) => {
     setSaving(true)
     try {
@@ -384,6 +434,46 @@ export default function Goals() {
           </button>
         )}
       </div>
+
+      {/* Goals from periods long over, still open. Close them or roll them
+          into this period; nothing is re-filed on its own. */}
+      {stale.length > 0 && (
+        <section className="bg-orange-500/10 border border-orange-500/20 rounded-3xl p-5 space-y-3" aria-labelledby="stale-goals-heading">
+          <h2 id="stale-goals-heading" className="text-xs font-semibold text-orange-300 uppercase tracking-wider">
+            {stale.length} goal{stale.length === 1 ? '' : 's'} past {stale.length === 1 ? 'its' : 'their'} date
+          </h2>
+          <ul className="space-y-2">
+            {stale.map(({ goal, endedOn, daysPast }) => (
+              <li key={goal.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <span className="text-sm text-white min-w-0">
+                  <span className="truncate">{goal.title}</span>
+                  <span className="block text-[11px] text-muted">
+                    {goal.period} · ended {formatDate(endedOn)}, {daysPast} days ago
+                  </span>
+                </span>
+                <span className="flex gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => resolveStale(goal, 'roll')}
+                    disabled={staleBusy === goal.id}
+                    className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 text-white hover:bg-white/10 min-h-[44px] disabled:opacity-50"
+                  >
+                    Roll into this {goal.period === 'monthly' ? 'month' : goal.period === 'weekly' ? 'week' : 'day'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => resolveStale(goal, 'close')}
+                    disabled={staleBusy === goal.id}
+                    className="px-3 py-2 rounded-xl text-xs font-semibold bg-orange-500/20 text-orange-200 hover:bg-orange-500/30 min-h-[44px] disabled:opacity-50"
+                  >
+                    Close
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* First, because it is the only thing here that is waiting on you. */}
       <ProposedPlan
