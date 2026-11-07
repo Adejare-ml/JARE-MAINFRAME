@@ -421,9 +421,12 @@ runs: `select * from cron.job;` and
 The reconciliation (040) checks, per wallet, that the balance the latest
 bank alert stated plus every manual entry typed since equals the wallet's
 balance, and that consecutive alerts in the last 30 days chain (each
-stated balance is the previous one moved by the amount); a drift or a
-missed alert makes the job fail with the wallet and the day in its
-summary, which is where to look in the mailbox. The morning reminder also
+stated balance is the previous one moved by every row in between, alerts
+that state no balance and manual entries included, migration 047); a
+drift or a missed alert makes the job fail with the wallet and the first
+five days in its summary, which is where to look in the mailbox, and a
+wallet whose alerts never state a balance (PiggyVest) is named as
+unverifiable rather than passed over. The morning reminder also
 names yesterday's debits that look wrong: one far above the usual (three
 times the median debit of the last three months, never under ₦10,000) or
 the same amount to the same payee twice in a day (`src/lib/anomalies.js`). Each Actions job records its run in `sync_runs`, opens or
