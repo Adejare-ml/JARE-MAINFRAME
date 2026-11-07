@@ -33,7 +33,8 @@ Database schema changes live in `supabase/migrations/`. On a live project
 apply only the new files, in order, through the Supabase SQL Editor or the
 MCP (`apply_migration`). On a **fresh** project the order is not 001 upwards:
 run `013_schema_baseline.sql` first, then 001–012, sign in to the app once
-(014 needs an account to claim rows for), then 014 onwards. The early files
+(014 needs an account to claim rows for), then 014 onwards (`npm run test:db`
+does exactly this against a scratch Postgres, so the order is tested). The early files
 say "safe to re-run"; that stopped being true at 017, which made `user_id`
 required: re-running 002 recreates a second `log_manual_transaction` next to
 029's (QuickLog then fails with PGRST203), and re-running 009 narrows the
@@ -448,9 +449,29 @@ OLLAMA_API_KEY=... NVIDIA_API_KEY=... node scripts/test-llm.mjs
 parsers against the email fixtures, and the scripts' shared helpers. Every
 module in `src/lib` must also load under plain Node, which CI checks.
 
-The bank-alert rules now live in `ingest_alert_transaction` (SQL), which no
-test executes yet; a CI Postgres harness for the migrations is the next
-step. Until then the highest-value contribution is still a real bank email,
-**redacted**, added to `tests/fixtures/emails/` as the record of that bank's
-format: Zenith, Stanbic, PalmPay and PiggyVest have none yet. See the README
+The bank-alert rules live in `ingest_alert_transaction` (SQL), and
+`npm run test:db` executes them: `scripts/db-test.mjs` applies every file in
+`supabase/migrations/` to a real Postgres in the fresh-project order above,
+with the Supabase pieces stubbed (`tests/sql/supabase-stubs.sql`: the
+`auth` schema, the API roles and their default grants, the realtime
+publication, the migrations ledger; `tests/sql/pg_cron-stub/`: a `pg_cron`
+that records schedules and runs nothing), then calls the functions the way
+the Routine and the app do and checks what they answer and write: dedupe
+by Gmail id, balance follow, the own-name and category-rule filing, the
+manual-entry match, debt linking, discovered accounts, `record_sync_run`,
+`reconcile_balances` (in the words `src/lib/health.js` parses),
+`snapshot_net_worth`, the grants, and row level security for a second
+account. CI runs it on every pull request. Locally it needs a Postgres 16
+you may create and drop a database on, never the live project:
+
+```bash
+sudo cp tests/sql/pg_cron-stub/* "$(pg_config --sharedir)/extension/"
+PGHOST=localhost PGUSER=postgres npm run test:db
+```
+
+A new migration is covered the moment it is in the directory; a new rule
+in a function deserves a check in the script beside it. The highest-value
+contribution is still a real bank email, **redacted**, added to
+`tests/fixtures/emails/` as the record of that bank's format: Zenith,
+Stanbic, PalmPay and PiggyVest have none yet. See the README
 in that directory.

@@ -1,0 +1,6 @@
+# A stand-in for pg_cron, for the migration harness only (scripts/db-test.mjs).
+# The real extension runs a scheduler; this one records what was scheduled.
+comment = 'stub of pg_cron for the Jare Mainframe migration harness'
+default_version = '1.6'
+relocatable = false
+schema = pg_catalog
