@@ -135,6 +135,11 @@ export const GATED_COLUMNS = {
   // A database behind 043 costs the Needs Attention line and the Settings
   // section a notice naming the file.
   'discovered_accounts.status': '043_discovered_accounts.sql',
+  // "Ask again next week" as columns rather than a date computed from
+  // first_seen_at (048): the reminder stamps asked_at, the owner sets a
+  // snooze from the card. Behind 048 both are simply not selected.
+  'discovered_accounts.asked_at': '048_discovery_followups.sql',
+  'discovered_accounts.snooze_until': '048_discovery_followups.sql',
   // Meals logged from a photo. A whole table; a database behind 042 costs
   // the Meals page and the Daily HQ food card a notice naming the file.
   'meals.items': '042_meals.sql',

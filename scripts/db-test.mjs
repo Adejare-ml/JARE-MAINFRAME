@@ -317,18 +317,44 @@ async function runChecks() {
     eq(r.reason, 'matched manual entry', 'blank note matches')
   })
 
-  await check('an alert from a bank the owner does not track is refused and noted as discovered (043)', async () => {
-    const r = await ingest({ slug: 'kuda', msgid: 'k1', type: 'credit', amount: 20000, date: TODAY, description: 'Kuda credit', balance: 52000 })
+  await check('an alert from a bank the owner does not track is refused and names the nearest slug, without minting an account (048)', async () => {
+    const r = await ingest({ slug: 'gt-bank', msgid: 'k0', type: 'debit', amount: 20, date: TODAY, description: 'typo', balance: 1 })
     eq(r.inserted, false, 'inserted')
-    eq(r.discovered, true, 'discovered')
-    const d = await one("select id, status, last_balance::float8 as last_balance, times_seen from discovered_accounts where slug = 'kuda'")
+    eq(r.discovered, false, 'a refusal notes nothing')
+    eq(r.nearest, 'gtbank', 'nearest known slug')
+    const n = await one("select count(*)::int as n from discovered_accounts where slug in ('gtbank', 'gt-bank')")
+    eq(n.n, 0, 'no junk discovered account')
+  })
+
+  await check('the explicit note creates the discovered account; Track makes the wallet and the next alert lands (043)', async () => {
+    const noted = (await one("select note_discovered_account('kuda', 'Kuda <no-reply@kuda.com>', 'Kuda', 52000, $1::date, 'k1') as r", [TODAY])).r
+    eq(noted.noted, true, 'noted')
+    const d = await one("select id, status, last_balance::float8 as last_balance, times_seen, asked_at, snooze_until from discovered_accounts where slug = 'kuda'")
     eq(d.status, 'new', 'status')
     eq(d.last_balance, 52000, 'last balance')
+    eq(d.asked_at, null, 'asked_at starts null (048)')
+    eq(d.snooze_until, null, 'snooze_until starts null (048)')
     const a = await one('select adopt_discovered_account($1, $2, $3) as r', [d.id, 'Kuda', 'bank'])
     assert(a.r && (a.r.ok !== false), `adopt: ${JSON.stringify(a.r)}`)
     const r2 = await ingest({ slug: 'kuda', msgid: 'k1', type: 'credit', amount: 20000, date: TODAY, description: 'Kuda credit', balance: 52000 })
-    eq(r2.inserted, true, 'after Track the same alert lands')
+    eq(r2.inserted, true, 'after Track the alert lands')
     eq((await wallet('kuda')).balance, 52000, 'tracked wallet balance')
+  })
+
+  await check('a statement mail for a tracked slug keeps the balance on the wallet, forward only (048)', async () => {
+    const r = (await one("select note_discovered_account('kuda', null, null, 60000, $1::date, 'k2') as r", [TODAY])).r
+    eq(r.noted, false, 'not a new account')
+    eq(r.reason, 'already a wallet', 'reason')
+    // Same day as the timed alert above: 036's rule, a day-dated statement never overrides it.
+    eq(r.balance_noted, false, 'same-day statement does not override a timed alert')
+    eq((await wallet('kuda')).balance, 52000, 'balance kept')
+    await client.query("update wallets set balance_as_of = $1 where source_slug = 'kuda'", [`${await daysAgo(3)}T09:00:00`])
+    const r2 = (await one("select note_discovered_account('kuda', null, null, 60000, $1::date, 'k3') as r", [await daysAgo(1)])).r
+    eq(r2.balance_noted, true, 'a newer statement is kept')
+    eq((await wallet('kuda')).balance, 60000, 'balance from the statement')
+    // Put the wallet back where its alerts left it: a statement balance with
+    // no alert behind it is exactly the disagreement reconcile reports.
+    await client.query("update wallets set balance = 52000, balance_as_of = $1 where source_slug = 'kuda'", [`${TODAY}T00:00:00`])
   })
 
   await check('record_sync_run stores the run, caps the summary at 500, and stamps the mailbox cursor on an ok audit', async () => {

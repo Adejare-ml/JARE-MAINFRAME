@@ -100,28 +100,67 @@ export function suggestWalletType(slug) {
   return 'bank'
 }
 
-/** Rows still waiting for the owner's decision, oldest first. */
-export function awaitingDecision(accounts) {
+/** True while the owner has asked not to be asked (048's snooze_until). */
+export function isSnoozed(account, today) {
+  const until = account?.snooze_until ? String(account.snooze_until).slice(0, 10) : null
+  if (!until || !today) return false
+  return until > today
+}
+
+/**
+ * Rows still waiting for the owner's decision, oldest first. With a date,
+ * rows snoozed past it are left out (the card and the digest); without
+ * one, every undecided row (Settings, which lists them all).
+ *
+ * @param {object[]} accounts
+ * @param {string} [today] - YYYY-MM-DD
+ */
+export function awaitingDecision(accounts, today) {
   return (accounts || [])
     .filter((a) => a && (a.status || DISCOVERY_STATUS.NEW) === DISCOVERY_STATUS.NEW)
+    .filter((a) => !today || !isSnoozed(a, today))
     .sort((a, b) => String(a.first_seen_at || '').localeCompare(String(b.first_seen_at || '')))
 }
 
 /**
- * Whether an undecided account should be mentioned today: on the day it
- * was first seen and then every NAG_EVERY_DAYS, measured from the first
- * sighting, so a question ignored for a month has been asked four times,
- * not thirty.
+ * Whether an undecided account should be mentioned today.
  *
- * @param {{first_seen_at?: string}} account
+ * Since 048 the reminder stamps `asked_at` when it asks, so the rule is:
+ * not while snoozed; the first time ever (no stamp); then once every
+ * NAG_EVERY_DAYS since the last stamp. A row from before 048 carries no
+ * stamp and falls back to the old rule, the day it was first seen and
+ * every NAG_EVERY_DAYS from there, so a question ignored for a month has
+ * been asked four times, not thirty.
+ *
+ * @param {{first_seen_at?: string, asked_at?: string|null, snooze_until?: string|null}} account
  * @param {string} today - YYYY-MM-DD
  */
 export function dueToAsk(account, today) {
+  if (isSnoozed(account, today)) return false
+  if (account && 'asked_at' in account) {
+    const asked = account.asked_at ? String(account.asked_at).slice(0, 10) : null
+    if (!asked) return true
+    const since = dayDiff(asked, today)
+    return since == null || since >= NAG_EVERY_DAYS
+  }
   const first = account?.first_seen_at ? String(account.first_seen_at).slice(0, 10) : null
   if (!first) return true
   const days = dayDiff(first, today)
   if (days == null || days < 0) return true
   return days % NAG_EVERY_DAYS === 0
+}
+
+/** The date a snooze set today runs to: next week, as YYYY-MM-DD. */
+export function snoozeUntil(today, days = NAG_EVERY_DAYS) {
+  const d = new Date(`${String(today).slice(0, 10)}T00:00:00`)
+  d.setDate(d.getDate() + days)
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+/** The undecided rows worth asking about today; the reminder stamps these. */
+export function accountsToAsk(accounts, today) {
+  return awaitingDecision(accounts, today).filter((a) => dueToAsk(a, today))
 }
 
 /**
@@ -132,8 +171,7 @@ export function dueToAsk(account, today) {
  * @param {string} today
  */
 export function discoveryItems(accounts, today) {
-  return awaitingDecision(accounts)
-    .filter((a) => dueToAsk(a, today))
+  return accountsToAsk(accounts, today)
     .map((a) => {
       const seen = a.last_seen_on ? dayDiff(a.last_seen_on, today) : null
       const ago = seen == null ? '' : seen <= 0 ? ' today' : seen === 1 ? ' yesterday' : ` ${seen}d ago`
@@ -157,6 +195,7 @@ export function describeDiscovered(a, today) {
   }
   if (a.last_balance != null) parts.push(money(a.last_balance))
   if (a.times_seen > 1) parts.push(`${a.times_seen} alerts`)
+  if (today && isSnoozed(a, today)) parts.push(`asks again ${String(a.snooze_until).slice(0, 10)}`)
   return parts.join(' · ')
 }
 

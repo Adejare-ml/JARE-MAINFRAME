@@ -30,7 +30,7 @@ export default function DiscoveredAccountsSettings() {
     }
     const { data, error } = await supabase
       .from('discovered_accounts')
-      .select('id, slug, sender, label, system, status, last_balance, last_seen_on, first_seen_at, times_seen, wallet_id, decided_at')
+      .select(`id, slug, sender, label, system, status, last_balance, last_seen_on, first_seen_at, times_seen, wallet_id, decided_at${hasColumn('discovered_accounts.snooze_until') ? ', snooze_until, asked_at' : ''}`)
       .order('status', { ascending: true })
       .order('last_seen_on', { ascending: false })
     if (error) toast.error('Could not load discovered accounts: ' + error.message)
