@@ -215,6 +215,10 @@ where every rule lives, so a prompt cannot skip one:
   amount above ₦5m and a date more than a day ahead all land in the review
   queue at LOW confidence; the owner's category rules (Settings) are applied
   in priority order;
+- a QuickLog entry for the same movement (same wallet, direction and
+  amount, within a day) is matched and stamped with the alert instead of a
+  second row being inserted (039); when both name a payee they must share
+  a word, so an airtime log never swallows an unrelated POS alert (046);
 - a transfer category (`Transfer Out`, `Transfer In`, `Savings Transfer`)
   holds only when the payee -- or the description, if no payee was read --
   carries one of the owner's own names (`jare_owner.own_names`, 036), or

@@ -289,16 +289,32 @@ async function runChecks() {
     eq(linked.alert_message_id, 'm10', 'manual row carries the message id')
   })
 
-  await check('KNOWN LIMIT (039): the manual match ignores the payee, so an unrelated alert of the same amount is swallowed', async () => {
-    // This asserts today's behaviour on purpose, so the fix flips a test
-    // rather than shipping blind. See docs/council-2026-10-18.md.
+  await check('an unrelated alert of the same amount no longer swallows a QuickLog that names another payee (046)', async () => {
+    // Until 046 the match ignored the payee, so this POS alert vanished into
+    // the airtime row and the POS spend never reached the ledger.
     const w = await wallet('gtbank')
     await client.query(
       "select log_manual_transaction($1, $2, 'debit', 1000, 'Data / Airtime', 'Airtel top-up', null, $3::date, '13:00:00'::time, null)",
       ['test-2', w.id, TODAY],
     )
-    const r = await ingest({ slug: 'gtbank', msgid: 'm11', type: 'debit', amount: 1000, date: TODAY, time: '13:30:00', recipient: 'SHOPRITE POS', category: 'Feeding / Groceries', balance: w.balance - 1000 })
-    eq(r.reason, 'matched manual entry', 'today: swallowed despite a different payee')
+    const r = await ingest({ slug: 'gtbank', msgid: 'm11', type: 'debit', amount: 1000, date: TODAY, time: '13:30:00', recipient: 'SHOPRITE POS', category: 'Feeding / Groceries', balance: w.balance - 2000 })
+    eq(r.inserted, true, 'a new row, not a match')
+    const airtel = await one("select alert_message_id from transactions where transaction_id = 'MAN-test-2'")
+    eq(airtel.alert_message_id, null, 'the airtime row is untouched')
+    const r2 = await ingest({ slug: 'gtbank', msgid: 'm12', type: 'debit', amount: 1000, date: TODAY, time: '13:45:00', recipient: 'AIRTEL NG', category: 'Data / Airtime', balance: w.balance - 2000 })
+    eq(r2.reason, 'matched manual entry', 'the Airtel alert matches the Airtel row')
+    const after = await one("select alert_message_id from transactions where transaction_id = 'MAN-test-2'")
+    eq(after.alert_message_id, 'm12', 'stamped with its own alert')
+  })
+
+  await check('a QuickLog with no note still matches any alert of its amount (046)', async () => {
+    const w = await wallet('gtbank')
+    await client.query(
+      "select log_manual_transaction($1, $2, 'debit', 750, 'Miscellaneous', null, null, $3::date, '14:00:00'::time, null)",
+      ['test-3', w.id, TODAY],
+    )
+    const r = await ingest({ slug: 'gtbank', msgid: 'm13', type: 'debit', amount: 750, date: TODAY, time: '14:10:00', recipient: 'ANY SHOP', category: 'Feeding / Groceries', balance: w.balance - 750 })
+    eq(r.reason, 'matched manual entry', 'blank note matches')
   })
 
   await check('an alert from a bank the owner does not track is refused and noted as discovered (043)', async () => {
