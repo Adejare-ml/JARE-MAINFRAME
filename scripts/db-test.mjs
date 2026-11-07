@@ -364,6 +364,40 @@ async function runChecks() {
     assert(/missed alert\(s\) around/.test(r.summary), 'the phrase the Routine prompt searches for')
   })
 
+  await check('reconcile carries a no-balance alert and a manual entry between two stated balances (047)', async () => {
+    // OPay: 10,000 stated; a PalmPay-style no-balance debit of 1,500 and a
+    // QuickLog of 2,000 in between; then 6,500 stated. 040 called the 6,500 a gap.
+    await ingest({ slug: 'opay', msgid: 'o1', type: 'credit', amount: 10000, date: await daysAgo(3), time: '09:00:00', description: 'Wallet funded', category: 'Transfer In', balance: 10000 })
+    await ingest({ slug: 'opay', msgid: 'o2', type: 'debit', amount: 1500, date: await daysAgo(2), time: '09:00:00', description: 'Transfer Successful', recipient: 'BOLT', category: 'Transport' })
+    const w = await wallet('opay')
+    await client.query(
+      "select log_manual_transaction($1, $2, 'debit', 2000, 'Feeding / Groceries', 'Market', null, $3::date, '12:00:00'::time, null)",
+      ['test-o3', w.id, await daysAgo(2)],
+    )
+    await ingest({ slug: 'opay', msgid: 'o4', type: 'debit', amount: 1000, date: await daysAgo(1), time: '09:00:00', description: 'Transfer Successful', recipient: 'BOLT', category: 'Transport', balance: 5500 })
+    const r = (await one('select reconcile_balances() as r')).r
+    const report = readReconcileSummary(r.summary)
+    assert(report, `health.js could not read: ${r.summary}`)
+    assert(!report.gaps.some((g) => g.startsWith('OPay')), `OPay reported as a gap: ${r.summary}`)
+    assert(!report.drifts.some((g) => g.startsWith('OPay')), `OPay reported as a drift: ${r.summary}`)
+  })
+
+  await check('reconcile names a wallet whose alerts never state a balance, and caps a long gap list (047)', async () => {
+    await ingest({ slug: 'piggyvest', msgid: 'pv1', type: 'credit', amount: 5000, date: await daysAgo(1), time: '09:00:00', description: 'has been added to your Flex', category: 'Savings Transfer' })
+    // GTBank: seven more stated balances that each break the chain.
+    for (let d = 0; d < 7; d++) {
+      await ingest({ slug: 'gtbank', msgid: `gap${d}`, type: 'debit', amount: 10, date: await daysAgo(9 - d), time: '08:00:00', description: 'Charge', category: 'Bank Charges', balance: 90000 - d * 1000 })
+    }
+    const r = (await one('select reconcile_balances() as r')).r
+    assert(/unverifiable \(no stated balance\): PiggyVest/.test(r.summary), `PiggyVest not named: ${r.summary}`)
+    assert(Array.isArray(r.unverified) && r.unverified.includes('PiggyVest'), 'unverified in the result')
+    assert(/GTBank: \d+ missed alert\(s\) around [^;]* and \d+ more day\(s\)/.test(r.summary), `gap list not capped: ${r.summary}`)
+    assert(r.summary.length <= 500, `summary is ${r.summary.length} characters`)
+    const report = readReconcileSummary(r.summary)
+    assert(report.gaps.some((g) => g.startsWith('GTBank')), 'health.js still reads the capped gap line')
+    assert(report.other.some((o) => o.startsWith('unverifiable')), 'health.js reads the unverifiable note as a plain note')
+  })
+
   await check('snapshot_net_worth writes one dated row and records its run (037)', async () => {
     const r = (await one('select snapshot_net_worth() as r')).r
     assert(r && r.ok !== false, `snapshot: ${JSON.stringify(r)}`)
