@@ -16,7 +16,7 @@
 
 import { readFileSync } from 'node:fs'
 import { LLM_CONFIG, hasAnyProvider, probeProvider } from './llm.mjs'
-import { validateParsedTransaction } from '../src/lib/sync/normalize.js'
+import { validateParsedTransaction } from '../src/lib/normalize.js'
 
 const fixturePath = process.argv[2] || 'tests/fixtures/emails/opay-out.txt'
 

@@ -26,16 +26,12 @@ jobs:
         run: npm test
       - name: Build
         run: npm run build
-      - name: Check sync scripts parse
+      - name: Check scheduled scripts parse
         run: |
-          node --check scripts/gmail-sync.mjs
-          node --check scripts/get-refresh-token.mjs
           node --check scripts/llm.mjs
           node --check scripts/test-llm.mjs
           node --check scripts/verify-repo.mjs
           node --check scripts/plan-month.mjs
-          node --check scripts/draft-day.mjs
-          node --check scripts/google.mjs
           node --check scripts/snapshot-net-worth.mjs
           node --check scripts/weekly-recap.mjs
           node --check scripts/remind.mjs
@@ -55,11 +51,10 @@ jobs:
       # under plain Node, not just under the bundler.
       - name: Check shared modules load under Node
         run: |
-          for m in planning queries summary schema constants formatters debts repo repoProfile planReview planPrompt speech calendar sparkline transactionGroups insight recurring pendingTransactions haptics theme privacy weekreview activity recapPrompt recapReview nlQuery nlQueryPrompt swipeGesture contrast health projects repairs export transfers categories categoryRules reminders anomalies refunds monthRecap push auth discovery meals mealPrompt imagePrep setup latest wallets backup; do
+          for m in planning queries summary schema constants formatters debts repo repoProfile planReview planPrompt speech calendar sparkline transactionGroups insight recurring pendingTransactions haptics theme privacy weekreview activity recapPrompt recapReview nlQuery nlQueryPrompt swipeGesture contrast health projects repairs export transfers categories categoryRules reminders anomalies refunds monthRecap push auth discovery meals mealPrompt imagePrep setup latest wallets backup normalize batchPrompt walletRouting; do
             node --input-type=module -e "await import('./src/lib/$m.js')" \
               || { echo "::error::src/lib/$m.js does not load under Node"; exit 1; }
           done
-          node --input-type=module -e "await import('./src/lib/sync/index.js')"
           node --input-type=module -e "await import('./scripts/lib/assertProgress.mjs')" \
             || { echo "::error::scripts/lib/assertProgress.mjs does not load under Node"; exit 1; }
           node --input-type=module -e "await import('./scripts/lib/ownerId.mjs')" \

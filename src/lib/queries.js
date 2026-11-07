@@ -1,6 +1,6 @@
-import { walletSource } from './sync/wallets.js'
+import { walletSource } from './walletRouting.js'
 import { hasColumn } from './schema.js'
-import { isValidDate } from './sync/normalize.js'
+import { isValidDate } from './normalize.js'
 
 /**
  * Shared Supabase query helpers for transactions.

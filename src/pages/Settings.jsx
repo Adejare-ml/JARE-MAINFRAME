@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { getParseStrategy, sanitizeSlug } from '../lib/sync'
+import { sanitizeSlug } from '../lib/walletRouting'
 import { walletUpdatePayload } from '../lib/wallets'
 import { formatNaira, timeAgo } from '../lib/formatters'
 import { walletAlertStatus } from '../lib/health'
@@ -28,18 +28,6 @@ const WALLET_TYPES = [
   { value: 'savings', label: 'Savings', icon: '🐖' },
   { value: 'investment', label: 'Investment', icon: '📈' },
 ]
-
-const PARSE_STRATEGIES = [
-  { value: 'auto', label: 'Auto' },
-  { value: 'rules', label: 'Rules' },
-  { value: 'llm', label: 'AI' },
-]
-
-const PARSE_STRATEGY_HELP = {
-  auto: 'Only a manual run of the retired Gmail sync reads this; the morning import decides direction itself. Pattern matching first, AI as the fallback.',
-  rules: 'Manual sync only: pattern matching, for banks that clearly label DEBIT and CREDIT.',
-  llm: 'Manual sync only: always use AI, where one word covers money in and money out (Opay, PiggyVest).',
-}
 
 const PRESET_COLORS = [
   '#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6',
@@ -280,9 +268,9 @@ export default function Settings() {
       account_last4: wallet.account_last4 || '',
       color: wallet.color || '#22c55e',
       is_active: wallet.is_active !== false,
-      // Falls back to the inferred strategy, so a wallet saved before this
-      // column existed doesn't silently reset Opay to rules-based parsing.
-      parse_strategy: getParseStrategy(wallet),
+      // Kept as stored: the column is unused since the token sync was
+      // retired, and an edit must not rewrite it.
+      parse_strategy: wallet.parse_strategy || 'auto',
     })
     setShowWalletModal(true)
   }
@@ -480,14 +468,6 @@ export default function Settings() {
                               {isInactive && (
                                 <span className="text-[9px] bg-white/5 text-muted px-1.5 py-0.5 rounded-full uppercase font-bold">
                                   Inactive
-                                </span>
-                              )}
-                              {w.alert_sender && getParseStrategy(w) === 'llm' && (
-                                <span
-                                  className="text-[9px] bg-accent/10 text-accent px-1.5 py-0.5 rounded-full uppercase font-bold"
-                                  title="Read by AI when the retired sync is run by hand"
-                                >
-                                  AI
                                 </span>
                               )}
                             </div>
@@ -919,32 +899,6 @@ export default function Settings() {
                       placeholder="alerts@bank.com"
                       className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm font-mono placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
                     />
-                  </div>
-
-                  {/* Parse Strategy */}
-                  <div>
-                    <label className="block text-xs text-muted font-semibold mb-1">
-                      How to Read Alerts
-                    </label>
-                    <p className="text-[10px] text-muted-dim mb-1.5">
-                      {PARSE_STRATEGY_HELP[walletForm.parse_strategy]}
-                    </p>
-                    <div className="grid grid-cols-3 gap-2">
-                      {PARSE_STRATEGIES.map(s => (
-                        <button
-                          key={s.value}
-                          type="button"
-                          onClick={() => setWalletForm({ ...walletForm, parse_strategy: s.value })}
-                          className={`px-3 py-3 rounded-xl border text-xs font-semibold transition-all min-h-[48px] ${
-                            walletForm.parse_strategy === s.value
-                              ? 'border-accent bg-accent/10 text-accent'
-                              : 'border-white/10 bg-background text-muted hover:border-white/20'
-                          }`}
-                        >
-                          {s.label}
-                        </button>
-                      ))}
-                    </div>
                   </div>
 
                   {/* Account Last 4 */}

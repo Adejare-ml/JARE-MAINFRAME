@@ -8,7 +8,7 @@ import {
   BATCH_SIZE,
   MAX_CORRECTION_EXAMPLES,
   CATEGORIZE_SYSTEM_PROMPT,
-} from '../src/lib/sync/batchPrompt.js'
+} from '../src/lib/batchPrompt.js'
 import { ALL_CATEGORIES } from '../src/lib/constants.js'
 
 const items = [

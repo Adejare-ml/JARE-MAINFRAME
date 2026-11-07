@@ -8,11 +8,10 @@
  * plain render code, and set once per session -- and again whenever the
  * Settings section changes it.
  *
- * What is deliberately NOT here: the model. batchPrompt.js still offers the
- * built-in list only, and normalize.js still folds anything else to
- * Uncategorized, so the sync never invents a name. A custom name reaches a
- * synced row through a Category Rule (applied after validation, verbatim --
- * see scripts/gmail-sync.mjs) or a manual edit in the ledger.
+ * What is deliberately NOT here: the model. The ingest function folds a
+ * category it does not know to Uncategorized, so the audit never invents a
+ * name. A custom name reaches an ingested row through a Category Rule
+ * (applied by the ingest function, verbatim) or a manual edit in the ledger.
  */
 import { CATEGORIES, ALL_CATEGORIES, registerCategoryIcons } from './constants.js'
 

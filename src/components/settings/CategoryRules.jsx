@@ -9,12 +9,11 @@ import CategoryPickerList from '../ui/CategoryPickerList'
 /**
  * The user-editable half of categorization (migration 020).
  *
- * applyCategoryOverrides() (src/lib/sync/categorize.js) still owns the
- * structural facts -- a stamp duty line is a bank charge whoever's account it
- * is. This is the different, personal case: "Netflix is always
- * Subscriptions", which only the person using the app can know, checked
- * ahead of those structural facts on the next sync because it is the more
- * specific signal.
+ * The ingest function (032 onwards) owns the structural facts -- a stamp
+ * duty line is a bank charge whoever's account it is. This is the
+ * different, personal case: "Netflix is always Subscriptions", which only
+ * the person using the app can know, applied by the ingest function in
+ * priority order on every alert it records.
  *
  * Self-contained, like CashReconciliation on Daily HQ: its own fetch, its own
  * writes, so a Settings page that already does a lot does not have to grow a

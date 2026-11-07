@@ -2,13 +2,10 @@
  * Fail a scheduled script for the outcome its own error handling cannot see:
  * finishing without throwing, while having done the wrong thing.
  *
- * Each of the four scheduled scripts already has a way to react to something
- * going wrong mid-run -- gmail-sync.mjs accumulates `stats.errors` and keeps
- * going, the others throw and let `main().catch()` exit 1. Neither path fires
- * for a run that reaches the end cleanly having silently not done its job:
- * gmail-sync.mjs prints `stats.errors` but never turns a non-empty array into
- * a non-zero exit code, and a total LLM outage in plan-month.mjs or a dead
- * Google token in draft-day.mjs both currently log a warning and still exit 0.
+ * Each scheduled script already has a way to react to something going wrong
+ * mid-run: it throws and lets `main().catch()` exit 1. That path never fires
+ * for a run that reaches the end cleanly having silently not done its job
+ * (a total LLM outage in plan-month.mjs once logged a warning and exited 0).
  * `if: failure()` in every workflow YAML only ever sees a non-zero exit code,
  * so this is the one lever that makes any of these visible at all.
  *

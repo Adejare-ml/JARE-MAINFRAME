@@ -1164,10 +1164,9 @@ export default function Transactions() {
                       <p className="text-xs text-muted mt-0.5">
                         {walletName} · {formatDate(t.transaction_date)} {t.transaction_time ? `at ${formatTime(t.transaction_time)}` : ''}
                       </p>
-                      {/* Why it landed on this category -- the model's own
-                          reasoning, or a rule/structural override's, already
-                          folded into one string by the sync pipeline (see
-                          scripts/gmail-sync.mjs). Shown on every row that has
+                      {/* Why it landed on this category -- the audit's own
+                          reasoning, or the rule that filed it, folded into
+                          one string by the ingest function. Shown on every row that has
                           one, not only unreviewed ones: a category chosen
                           with high confidence is still a change the AI made,
                           and "never a silent change" means it stays visible
