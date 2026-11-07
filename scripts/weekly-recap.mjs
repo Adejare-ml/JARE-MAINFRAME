@@ -209,10 +209,14 @@ async function main() {
 
   const { accepted, rejected } = reviewRecap(answer.data?.sentences, facts)
 
-  // Printed, always. Gatekeeping nobody can see is gatekeeping nobody trusts
-  // -- the same reasoning plan-month.mjs's rejection log follows.
+  // Printed, always: gatekeeping nobody can see is gatekeeping nobody trusts
+  // -- the same reasoning plan-month.mjs's rejection log follows. But the
+  // sentences carry the owner's weekly spend and income, and this log is
+  // public with the repository, so a scheduled run prints what was cited
+  // and why it was rejected, never the sentence; RECAP_VERBOSE=1 prints it.
+  const VERBOSE = process.env.RECAP_VERBOSE === '1' || process.env.RECAP_VERBOSE === 'true'
   for (const { item, reason } of rejected) {
-    console.log(`   ✗ "${item.sentence ?? '(no sentence)'}" — ${reason}`)
+    console.log(VERBOSE ? `   ✗ "${item.sentence ?? '(no sentence)'}" — ${reason}` : `   ✗ cites "${item.cites ?? '(nothing)'}" — ${reason}`)
   }
 
   const { error } = await supabase
@@ -230,7 +234,7 @@ async function main() {
   if (error) throw error
 
   console.log('─'.repeat(64))
-  for (const s of accepted) console.log(`   ✓ ${s.sentence}`)
+  for (const s of accepted) console.log(VERBOSE ? `   ✓ ${s.sentence}` : `   ✓ cites ${s.cites}`)
   console.log(`✅ ${accepted.length} sentence(s) kept of ${accepted.length + rejected.length} proposed`)
   // A provider that answered and had every sentence rejected is the review
   // step doing its job, not a script failure -- reviewPlan's own rejection

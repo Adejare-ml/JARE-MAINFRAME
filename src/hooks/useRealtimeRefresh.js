@@ -27,6 +27,11 @@ export function useRealtimeRefresh(tables, onChange, options = {}) {
   const callbackRef = useRef(onChange)
   callbackRef.current = onChange
 
+  // One topic per mount, not per table: supabase-js hands back an existing
+  // channel for a repeated topic, so a fast back-navigation could re-use a
+  // channel that was still leaving and never re-join.
+  const mountId = useRef(crypto.randomUUID().slice(0, 8))
+
   // Join, so a change in tables is a value change rather than a new array
   // identity on every render.
   const tableKey = tables.join(',')
@@ -49,7 +54,7 @@ export function useRealtimeRefresh(tables, onChange, options = {}) {
 
     const channels = watched.map((table) =>
       supabase
-        .channel(`${channelPrefix}:${table}`)
+        .channel(`${channelPrefix}:${table}:${mountId.current}`)
         .on('postgres_changes', { event: '*', schema: 'public', table }, schedule)
         .subscribe(),
     )

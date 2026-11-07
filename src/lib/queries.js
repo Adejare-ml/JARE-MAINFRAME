@@ -141,6 +141,26 @@ export function needsReview(txn) {
 }
 
 /**
+ * How long the oldest row has been waiting in the review queue. The queue
+ * showed a count and never an age, and seventy rows looked the same whether
+ * they arrived this week or in August.
+ *
+ * @param {string|null|undefined} oldestDate - YYYY-MM-DD of the oldest unreviewed row
+ * @param {string} today - YYYY-MM-DD
+ * @returns {{days: number, label: string}|null} null when there is no such row
+ */
+export function queueAge(oldestDate, today) {
+  if (!oldestDate || !/^\d{4}-\d{2}-\d{2}/.test(String(oldestDate))) return null
+  const from = new Date(`${String(oldestDate).slice(0, 10)}T00:00:00`)
+  const to = new Date(`${today}T00:00:00`)
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return null
+  const days = Math.max(0, Math.round((to - from) / 86_400_000))
+  const label =
+    days === 0 ? 'oldest today' : days === 1 ? 'oldest yesterday' : days < 14 ? `oldest ${days} days ago` : `oldest ${from.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
+  return { days, label }
+}
+
+/**
  * Hide voided transactions.
  *
  * Must be applied to every query that lists or totals transactions. A voided

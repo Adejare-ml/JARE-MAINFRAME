@@ -274,9 +274,10 @@ async function main() {
     if (error) throw error
     written += rows.length
 
+    // The focus text and the cited gap are the owner's plan, and the log is
+    // public with the repository: week number and evidence kind only.
     for (const item of accepted) {
-      console.log(`   ✓ week ${item.week}: ${item.focus}`)
-      console.log(`     from ${item.kind}: ${item.cites}`)
+      console.log(`   ✓ week ${item.week}: drafted from ${item.kind}`)
     }
     console.log(`   ${answer.provider} proposed ${accepted.length + rejected.length}, ${accepted.length} kept\n`)
   }

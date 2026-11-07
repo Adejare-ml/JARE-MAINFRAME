@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { getParseStrategy, sanitizeSlug } from '../lib/sync'
-import { formatNaira } from '../lib/formatters'
+import { walletUpdatePayload } from '../lib/wallets'
+import { formatNaira, timeAgo } from '../lib/formatters'
+import { walletAlertStatus } from '../lib/health'
 import { toast } from '../lib/toast'
 import { useAuth } from '../hooks/useAuth'
 import { secondaryItems } from '../lib/nav'
@@ -294,17 +296,10 @@ export default function Settings() {
 
     setSavingWallet(true)
     try {
-      const payload = {
-        name: walletForm.name.trim(),
-        type: walletForm.type,
-        balance: parseFloat(walletForm.balance) || 0,
-        currency: 'NGN',
-        alert_sender: walletForm.alert_sender.trim() || null,
-        account_last4: walletForm.account_last4.trim() || null,
-        color: walletForm.color,
-        is_active: walletForm.is_active,
-        parse_strategy: walletForm.parse_strategy,
-      }
+      // The balance is sent only when it was changed in the form (see
+      // src/lib/wallets.js): an edit sheet opened before the morning audit
+      // and saved after it used to put the old balance back.
+      const { payload, balanceChanged } = walletUpdatePayload(walletForm, editingWallet)
 
       if (editingWallet) {
         // source_slug is deliberately absent from edits: it is half of every
@@ -314,7 +309,7 @@ export default function Settings() {
           .update(payload)
           .eq('id', editingWallet.id)
         if (error) throw error
-        toast.success('Wallet updated ✓')
+        toast.success(balanceChanged ? 'Wallet updated, balance set ✓' : 'Wallet updated ✓')
       } else {
         // Set once at creation and never rewritten. Leaving it null made
         // walletSource() fall back to the display name -- reintroducing the
@@ -499,6 +494,20 @@ export default function Settings() {
                             {w.alert_sender && (
                               <p className="text-[10px] text-muted-dim font-mono truncate">{w.alert_sender}</p>
                             )}
+                            {/* Whether this bank has been heard from: the one
+                                code-side sign that the audit reads this sender.
+                                From balance_as_of, which the ingest function
+                                stamps on every alert that moves the balance. */}
+                            {(() => {
+                              const heard = walletAlertStatus(w)
+                              if (heard.status === 'n/a') return null
+                              const quiet = heard.status === 'quiet' || heard.status === 'never'
+                              return (
+                                <p className={`text-[10px] ${quiet ? 'text-orange-300' : 'text-muted-dim'}`}>
+                                  {heard.status === 'never' ? 'No alert recorded yet' : `Last alert ${timeAgo(heard.lastAlertAt)}`}
+                                </p>
+                              )
+                            })()}
                           </div>
                         </div>
 

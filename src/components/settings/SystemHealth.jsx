@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { hasColumn, pendingMigrations } from '../../lib/schema'
 import { timeAgo } from '../../lib/formatters'
 import { STATUS, summarizeRuns, gmailCursorStatus, overallStatus } from '../../lib/health'
+import { useEdgeFunctionStatus } from '../../hooks/useEdgeFunctionStatus'
 
 /**
  * The one place the app admits whether its automation is alive.
@@ -23,6 +24,7 @@ const DOT = {
   [STATUS.STALE]: 'bg-orange-400',
   [STATUS.FAILING]: 'bg-red-500',
   [STATUS.NEVER]: 'bg-white/20',
+  [STATUS.ATTENTION]: 'bg-amber-400',
 }
 
 const WORD = {
@@ -30,6 +32,13 @@ const WORD = {
   [STATUS.STALE]: 'Quiet too long',
   [STATUS.FAILING]: 'Failing',
   [STATUS.NEVER]: 'Never run',
+  [STATUS.ATTENTION]: 'Needs a look',
+}
+
+const WORD_COLOUR = {
+  [STATUS.FAILING]: 'text-red-400',
+  [STATUS.STALE]: 'text-orange-300',
+  [STATUS.ATTENTION]: 'text-amber-300',
 }
 
 export default function SystemHealth() {
@@ -38,8 +47,8 @@ export default function SystemHealth() {
   const [runsError, setRunsError] = useState(null)
   const [integration, setIntegration] = useState(null)
   const [failures, setFailures] = useState({ count: 0, recent: [] })
-  const [ask, setAsk] = useState('checking')
-  const [meal, setMeal] = useState('checking')
+  // The two edge-function probes, shared with Daily HQ's setup checklist.
+  const { ask, meal } = useEdgeFunctionStatus()
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -73,30 +82,6 @@ export default function SystemHealth() {
       setLoading(false)
     }
     load()
-
-    // GET is answered without a model call, so "reachable" means deployed --
-    // the one fact about the Ask page nothing else in the app can check.
-    supabase.functions
-      .invoke('ask-question', { method: 'GET' })
-      .then(({ data, error }) => {
-        if (!cancelled) setAsk(!error && data?.ok ? 'reachable' : 'unreachable')
-      })
-      .catch(() => {
-        if (!cancelled) setAsk('unreachable')
-      })
-
-    // Same question for the meal reader; its GET also says which provider
-    // keys are set, which is the next thing to check when a photo fails.
-    supabase.functions
-      .invoke('analyze-meal', { method: 'GET' })
-      .then(({ data, error }) => {
-        if (cancelled) return
-        if (error || !data?.ok) setMeal('unreachable')
-        else setMeal(data.providers?.ollama || data.providers?.nvidia ? 'reachable' : 'nokey')
-      })
-      .catch(() => {
-        if (!cancelled) setMeal('unreachable')
-      })
 
     return () => {
       cancelled = true
@@ -137,22 +122,34 @@ export default function SystemHealth() {
                 <span className={`mt-1.5 w-2 h-2 shrink-0 rounded-full ${DOT[job.status]}`} aria-hidden="true" />
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-white">{job.label}</p>
-                  {job.lastRun?.summary && (
-                    <p className="text-[11px] text-muted-dim truncate">{job.lastRun.summary}</p>
+                  {/* A report is rendered line by line, drifts red and
+                      missed alerts amber, so a reconcile summary is read,
+                      not skimmed. Anything else is the stored text in
+                      full: the one-line truncation used to cut the gap
+                      list exactly where the wallet names were. */}
+                  {job.suspect && <p className="text-[11px] text-red-300">{job.suspectReason}</p>}
+                  {job.report ? (
+                    <>
+                      {job.report.drifts.map((line) => (
+                        <p key={line} className="text-[11px] text-red-300 break-words">{line}</p>
+                      ))}
+                      {job.report.gaps.map((line) => (
+                        <p key={line} className="text-[11px] text-amber-300 break-words">{line}</p>
+                      ))}
+                      {job.report.other.map((line) => (
+                        <p key={line} className="text-[11px] text-muted-dim break-words">{line}</p>
+                      ))}
+                    </>
+                  ) : (
+                    job.lastRun?.summary && (
+                      <p className="text-[11px] text-muted-dim break-words whitespace-pre-wrap">{job.lastRun.summary}</p>
+                    )
                   )}
                 </div>
               </div>
               <div className="text-right shrink-0">
-                <p
-                  className={`text-xs font-semibold ${
-                    job.status === STATUS.FAILING
-                      ? 'text-red-400'
-                      : job.status === STATUS.STALE
-                        ? 'text-orange-300'
-                        : 'text-muted'
-                  }`}
-                >
-                  {WORD[job.status]}
+                <p className={`text-xs font-semibold ${job.suspect ? 'text-red-400' : WORD_COLOUR[job.status] || 'text-muted'}`}>
+                  {job.suspect ? 'Recorded nothing' : WORD[job.status]}
                 </p>
                 {job.lastRun && <p className="text-[11px] text-muted-dim">{timeAgo(job.lastRun.finished_at)}</p>}
               </div>

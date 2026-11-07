@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  queueAge,
   transactionListColumns,
   transactionSummaryColumns,
   transactionRecurrenceColumns,
@@ -501,5 +502,20 @@ describe('applyTransactionSort', () => {
 
   it('names every sort the select offers', () => {
     expect(SORT_OPTIONS.map((o) => o.id)).toEqual(['newest', 'oldest', 'largest', 'smallest'])
+  })
+})
+
+describe('queueAge', () => {
+  it('says how old the oldest waiting row is, switching to a date past two weeks', () => {
+    expect(queueAge('2026-11-07', '2026-11-07')).toEqual({ days: 0, label: 'oldest today' })
+    expect(queueAge('2026-11-06', '2026-11-07')).toEqual({ days: 1, label: 'oldest yesterday' })
+    expect(queueAge('2026-11-01', '2026-11-07')).toEqual({ days: 6, label: 'oldest 6 days ago' })
+    expect(queueAge('2026-08-02', '2026-11-07')).toEqual({ days: 97, label: 'oldest 2 Aug' })
+  })
+
+  it('is null without a row, and never negative', () => {
+    expect(queueAge(null, '2026-11-07')).toBeNull()
+    expect(queueAge('not a date', '2026-11-07')).toBeNull()
+    expect(queueAge('2026-11-09', '2026-11-07').days).toBe(0)
   })
 })

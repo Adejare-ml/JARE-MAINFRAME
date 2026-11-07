@@ -11,11 +11,13 @@ import { useAuth } from '../hooks/useAuth'
 import { summarizeMonth, safeToSpend, budgetPace } from '../lib/summary'
 import { upcomingDebts, paidTotals } from '../lib/debts'
 import { generateTasks } from '../lib/generateTasks'
-import { isTaskDone, goalProgress, GENERATED_SLOT_BASE, REPO_METRIC } from '../lib/planning'
+import { isTaskDone, goalProgress, GENERATED_SLOT_BASE, REPO_METRIC, staleGoals, STALE_GOAL_DAYS } from '../lib/planning'
 import { dailyInsight } from '../lib/insight'
 import { currentStreak } from '../lib/activity'
-import { hasColumn } from '../lib/schema'
-import { summarizeRuns, STATUS } from '../lib/health'
+import { hasColumn, pendingMigrations } from '../lib/schema'
+import { summarizeRuns, STATUS, unwellJobs, quietWallets } from '../lib/health'
+import { setupGaps } from '../lib/setup'
+import { useEdgeFunctionStatus } from '../hooks/useEdgeFunctionStatus'
 import TodayList from '../components/daily/TodayList'
 import DictateDay from '../components/daily/DictateDay'
 import DayBrief from '../components/daily/DayBrief'
@@ -40,6 +42,7 @@ import {
   NEEDS_REVIEW_FILTER,
   excludeVoided,
   excludeDrafts,
+  queueAge,
 } from '../lib/queries'
 
 /** Days of history the activity grid needs: eight whole weeks plus slack for
@@ -66,9 +69,15 @@ export default function DailyHQ() {
   // audit: a stalled snapshot or recap used to show only in Settings and in
   // a morning push no phone has subscribed to.
   const [jobRuns, setJobRuns] = useState([])
+  // How many phones get the morning reminder. null until read (or behind
+  // 031): "unknown" must not read as "none".
+  const [subscriberCount, setSubscriberCount] = useState(null)
+  const edgeFunctions = useEdgeFunctionStatus()
   const [togglingId, setTogglingId] = useState(null)
   const [mode, setMode] = useState('day')
   const [unreviewedCount, setUnreviewedCount] = useState(0)
+  const [oldestUnreviewed, setOldestUnreviewed] = useState(null)
+  const [staleGoalCount, setStaleGoalCount] = useState(0)
   const [warnThreshold, setWarnThreshold] = useState(10000)
   // Default until the user sets one in Settings; the bar hides at 0.
   const [budgetTarget, setBudgetTarget] = useState(85000)
@@ -109,7 +118,7 @@ export default function DailyHQ() {
       // is checked: supabase-js returns errors rather than throwing, so the
       // old destructure-data-only version made the catch unreachable and a
       // total network failure rendered "Total: ₦0.00" and "All clear!".
-      const [walletsRes, recentRes, countRes, settingsRes, monthRes, goalsRes, debtsRes, briefRes, auditRes, linkedRes] =
+      const [walletsRes, recentRes, countRes, settingsRes, monthRes, goalsRes, debtsRes, briefRes, auditRes, linkedRes, pushRes, oldestRes, staleRes] =
         await Promise.all([
           supabase.from('wallets').select('*'),
           excludeVoided(
@@ -177,6 +186,32 @@ export default function DailyHQ() {
           hasColumn('transactions.debt_id')
             ? supabase.from('transactions').select('id, debt_id, type, amount, voided').not('debt_id', 'is', null)
             : Promise.resolve({ data: [], error: null }),
+          // A head count of subscribed phones, for the setup checklist: a
+          // digest that reaches nobody is the failure that card exists for.
+          hasColumn('push_subscriptions.endpoint')
+            ? supabase.from('push_subscriptions').select('id', { count: 'exact', head: true })
+            : Promise.resolve({ count: null, error: null }),
+          // The oldest row waiting in review, so the queue line has an age.
+          excludeVoided(
+            supabase
+              .from('transactions')
+              .select('transaction_date')
+              .eq(NEEDS_REVIEW_FILTER.column, NEEDS_REVIEW_FILTER.value),
+          )
+            .order('transaction_date', { ascending: true })
+            .limit(1)
+            .maybeSingle(),
+          // Open, hand-made goals from periods long over: a line here, and
+          // Close / Roll on the Goals page. Additive.
+          excludeDrafts(
+            supabase
+              .from('goals')
+              .select('id, title, period, target_date, completed, parent_id')
+              .eq('completed', false)
+              .is('parent_id', null)
+              .lt('target_date', daysAgo(STALE_GOAL_DAYS))
+              .limit(50),
+          ),
         ])
 
       const firstError =
@@ -197,6 +232,11 @@ export default function DailyHQ() {
       setDayBrief(briefRes.error ? null : briefRes.data || null)
       if (auditRes.error) console.warn('Job history unavailable:', auditRes.error.message)
       setJobRuns(auditRes.error ? [] : auditRes.data || [])
+      if (pushRes.error) console.warn('Reminder devices unavailable:', pushRes.error.message)
+      setSubscriberCount(pushRes.error ? null : pushRes.count ?? null)
+      setOldestUnreviewed(oldestRes.error ? null : oldestRes.data?.transaction_date || null)
+      if (staleRes.error) console.warn('Stale goals unavailable:', staleRes.error.message)
+      setStaleGoalCount(staleRes.error ? 0 : staleGoals(staleRes.data || [], todayDate).length)
 
       setWallets(walletsRes.data || [])
       setTransactions(recentRes.data || [])
@@ -452,15 +492,31 @@ export default function DailyHQ() {
   // patience as Settings → System, and "never" counts too.
   const jobHealth = summarizeRuns(jobRuns)
   const auditJob = jobHealth.find((j) => j.id === 'claude-audit')
-  const auditUnwell = hasColumn('sync_runs.job') && auditJob && auditJob.status !== STATUS.OK
+  // Red when the audit is broken, stopped, never ran, or recorded nothing on
+  // a mailbox that normally has alerts; amber when it ran and skipped one
+  // alert (its summary says which).
+  const auditUnwell = hasColumn('sync_runs.job') && auditJob && (auditJob.status !== STATUS.OK || auditJob.suspect)
   // The other jobs matter less per day, so only a failure or a run that is
-  // overdue by its own patience makes the list; one that has never run is a
-  // Settings fact, not a morning alarm.
-  const stalledJobs = hasColumn('sync_runs.job')
-    ? jobHealth.filter(
-        (j) => j.id !== 'claude-audit' && (j.status === STATUS.FAILING || j.status === STATUS.STALE),
-      )
+  // overdue by its own patience makes the list (one rule, shared with the
+  // morning reminder: unwellJobs); one that has never run is a Settings
+  // fact, not a morning alarm. A job that ran and found a data problem
+  // (reconcile's missed alerts) is listed in amber with what it found.
+  const stalledJobs = hasColumn('sync_runs.job') ? unwellJobs(jobHealth).filter((j) => j.id !== 'claude-audit') : []
+  const attentionJobs = hasColumn('sync_runs.job')
+    ? jobHealth.filter((j) => j.id !== 'claude-audit' && j.id !== 'backup' && j.status === STATUS.ATTENTION)
     : []
+  // Banks that have gone quiet: the audit can be running every morning and
+  // still never hear from a wallet whose sender changed or whose alerts
+  // stopped. Stanbic had never sent one.
+  const silentWallets = quietWallets(activeWallets)
+  // The owner's undone setup steps, in the schema banner's voice.
+  const setupRows = setupGaps({
+    subscriberCount,
+    askStatus: edgeFunctions.ask,
+    mealStatus: edgeFunctions.meal,
+    backupJob: hasColumn('sync_runs.job') ? jobHealth.find((j) => j.id === 'backup') : null,
+    pendingMigrations: pendingMigrations(),
+  })
 
   // Monthly Spending Progress. The old version summed the 3-row "recent"
   // query -- the headline card was three transactions divided by a hardcoded
@@ -776,29 +832,83 @@ export default function DailyHQ() {
             <span>⚠️</span> Needs Attention
           </h2>
 
-          {unreviewedCount === 0 && lowWallets.length === 0 && dueDebts.length === 0 && !auditUnwell && stalledJobs.length === 0 ? (
+          {unreviewedCount === 0 &&
+          lowWallets.length === 0 &&
+          dueDebts.length === 0 &&
+          !auditUnwell &&
+          stalledJobs.length === 0 &&
+          attentionJobs.length === 0 &&
+          silentWallets.length === 0 &&
+          staleGoalCount === 0 &&
+          setupRows.length === 0 ? (
             <div className="flex items-center gap-2 text-accent text-sm font-medium pt-1">
               <span>✅</span> All clear! No items require review.
             </div>
           ) : (
             <div className="space-y-2">
+              {/* Setup steps first: until a phone is subscribed, this card is
+                  the only place any of the alarms below reach. */}
+              {setupRows.map((row) => (
+                <Link
+                  key={row.id}
+                  to={row.to}
+                  className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-orange-500/10 border border-orange-500/20 text-orange-300 text-xs font-semibold hover:bg-orange-500/20 transition-all min-h-[48px]"
+                >
+                  <span>🔧 {row.text}</span>
+                  <span className="font-bold shrink-0">{row.label}</span>
+                </Link>
+              ))}
+
               {auditUnwell && (
                 <Link
                   to="/settings"
-                  className="flex items-center justify-between p-3 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-300 text-xs font-semibold hover:bg-red-500/20 transition-all min-h-[48px]"
+                  className={`flex items-center justify-between p-3 rounded-2xl text-xs font-semibold transition-all min-h-[48px] ${
+                    auditJob.status === STATUS.ATTENTION
+                      ? 'bg-amber-500/10 border border-amber-500/20 text-amber-300 hover:bg-amber-500/20'
+                      : 'bg-red-500/10 border border-red-500/20 text-red-300 hover:bg-red-500/20'
+                  }`}
                 >
                   <span>
                     • Bank alerts{' '}
-                    {auditJob.status === STATUS.FAILING
-                      ? 'are failing'
-                      : auditJob.status === STATUS.NEVER
-                        ? 'have never been recorded'
-                        : `last recorded ${timeAgo(auditJob.lastRun.finished_at)}`}
-                    {' '}— the figures here may be stale
+                    {auditJob.suspect
+                      ? auditJob.suspectReason
+                      : auditJob.status === STATUS.ATTENTION
+                        ? `were read this morning, but ${auditJob.reason}`
+                        : auditJob.status === STATUS.FAILING
+                          ? 'are failing — the figures here may be stale'
+                          : auditJob.status === STATUS.NEVER
+                            ? 'have never been recorded — the figures here may be stale'
+                            : `last recorded ${timeAgo(auditJob.lastRun.finished_at)} — the figures here may be stale`}
                   </span>
-                  <span className="text-red-400 font-bold">System →</span>
+                  <span className="font-bold">System →</span>
                 </Link>
               )}
+
+              {attentionJobs.map((job) => (
+                <Link
+                  key={job.id}
+                  to="/settings"
+                  className="flex items-center justify-between p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs font-semibold hover:bg-amber-500/20 transition-all min-h-[48px]"
+                >
+                  <span>• {job.label}: {job.reason}</span>
+                  <span className="font-bold shrink-0">System →</span>
+                </Link>
+              ))}
+
+              {silentWallets.map(({ wallet, status, daysSince }) => (
+                <Link
+                  key={wallet.id}
+                  to="/settings"
+                  className="flex items-center justify-between p-3 rounded-2xl bg-orange-500/10 border border-orange-500/20 text-orange-300 text-xs font-semibold hover:bg-orange-500/20 transition-all min-h-[48px]"
+                >
+                  <span>
+                    • {wallet.name}{' '}
+                    {status === 'never' ? 'has never sent an alert' : `has sent no alert for ${daysSince} days`} — check{' '}
+                    {wallet.alert_sender}
+                  </span>
+                  <span className="font-bold shrink-0">Settings →</span>
+                </Link>
+              ))}
 
               {stalledJobs.map((job) => (
                 <Link
@@ -852,8 +962,27 @@ export default function DailyHQ() {
                   to="/transactions?filter=Review"
                   className="flex items-center justify-between p-3 rounded-2xl bg-orange-500/10 border border-orange-500/20 text-orange-300 text-xs font-semibold hover:bg-orange-500/20 transition-all min-h-[48px]"
                 >
-                  <span>• {unreviewedCount} transaction{unreviewedCount === 1 ? '' : 's'} need categorization/review</span>
+                  <span>
+                    • {unreviewedCount} transaction{unreviewedCount === 1 ? '' : 's'} need categorization/review
+                    {(() => {
+                      const age = queueAge(oldestUnreviewed, todayDate)
+                      return age && age.days > 0 ? ` (${age.label})` : ''
+                    })()}
+                  </span>
                   <span className="text-orange-400 font-bold">Review →</span>
+                </Link>
+              )}
+
+              {staleGoalCount > 0 && (
+                <Link
+                  to="/goals"
+                  className="flex items-center justify-between p-3 rounded-2xl bg-orange-500/10 border border-orange-500/20 text-orange-300 text-xs font-semibold hover:bg-orange-500/20 transition-all min-h-[48px]"
+                >
+                  <span>
+                    • {staleGoalCount} goal{staleGoalCount === 1 ? ' is' : 's are'} past {staleGoalCount === 1 ? 'its' : 'their'} date — close or roll{' '}
+                    {staleGoalCount === 1 ? 'it' : 'them'}
+                  </span>
+                  <span className="text-orange-400 font-bold">Goals →</span>
                 </Link>
               )}
 

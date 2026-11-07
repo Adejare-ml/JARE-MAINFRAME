@@ -51,7 +51,8 @@ the check that everything is wired.
 
 ### Reminders on your phone
 
-One notification each morning at 07:30 with what needs you (debts due,
+One notification each morning at 09:20 Lagos (after the bank-alert audit
+has recorded yesterday) with what needs you (debts due,
 bills expected, urgent repairs, milestones past their date, rows waiting
 for review); nothing on a quiet day. Four steps, once:
 
@@ -79,7 +80,10 @@ included -- to a private repository of yours, as `backups/<date>.json` and
 
 1. Create a **private** repository for it (say `jare-backups`), with a
    README so the default branch exists. Never this repository: it is
-   public, and the script refuses it whatever `BACKUP_REPO` says.
+   public, and the script refuses it whatever `BACKUP_REPO` says. It also
+   asks GitHub whether the target is private before writing and refuses a
+   public one, so a repository created with the default visibility fails
+   the run instead of receiving the ledger.
 2. GitHub → Settings → Developer settings → Fine-grained tokens: one token,
    repository access limited to that repository, permission **Contents:
    read and write**, nothing else. Give it an expiry and note the date.
