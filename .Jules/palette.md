@@ -29,3 +29,7 @@
 ## 2026-10-25 - ARIA Selection States on Custom Option Buttons
 **Learning:** Custom selection or toggle buttons inside components (like QuickLog's category, wallet, and tag pickers) often lack `aria-pressed` states and explicit `type="button"` attributes, leaving screen readers unaware of the active selection and risking accidental form submissions.
 **Action:** When auditing custom selection lists, ensure the selected state is conveyed via `aria-pressed={true/false}` on each button, and that `type="button"` is explicitly set to prevent unintended default behaviors.
+
+## 2026-11-08 - Added missing ARIA associations for dynamic inputs in QuickLog
+**Learning:** Inputs within floating UI components like QuickLog often miss proper 'id' and 'htmlFor' bindings on their labels, which forces screen reader users to infer the input's purpose from nearby text.
+**Action:** When creating text or number inputs in dynamically rendered components, always include explicit 'id' and 'htmlFor' associations to link labels directly to their inputs.
