@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { bmr, maintenance, ageIn, proposeTarget, reviewDue, KCAL_FLOOR, REVIEW_DAYS } from '../src/lib/diet/target.js'
+import { bmr, maintenance, ageIn, proposeTarget, reviewDue, targetReview, KCAL_FLOOR, REVIEW_DAYS } from '../src/lib/diet/target.js'
 
 // The 14-day target recalculation (docs/diet-module.md, section 3).
 // Mifflin-St Jeor, activity factor 1.375, never below 1,800 kcal, and the
@@ -64,5 +64,30 @@ describe('reviewDue', () => {
     expect(reviewDue(null, now)).toBe(true)
     expect(reviewDue('2026-10-28T09:00:00Z', now)).toBe(false)
     expect(reviewDue('2026-10-27T09:00:00Z', now)).toBe(true)
+  })
+})
+
+describe('targetReview (Phase 4)', () => {
+  const settings = { sex: 'male', height_cm: 180, weight_kg: 100, birth_year: 1996, activity_factor: 1.375, kcal_target: 2200, target_reviewed_at: '2026-10-20T09:00:00Z' }
+  const weight = (kg, day) => ({ weight_kg: kg, logged_at: day })
+
+  it('proposes a new target when 14 days have passed and the weight moved', () => {
+    const r = targetReview({ settings, latestWeight: weight(96, '2026-11-09'), now })
+    expect(r).toMatchObject({ due: true, change: true, proposal: { kcal_target: 2150, weight_kg: 96 } })
+  })
+
+  it('says the target stays when the proposal is the same', () => {
+    const r = targetReview({ settings, latestWeight: weight(100, '2026-11-09'), now })
+    expect(r).toMatchObject({ due: true, change: false })
+  })
+
+  it('waits for a weigh-in newer than the last review, and for the 14 days', () => {
+    expect(targetReview({ settings, latestWeight: weight(96, '2026-10-19'), now })).toBe(null)
+    expect(targetReview({ settings: { ...settings, target_reviewed_at: '2026-11-01T09:00:00Z' }, latestWeight: weight(96, '2026-11-09'), now })).toBe(null)
+  })
+
+  it('needs the measurements, a target and a weigh-in', () => {
+    expect(targetReview({ settings: { ...settings, height_cm: null }, latestWeight: weight(96, '2026-11-09'), now })).toBe(null)
+    expect(targetReview({ settings, latestWeight: null, now })).toBe(null)
   })
 })

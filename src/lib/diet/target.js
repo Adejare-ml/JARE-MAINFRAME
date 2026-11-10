@@ -82,3 +82,23 @@ export function reviewDue(reviewedAt, now = new Date()) {
   if (Number.isNaN(t)) return true
   return now.getTime() - t >= REVIEW_DAYS * 24 * 60 * 60 * 1000
 }
+
+/**
+ * Whether to show the 14-day target review, and what it proposes (Phase 4).
+ *
+ * Shown when 14 days have passed since the last review (or there has been
+ * none), there is a weigh-in newer than that review, and the measurements
+ * proposeTarget needs are set. `change` is false when the proposal equals
+ * the current target, so the screen can say "your target stays" and record
+ * the review without asking for a decision that changes nothing.
+ *
+ * @returns {{due: true, change: boolean, proposal: ReturnType<typeof proposeTarget>}|null}
+ */
+export function targetReview({ settings, latestWeight, now = new Date() }) {
+  if (!latestWeight || !reviewDue(settings?.target_reviewed_at, now)) return null
+  const reviewed = settings?.target_reviewed_at ? new Date(settings.target_reviewed_at) : null
+  if (reviewed && new Date(`${latestWeight.logged_at}T23:59:59Z`) < reviewed) return null
+  const proposal = proposeTarget({ settings, latestWeightKg: latestWeight.weight_kg, now })
+  if (!proposal) return null
+  return { due: true, change: proposal.kcal_target !== proposal.previous_target, proposal }
+}
