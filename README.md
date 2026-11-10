@@ -216,6 +216,20 @@ supabase secrets set NVIDIA_API_KEY=...            # build.nvidia.com
 supabase secrets set DIET_WORKER_TOKEN=...         # long random string; the laptop worker sends it
 ```
 
+The coach (Phase 4) is the `diet-coach` function, on the same
+`ANTHROPIC_API_KEY`: after a meal from a note, a voice note or a photo it
+gives a verdict (fits, tight or over) and a one-line reason, and "What
+should I eat next?" on the Today screen suggests two or three meals, pantry
+food first. Saved and hand-picked meals are judged in code with no call.
+Every 14 days, with a new weigh-in, Today proposes a new target from the
+latest weight (never under 1,800 kcal) for you to accept or keep.
+
+```bash
+supabase functions deploy diet-coach
+```
+
+Then run `053_diet_coach.sql`.
+
 Photos older than the retention in Diet settings are deleted weekly by
 `.github/workflows/prune-meal-photos.yml` (nothing is deleted while the
 setting is empty).

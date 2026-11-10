@@ -447,3 +447,62 @@ Added when Phase 3 was built. Nothing above this section was changed.
   - **Ollama requests:** always `keep_alive: 0`, the schema, and the image.
   - **Layout:** the page stayed 390 px wide, with no page errors.
 - **Not checked:** real Claude, NVIDIA and Ollama answers; the 30-second target with real models; and Excel and phone cameras, as before.
+
+---
+
+## 11. Phase 4 build notes, and the done criteria (added after Phase 4 was approved)
+
+Added when Phase 4 was built. Nothing above this section was changed.
+
+### What was built
+
+- **Coach logic** (`src/lib/diet/coach.js`, 14 tests, written first):
+  - `coachInput` builds the six inputs the coach prompt lists;
+  - `patternFlag` computes the prompt's two patterns in code (three days in a row over target, protein under 70 g three days running, over the latest three consecutive logged days);
+  - `checkCoachAnswer` checks the coach's answer before anything is shown;
+  - `needsCoach` limits the coach to text, voice and photo meals.
+- **Target review** (`targetReview` in `src/lib/diet/target.js`, 4 more tests). It is shown when 14 days have passed and there is a weigh-in since the last review. It uses Phase 1's Mifflin-St Jeor proposal (activity factor from settings, the gap below maintenance kept, never under 1,800 kcal). Exercise is never an input.
+- **`053_diet_coach.sql`**: adds `meal_logs.coach`, a record of what the coach said and whether it agreed.
+- **Edge Function `diet-coach`** (`claude-haiku-5-5`, structured outputs, low effort, one retry, refusals reported; 8 Deno tests):
+  - `verdict`, after a text, voice or photo meal is confirmed. It runs in the background; the verdict computed in code is already stored, so a coach failure changes nothing.
+  - `next`, for "What should I eat next?".
+  - Saved and hand-picked meals are judged in code and never call the model.
+- **Screens on Today**:
+  - the target review card (Accept, or Keep the current target);
+  - the pattern flag;
+  - "What should I eat next?", which shows the coach's line and two or three options, pantry food first, with the flag.
+
+### Decisions made while building
+
+- **The rule decides the verdict; the coach supplies the words.** The verdict's three meanings are defined by rule in the spec and `verdict.js`, and the numbers are known by the time the coach is asked. When the coach agrees, its reason is shown. When it disagrees, the rule's verdict and reason stand and the coach's answer is kept in `meal_logs.coach`, with `agreed: false`, for comparison.
+- **The prompt's hard rules are also enforced in code.** Options that name an avoided food or suggest skipping a meal are dropped, as are options with no calories; at most three are kept, pantry food first, and em and en dashes are removed. The model is asked to follow these, and the code makes them hold.
+- **A target review whose proposal equals the current target says "your target stays"** and records the review with one OK, rather than asking you to decide nothing.
+
+### Checked
+
+- **Tests:** 1,191 unit tests and 36 database checks pass. Deno: diet-parse 10, diet-photo 15, diet-coach 8. Python worker: 9.
+- **Browser** (iPhone 13 viewport, local Postgres with PostgREST, the real `diet-coach` and `diet-parse` handlers, fixed model answers):
+  - **Target review:** proposed 2,250 kcal (100 kg to 96 kg, the gap kept); Accept saved 2,250 kcal at 96 kg and marked the review done.
+  - **Pattern flag:** showed for three days over target.
+  - **What next:** dropped the option with onions, put pantry food first and removed the em dash.
+  - **Typed meal:** got the coach's verdict in the background (agreed, dash removed), and the coach was sent the meal, the 3 days of history and the time.
+
+### The spec's done criteria
+
+| Criterion | Status |
+|---|---|
+| A saved meal logs in one tap | Met. Checked in the browser: one tap, logged in under 100 ms against the local database, with Undo on the toast. |
+| A photo log takes under 30 seconds | Built for it, not measured with real models. Claude and NVIDIA run at once with a 25 s limit each, and Ollama is never waited for. The local run took 1.9 s from shutter to pre-filled entry with fixed model answers, so real model time is not in that figure. Measure it once the keys are set. |
+| Daily Sheet totals equal the sum of the items | Met. Enforced by the database (meal totals are re-summed from items by trigger), computed from the rows on screen and in both files, and tested in Vitest, in the migration harness and in the browser. |
+| The XLSX export opens in Excel | Opens in LibreOffice and openpyxl, with numbers as numbers and the totals matching. Not opened in Excel, which this machine does not have. |
+| Everything works with Ollama switched off | Met. Logging never waits for Ollama, and a photo is logged from the cloud models alone (tested in Deno and in the browser). The worker posts nothing when the laptop's model is missing, and meals wait up to 48 hours for it. |
+| No API key in the built frontend, the GitHub repo or the database | Met, as far as this repo can show. `dist/` contains no key, no secret name other than existing help text, no model name and no zod. No key-shaped string appears in any commit on any branch, and no `.env` file is tracked. Keys live only in Supabase secrets (Edge Functions) and the laptop's git-ignored `.env`. The database stores model IDs and model answers, never keys. The live database itself was not inspected from here. |
+
+### What still needs a person
+
+1. Run migrations 048 to 053 in order.
+2. Set `ANTHROPIC_API_KEY`, `NVIDIA_API_KEY` and `DIET_WORKER_TOKEN`, and deploy `diet-parse`, `diet-photo` and `diet-coach`.
+3. Check the NVIDIA and Ollama model IDs against their catalogs (section 10); fao.org was also unreachable, so the seeded foods are estimates (section 8).
+4. Try a real photo, note and voice note, and time the photo.
+5. Open one XLSX in Excel.
+6. Set up the laptop worker (`workers/ollama/README.md`).
