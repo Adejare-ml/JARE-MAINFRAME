@@ -21,8 +21,9 @@ import { localDay, addDays } from '../../lib/diet/totals'
 
 export { buildLibrary, priceItems }
 
-export const MEAL_LOG_COLUMNS = 'id, client_id, eaten_at, eaten_on, meal_slot, source, status, kcal, protein_g, carbs_g, fat_g, verdict, reason, thumbnail, saved_meal_id'
-export const MEAL_ITEM_COLUMNS = 'id, meal_id, food_id, recipe_id, portions, position, name, grams, kcal, protein_g, carbs_g, fat_g, hidden'
+export const MEAL_LOG_COLUMNS = 'id, client_id, eaten_at, eaten_on, meal_slot, source, status, kcal, protein_g, carbs_g, fat_g, verdict, reason, thumbnail, saved_meal_id, photo_path, raw_text, needs_review'
+export const MEAL_ITEM_COLUMNS = 'id, meal_id, food_id, recipe_id, portions, position, name, grams, kcal, protein_g, carbs_g, fat_g, hidden, confidence, flagged, flag_reason, estimates'
+// Phase 3: photo meals carry photo_path and may still be status 'auto'.
 
 /**
  * Everything the screens look things up in: settings, foods, recipes with
@@ -161,4 +162,92 @@ export async function applyPantry(updates, rawText = null) {
     throw error
   }
   return data
+}
+
+// ── Phase 3: photos ──────────────────────────────────────────────────────
+
+const PHOTO_BUCKET = 'meal-photos'
+
+function base64ToBlob(b64, type) {
+  const bin = atob(b64)
+  const bytes = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+  return new Blob([bytes], { type })
+}
+
+/**
+ * Put a prepared photo (imagePrep's prepareImage, 1024 px) in the private
+ * bucket, in the owner's own folder: <uid>/<yyyy>/<mm>/<uuid>.jpg. The
+ * storage policies (052) refuse any other folder.
+ */
+export async function uploadPhoto(prepared) {
+  const { data } = await supabase.auth.getSession()
+  const uid = data?.session?.user?.id
+  if (!uid) throw new Error('not signed in')
+  const d = new Date()
+  const path = `${uid}/${d.getUTCFullYear()}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${crypto.randomUUID()}.jpg`
+  const { error } = await supabase.storage.from(PHOTO_BUCKET).upload(path, base64ToBlob(prepared.base64, 'image/jpeg'), { contentType: 'image/jpeg', upsert: false })
+  if (error) throw new Error(/bucket not found/i.test(error.message) ? 'run supabase/migrations/052_diet_photos.sql to store photos' : error.message)
+  return path
+}
+
+/** Ask diet-photo to read the photo. Logs it as an 'auto' meal on success. */
+export async function analyzePhoto({ path, small, note = '' }) {
+  const localTime = new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Lagos', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date())
+  const { data, error } = await supabase.functions.invoke('diet-photo', { body: { action: 'analyze', photo_path: path, small_image: small, note, localTime } })
+  if (error) {
+    const status = error.context?.status
+    return { ok: false, reason: status === 404 ? 'the diet-photo function is not deployed yet' : error.message || 'could not reach the photo service' }
+  }
+  return data?.ok ? data : { ok: false, reason: data?.reason || 'the photo service gave no answer', models: data?.models }
+}
+
+/** "Looks right": the items as the owner left them, the meal confirmed (or edited). */
+export async function confirmPhotoMeal(mealId, items, meta) {
+  const payload = items.map((i) => ({
+    food_id: i.food_id ?? undefined,
+    recipe_id: i.recipe_id ?? undefined,
+    portions: i.portions ?? undefined,
+    name: i.name,
+    grams: i.grams,
+    kcal: i.kcal,
+    protein_g: i.protein_g,
+    carbs_g: i.carbs_g,
+    fat_g: i.fat_g,
+    hidden: i.hidden === true,
+    confidence: i.confidence ?? null,
+    estimates: i.estimates ?? {},
+    flagged: false,
+    flag_reason: null,
+  }))
+  const { data, error } = await supabase.rpc('diet_replace_items', { p_meal_id: mealId, p_items: payload, p_meal: { ...meta, needs_review: false } })
+  if (error) throw error
+  return data
+}
+
+/** Throw the meal and its photo away (a wrong photo, a meal not eaten). */
+export async function discardPhotoMeal({ id, photo_path }) {
+  if (id) {
+    const { error } = await supabase.from('meal_logs').delete().eq('id', id)
+    if (error) throw error
+  }
+  if (photo_path) await supabase.storage.from(PHOTO_BUCKET).remove([photo_path])
+}
+
+/**
+ * A stored photo as a blob: URL for an <img>. Downloaded through the
+ * authenticated Storage API rather than a signed URL, because the CSP's
+ * img-src allows blob: but not the Supabase host; connect-src already
+ * allows it.
+ */
+export async function photoUrl(path) {
+  const { data, error } = await supabase.storage.from(PHOTO_BUCKET).download(path)
+  if (error || !data) return null
+  return URL.createObjectURL(data)
+}
+
+/** Each model's answer for a photo meal, without the answers themselves. */
+export async function loadEstimates(mealId) {
+  const { data } = await supabase.from('meal_estimates').select('model_key, model_id, status, reason, latency_ms, attempts').eq('meal_id', mealId)
+  return data || []
 }

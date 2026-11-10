@@ -44,6 +44,8 @@ export default function Diet() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [adding, setAdding] = useState(false)
+  // Phase 3: what the add sheet opens on: a new photo, or an 'auto' meal to check.
+  const [sheetStart, setSheetStart] = useState({ initialFile: null, checkMeal: null })
   const [sheetDay, setSheetDay] = useState(() => localDay(new Date()))
   const [sheetKey, setSheetKey] = useState(0)
   const today = localDay(new Date())
@@ -126,13 +128,43 @@ export default function Diet() {
         ))}
       </div>
 
-      {tab === 'today' && <DietToday lib={lib} logs={todayLogs} onChanged={changed} onAdd={() => setAdding(true)} onOpenSettings={() => goTab('settings')} />}
+      {tab === 'today' && (
+        <DietToday
+          lib={lib}
+          logs={todayLogs}
+          onChanged={changed}
+          onAdd={() => {
+            setSheetStart({ initialFile: null, checkMeal: null })
+            setAdding(true)
+          }}
+          onPhoto={(file) => {
+            setSheetStart({ initialFile: file, checkMeal: null })
+            setAdding(true)
+          }}
+          onCheck={(meal) => {
+            setSheetStart({ initialFile: null, checkMeal: meal })
+            setAdding(true)
+          }}
+          onOpenSettings={() => goTab('settings')}
+        />
+      )}
       {tab === 'sheet' && <DailySheet key={sheetKey} day={sheetDay} onDayChange={setSheetDay} onChanged={load} />}
       {tab === 'weight' && <WeightTab onChanged={load} />}
       {tab === 'library' && <LibraryTab lib={lib} onChanged={load} />}
       {tab === 'settings' && <DietSettingsForm key={lib.settings?.updated_at ?? 'new'} settings={lib.settings} onSaved={load} />}
 
-      <AddFoodSheet isOpen={adding} onClose={() => setAdding(false)} lib={lib} todayLogs={todayLogs} onLogged={changed} />
+      <AddFoodSheet
+        isOpen={adding}
+        onClose={() => {
+          setAdding(false)
+          setSheetStart({ initialFile: null, checkMeal: null })
+        }}
+        lib={lib}
+        todayLogs={todayLogs}
+        onLogged={changed}
+        initialFile={sheetStart.initialFile}
+        checkMeal={sheetStart.checkMeal}
+      />
     </div>
   )
 }

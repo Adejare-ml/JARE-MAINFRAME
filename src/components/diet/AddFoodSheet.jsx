@@ -12,6 +12,9 @@ import VerdictBadge from './VerdictBadge'
 // Phase 2: type or say it, then review what was read.
 import DescribeFood from './DescribeFood'
 import ParsedReview from './ParsedReview'
+// Phase 3: a photo, read by Claude and NVIDIA (and the laptop's Ollama later).
+import PhotoFlow from './PhotoFlow'
+import { hasColumn } from '../../lib/schema'
 
 const PORTION_STEPS = [0.5, 1, 1.5, 2]
 
@@ -30,7 +33,7 @@ const PORTION_STEPS = [0.5, 1, 1.5, 2]
  *
  * Added for the Diet module, Phase 1 (docs/diet-module.md).
  */
-export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onLogged, mode = 'log' }) {
+export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onLogged, mode = 'log', initialFile = null, checkMeal = null }) {
   const [query, setQuery] = useState('')
   const [basket, setBasket] = useState([])
   const [picking, setPicking] = useState(null)
@@ -42,6 +45,9 @@ export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onL
   const [custom, setCustom] = useState(null)
   const [busy, setBusy] = useState(false)
   const [parsed, setParsed] = useState(null)
+  // Phase 3: {file} for a new photo, {meal} to check an 'auto' photo meal.
+  const [photo, setPhoto] = useState(null)
+  const photosReady = hasColumn('meal_estimates.answer')
   const searchRef = useRef(null)
 
   // A fresh sheet every time it opens: the slot and clock follow the hour.
@@ -52,13 +58,14 @@ export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onL
     setPicking(null)
     setCustom(null)
     setParsed(null)
+    setPhoto(initialFile ? { file: initialFile } : checkMeal ? { meal: checkMeal } : null)
     setSaveAs(mode === 'save')
     setSaveName('')
     setSlot(slotForHour(localHour()))
     setTime(localTime(new Date()))
     const t = setTimeout(() => searchRef.current?.focus(), 50)
     return () => clearTimeout(t)
-  }, [isOpen, mode])
+  }, [isOpen, mode, initialFile, checkMeal])
 
   const results = useMemo(() => (lib ? searchFoods(query, lib.foods, lib.recipes, 30) : []), [query, lib])
   const priced = useMemo(() => (lib ? priceItems(basket, lib) : []), [basket, lib])
@@ -162,6 +169,49 @@ export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onL
           </button>
         </div>
 
+        {/* Phase 3: a photo being read, or an 'auto' photo meal to check.
+            Like a parsed note, it takes over the sheet until it is done. */}
+        {photo && (
+          <PhotoFlow
+            file={photo.file ?? null}
+            meal={photo.meal ?? null}
+            lib={lib}
+            todayLogs={todayLogs}
+            onCancel={() => {
+              setPhoto(null)
+              onLogged?.()
+              if (initialFile || checkMeal) onClose()
+            }}
+            onDone={(res) => {
+              onLogged?.(res)
+              onClose()
+            }}
+          />
+        )}
+
+        {/* Phase 3: the camera, one tap. capture=environment opens the back
+            camera on a phone; on a desktop it is a file picker. */}
+        {!photo && !parsed && mode === 'log' && basket.length === 0 && !picking && !custom && (
+          photosReady ? (
+            <label className="flex items-center justify-center gap-2 bg-accent text-black font-extrabold text-sm rounded-xl min-h-[52px] cursor-pointer hover:bg-accent/90">
+              <span aria-hidden="true">📷</span> Snap the plate
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="sr-only"
+                onChange={(e) => {
+                  const f = e.target.files?.[0]
+                  e.target.value = ''
+                  if (f) setPhoto({ file: f })
+                }}
+              />
+            </label>
+          ) : (
+            <p className="text-[11px] text-orange-300">Run supabase/migrations/052_diet_photos.sql to log meals from a photo.</p>
+          )
+        )}
+
         {/* Phase 2: a note the parser has read, waiting for "Looks right".
             It replaces the rest of the sheet until it is logged or dropped. */}
         {parsed && (
@@ -181,10 +231,10 @@ export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onL
 
         {/* Phase 2: type or say it. Only for logging, and only before a
             meal has been started by hand, so the two ways do not mix. */}
-        {!parsed && mode === 'log' && basket.length === 0 && !picking && !custom && <DescribeFood onParsed={setParsed} />}
+        {!photo && !parsed && mode === 'log' && basket.length === 0 && !picking && !custom && <DescribeFood onParsed={setParsed} />}
 
         {/* What is in the meal so far */}
-        {!parsed && priced.length > 0 && (
+        {!photo && !parsed && priced.length > 0 && (
           <section aria-label="This meal" className="rounded-2xl bg-background/60 border border-white/10 p-3 space-y-2">
             <ul className="space-y-1">
               {priced.map((item, i) => (
@@ -217,7 +267,7 @@ export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onL
         )}
 
         {/* Find a food */}
-        {!parsed && !picking && !custom && (
+        {!photo && !parsed && !picking && !custom && (
           <div className="space-y-2">
             <label htmlFor="diet-food-search" className="sr-only">
               Search foods and recipes
@@ -339,7 +389,7 @@ export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onL
         )}
 
         {/* Which meal, when, and whether to keep it */}
-        {!parsed && basket.length > 0 && !picking && !custom && (
+        {!photo && !parsed && basket.length > 0 && !picking && !custom && (
           <div className="space-y-3">
             <div className="grid grid-cols-4 gap-1" role="radiogroup" aria-label="Meal">
               {SLOTS.map((s) => (

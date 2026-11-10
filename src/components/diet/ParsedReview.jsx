@@ -26,8 +26,14 @@ const PANTRY_WORDS = { bought: 'Bought', finished: 'Finished', used: 'Used' }
  * one does not lose the other.
  *
  * Added for the Diet module, Phase 2 (docs/diet-module.md).
+ *
+ * Phase 3 reuses it for photo meals, which are already in the log as
+ * 'auto': `onConfirm(items, {slot, verdict, reason, edited})` replaces the
+ * logging step (it confirms the existing meal instead), `header` shows the
+ * photo and how each model did, and `backLabel` names what Back does there
+ * ("Discard"). Without those props it behaves exactly as in Phase 2.
  */
-export default function ParsedReview({ entry, text, source, lib, todayLogs = [], onDone, onBack }) {
+export default function ParsedReview({ entry, text, source, lib, todayLogs = [], onDone, onBack, onConfirm = null, header = null, backLabel = 'Back' }) {
   const [items, setItems] = useState(entry.items)
   const [pantry, setPantry] = useState(() => entry.pantry.map((u) => ({ ...u, keep: true })))
   const [slot, setSlot] = useState(entry.meal_slot || slotForHour(localHour()))
@@ -56,6 +62,19 @@ export default function ParsedReview({ entry, text, source, lib, todayLogs = [],
   const confirm = async () => {
     setBusy(true)
     let logged = null
+    if (onConfirm) {
+      try {
+        const res = await onConfirm(items, { slot, verdict: preview.verdict, reason: preview.reason, edited: items.some((i) => i.edited) || items.length !== entry.items.length })
+        confirmBuzz()
+        toast.success(`${Number(res?.kcal ?? totals.kcal).toLocaleString()} kcal logged ✓`)
+        onDone?.(res)
+      } catch (err) {
+        toast.error('Not saved: ' + (err.message || 'check connection'))
+      } finally {
+        setBusy(false)
+      }
+      return
+    }
     try {
       if (items.length > 0) {
         logged = await logMeal({
@@ -92,9 +111,12 @@ export default function ParsedReview({ entry, text, source, lib, todayLogs = [],
 
   return (
     <div className="space-y-4" aria-label="Check the entry">
-      <p className="text-[11px] text-muted">
-        From {source === 'voice' ? 'what you said' : 'what you typed'}: <span className="text-white">"{text}"</span>
-      </p>
+      {header}
+      {text && (
+        <p className="text-[11px] text-muted">
+          From {source === 'voice' ? 'what you said' : source === 'photo' ? 'your note' : 'what you typed'}: <span className="text-white">"{text}"</span>
+        </p>
+      )}
 
       {entry.question && (
         <p className="rounded-xl border border-orange-400/30 bg-orange-400/10 px-3 py-2 text-xs text-orange-200" role="note">
@@ -187,7 +209,7 @@ export default function ParsedReview({ entry, text, source, lib, todayLogs = [],
 
       <div className="grid grid-cols-[auto_1fr] gap-2">
         <button type="button" onClick={onBack} className="px-4 min-h-[52px] rounded-xl bg-white/5 text-white text-sm font-bold">
-          Back
+          {backLabel}
         </button>
         <button type="button" onClick={confirm} disabled={busy || nothing} className="min-h-[52px] rounded-xl bg-accent text-black font-extrabold text-sm disabled:opacity-50">
           {busy ? 'Saving…' : 'Looks right'}

@@ -136,6 +136,24 @@ export default function DietSettingsForm({ settings, onSaved }) {
         </Field>
       </section>
 
+      {/* Phase 3: the photo models and how long photos are kept. */}
+      <section className="bg-card rounded-3xl p-6 border border-white/10 space-y-4">
+        <h2 className="text-xs font-semibold text-muted uppercase tracking-wider border-b border-white/5 pb-3">Photo models</h2>
+        <p className="text-[11px] text-muted leading-relaxed">
+          Claude and NVIDIA read each photo in the cloud; Ollama reads it later on your laptop. Leave a model blank for the default. Photos older than the retention are
+          deleted every week; blank keeps them.
+        </p>
+        <Field id="ds-nv" label="NVIDIA vision model (build.nvidia.com)" error={errors.nvidia_vision_model}>
+          <input id="ds-nv" value={form.nvidia_vision_model} onChange={set('nvidia_vision_model')} placeholder="meta/llama-3.2-90b-vision-instruct" className={input} autoCapitalize="off" spellCheck="false" />
+        </Field>
+        <Field id="ds-ol" label="Ollama model on the laptop (fits in 8 GB)" error={errors.ollama_vision_model}>
+          <input id="ds-ol" value={form.ollama_vision_model} onChange={set('ollama_vision_model')} placeholder="qwen3-vl:8b" className={input} autoCapitalize="off" spellCheck="false" />
+        </Field>
+        <Field id="ds-ret" label="Keep photos for (days)" error={errors.photo_retention_days}>
+          <input id="ds-ret" type="number" inputMode="numeric" value={form.photo_retention_days} onChange={set('photo_retention_days')} placeholder="Keep them" className={input} />
+        </Field>
+      </section>
+
       <button type="submit" disabled={saving} className="w-full min-h-[52px] rounded-xl bg-accent text-black font-extrabold text-sm disabled:opacity-60">
         {saving ? 'Saving…' : 'Save diet settings'}
       </button>
@@ -175,5 +193,7 @@ function toForm(s) {
     avoid_foods: (s?.avoid_foods || []).join(', '),
     substitutes: v(s?.substitutes),
     photo_retention_days: v(s?.photo_retention_days),
+    nvidia_vision_model: v(s?.nvidia_vision_model),
+    ollama_vision_model: v(s?.ollama_vision_model),
   }
 }

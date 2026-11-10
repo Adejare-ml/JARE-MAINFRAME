@@ -17,7 +17,7 @@ import VerdictBadge from './VerdictBadge'
  *
  * Added for the Diet module, Phase 1 (docs/diet-module.md).
  */
-export default function DietToday({ lib, logs, onChanged, onAdd, onOpenSettings }) {
+export default function DietToday({ lib, logs, onChanged, onAdd, onOpenSettings, onPhoto, onCheck }) {
   const [logging, setLogging] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
   const settings = lib.settings
@@ -88,9 +88,26 @@ export default function DietToday({ lib, logs, onChanged, onAdd, onOpenSettings 
           </button>
         )}
 
-        <button type="button" onClick={onAdd} className="mt-4 w-full flex items-center justify-center gap-2 bg-accent text-black font-extrabold text-sm rounded-xl min-h-[52px] hover:bg-accent/90">
-          <span aria-hidden="true">＋</span> Add food
-        </button>
+        {/* Phase 3: the camera is one tap from here; Add food holds the rest. */}
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <label className="flex items-center justify-center gap-2 bg-accent text-black font-extrabold text-sm rounded-xl min-h-[52px] cursor-pointer hover:bg-accent/90">
+            <span aria-hidden="true">📷</span> Snap
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="sr-only"
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                e.target.value = ''
+                if (f) onPhoto?.(f)
+              }}
+            />
+          </label>
+          <button type="button" onClick={onAdd} className="flex items-center justify-center gap-2 bg-white/10 border border-white/10 text-white font-extrabold text-sm rounded-xl min-h-[52px] hover:bg-white/15">
+            <span aria-hidden="true">＋</span> Add food
+          </button>
+        </div>
 
         {lib.saved.length > 0 && (
           <div className="mt-4">
@@ -141,7 +158,14 @@ export default function DietToday({ lib, logs, onChanged, onAdd, onOpenSettings 
                             {localTime(m.eaten_at)} · {round1(m.protein_g)} g protein{m.source === 'saved' ? ' · one tap' : ''}
                           </p>
                         </div>
-                        <VerdictBadge verdict={m.verdict} />
+                        {/* Phase 3: a photo meal the owner has not checked yet. */}
+                        {m.status === 'auto' ? (
+                          <button type="button" onClick={() => onCheck?.(m)} className="shrink-0 px-3 min-h-[44px] rounded-xl bg-orange-400/15 border border-orange-400/30 text-orange-200 text-xs font-bold">
+                            Check
+                          </button>
+                        ) : (
+                          <VerdictBadge verdict={m.verdict} />
+                        )}
                         <span className="text-sm font-bold text-white tabular-nums shrink-0">{Number(m.kcal).toLocaleString()}</span>
                         {confirmDelete === m.id ? (
                           <button type="button" onClick={() => remove(m.id)} className="shrink-0 px-3 rounded-xl bg-red-500/20 text-red-300 text-xs font-bold min-h-[48px]">

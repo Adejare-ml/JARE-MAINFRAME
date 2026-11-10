@@ -25,6 +25,8 @@ export default function DietCard() {
   const [lib, setLib] = useState(null)
   const [logs, setLogs] = useState([])
   const [open, setOpen] = useState(false)
+  // Phase 3: the camera returns to the card: a photo opens the sheet on it.
+  const [file, setFile] = useState(null)
   const today = localDay(new Date())
 
   const load = useCallback(async () => {
@@ -88,12 +90,32 @@ export default function DietCard() {
           </p>
         </div>
       </div>
-      <div className="grid grid-cols-[1fr_auto] gap-2 mt-4">
+      <div className="grid grid-cols-[1fr_1fr_auto] gap-2 mt-4">
+        <label className={`flex items-center justify-center gap-2 bg-accent text-black font-extrabold text-sm rounded-xl min-h-[48px] cursor-pointer hover:bg-accent/90 ${lib ? '' : 'opacity-60 pointer-events-none'}`}>
+          <span aria-hidden="true">📷</span> Snap
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="sr-only"
+            disabled={!lib}
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              e.target.value = ''
+              if (!f) return
+              setFile(f)
+              setOpen(true)
+            }}
+          />
+        </label>
         <button
           type="button"
-          onClick={() => setOpen(true)}
+          onClick={() => {
+            setFile(null)
+            setOpen(true)
+          }}
           disabled={!lib}
-          className="flex items-center justify-center gap-2 bg-accent text-black font-extrabold text-sm rounded-xl min-h-[48px] hover:bg-accent/90 disabled:opacity-60"
+          className="flex items-center justify-center gap-2 bg-white/10 border border-white/10 text-white font-extrabold text-sm rounded-xl min-h-[48px] hover:bg-white/15 disabled:opacity-60"
         >
           <span aria-hidden="true">＋</span> Log food
         </button>
@@ -101,7 +123,19 @@ export default function DietCard() {
           Diet →
         </Link>
       </div>
-      {lib && <AddFoodSheet isOpen={open} onClose={() => setOpen(false)} lib={lib} todayLogs={logs} onLogged={load} />}
+      {lib && (
+        <AddFoodSheet
+          isOpen={open}
+          onClose={() => {
+            setOpen(false)
+            setFile(null)
+          }}
+          lib={lib}
+          todayLogs={logs}
+          onLogged={load}
+          initialFile={file}
+        />
+      )}
     </section>
   )
 }
