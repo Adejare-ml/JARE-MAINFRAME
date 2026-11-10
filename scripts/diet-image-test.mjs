@@ -25,7 +25,7 @@
 import { appendFileSync, readFileSync, writeFileSync } from 'node:fs'
 import { createClient } from '@supabase/supabase-js'
 import { resolveOwnerUserId } from './lib/ownerId.mjs'
-import { askClaude, askNvidia, askOllama, hasClaude, hasNvidia, hasOllama, CLAUDE_VISION_MODEL, NVIDIA_VISION_MODEL, OLLAMA_VISION_MODEL } from './lib/models.mjs'
+import { askClaude, askNvidia, askOllama, hasClaude, hasNvidia, hasOllama, CLAUDE_VISION_MODEL, NVIDIA_VISION_MODEL, OLLAMA_VISION_MODEL, nvidiaVisionModels } from './lib/models.mjs'
 import { FOOD_VISION_JSON_SCHEMA, checkVision } from '../src/lib/diet/visionSchema.js'
 import { FOOD_VISION_MD } from '../src/lib/diet/promptText.js'
 import { fillPrompt, visionUserMessage } from '../src/lib/diet/prompts.js'
@@ -70,8 +70,8 @@ function sniffMime(bytes) {
 async function fetchRow(row) {
   const url = `https://datasets-server.huggingface.co/rows?dataset=${encodeURIComponent(DATASET)}&config=default&split=train&offset=${row}&length=1`
   let res = await fetch(url)
-  if (!res.ok) {
-    await new Promise((r) => setTimeout(r, 3000))
+  for (let attempt = 1; attempt < 4 && !res.ok; attempt++) {
+    await new Promise((r) => setTimeout(r, 5000 * attempt))
     res = await fetch(url)
   }
   return res
@@ -170,6 +170,14 @@ async function main() {
   const slow = results.filter((r) => r.appMs > PHOTO_TARGET_MS).length
   summary(`- Photo to answer under 30 s (Claude and NVIDIA, in parallel): ${tested - slow}/${tested}`)
   summary(`\n✓ = the model named the dish the photo shows; ✗ dish = it did not. Grams and calories have no ground truth here: compare the models with each other, and with your own meals once you log them.`)
+
+  // Added after the second run: which NVIDIA models can read images today,
+  // so the next choice comes from the catalog, not from memory.
+  if (hasNvidia()) {
+    const list = await nvidiaVisionModels()
+    summary(`\n### NVIDIA models that read images (from the catalog, ${new Date().toISOString().slice(0, 10)})\n\n${list.ok ? list.ids.map((id) => `- \`${id}\``).join('\n') || '_none matched_' : `_could not list: ${list.reason}_`}`)
+    console.log(`NVIDIA vision models: ${list.ok ? list.ids.join(', ') : list.reason}`)
+  }
 
   if (tested === 0) throw new Error('no photo could be loaded')
 }

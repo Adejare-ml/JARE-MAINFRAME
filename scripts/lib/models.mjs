@@ -22,7 +22,24 @@ export const OLLAMA_TEXT_MODEL = () => env('OLLAMA_MODEL', 'gemma4:31b-cloud')
 export const OLLAMA_VISION_MODEL = () => env('OLLAMA_VISION_MODEL', 'gemma4:31b-cloud')
 // Changed after the first image test (10 Nov): meta/llama-3.2-90b-vision-instruct
 // took 40 to 60 s a photo and refused most of them ("I cannot provide...").
-export const NVIDIA_VISION_MODEL = () => env('NVIDIA_VISION_MODEL', 'meta/llama-4-maverick-17b-128e-instruct')
+// The second image test found meta/llama-4-maverick-17b-128e-instruct retired
+// (410 Gone), so the default is back to the model the edge function uses until
+// the catalog listing below names a better one (repository variable
+// NVIDIA_VISION_MODEL overrides it without a code change).
+export const NVIDIA_VISION_MODEL = () => env('NVIDIA_VISION_MODEL', 'meta/llama-3.2-90b-vision-instruct')
+
+/** The NVIDIA catalog's model ids that look like they read images, for the image test's report. */
+export async function nvidiaVisionModels() {
+  const base = env('NVIDIA_BASE_URL', 'https://integrate.api.nvidia.com/v1').replace(/\/$/, '')
+  try {
+    const res = await timed(15000, (signal) => fetch(`${base}/models`, { headers: { Authorization: `Bearer ${env('NVIDIA_API_KEY')}` }, signal }))
+    if (!res.ok) return { ok: false, reason: `NVIDIA ${res.status}` }
+    const ids = ((await res.json())?.data || []).map((m) => m.id)
+    return { ok: true, ids: ids.filter((id) => /vision|-vl|vlm|multimodal|maverick|scout|gemma-3|gemma-4|pixtral|qwen.*vl|llava|kimi.*vl|phi-4-multi/i.test(id)).sort() }
+  } catch (err) {
+    return { ok: false, reason: String(err.message).slice(0, 100) }
+  }
+}
 
 export const hasClaude = () => Boolean(env('ANTHROPIC_API_KEY'))
 export const hasOllama = () => Boolean(env('OLLAMA_API_KEY'))
