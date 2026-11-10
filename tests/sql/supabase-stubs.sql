@@ -51,6 +51,14 @@ $$;
 
 grant usage on schema public to anon, authenticated, service_role;
 
+-- Supabase's service_role bypasses row level security; the edge functions'
+-- admin clients and the scheduled scripts rely on it. Added for the Diet
+-- module, Phase 3, whose db-test check calls diet_replace_items as the
+-- service role (the laptop worker's re-merge). Without this the stub role
+-- saw no rows, which passed on a machine where the attribute had been set
+-- by hand and failed in CI.
+alter role service_role bypassrls;
+
 do $$
 begin
   if not exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
