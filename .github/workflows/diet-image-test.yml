@@ -17,6 +17,7 @@ on:
     paths:
       - scripts/diet-image-test.mjs
       - scripts/fixtures/diet-images.json
+      - scripts/lib/models.mjs
 
 permissions:
   contents: read

@@ -55,8 +55,30 @@ async function loadLibrary() {
   }
 }
 
+// Added after the first run: the dataset server sends photos as
+// binary/octet-stream, which Claude refuses, so the type is read from the
+// file's first bytes; and it answered 502 for two rows, so a row is fetched
+// twice before it is given up.
+function sniffMime(bytes) {
+  if (bytes[0] === 0xff && bytes[1] === 0xd8) return 'image/jpeg'
+  if (bytes[0] === 0x89 && bytes[1] === 0x50) return 'image/png'
+  if (bytes.slice(0, 4).toString() === 'RIFF' && bytes.slice(8, 12).toString() === 'WEBP') return 'image/webp'
+  if (bytes.slice(0, 3).toString() === 'GIF') return 'image/gif'
+  return null
+}
+
+async function fetchRow(row) {
+  const url = `https://datasets-server.huggingface.co/rows?dataset=${encodeURIComponent(DATASET)}&config=default&split=train&offset=${row}&length=1`
+  let res = await fetch(url)
+  if (!res.ok) {
+    await new Promise((r) => setTimeout(r, 3000))
+    res = await fetch(url)
+  }
+  return res
+}
+
 async function loadPhoto(row) {
-  const res = await fetch(`https://datasets-server.huggingface.co/rows?dataset=${encodeURIComponent(DATASET)}&config=default&split=train&offset=${row}&length=1`)
+  const res = await fetchRow(row)
   if (!res.ok) throw new Error(`dataset row ${row}: ${res.status}`)
   const src = (await res.json()).rows?.[0]?.row?.image?.src
   if (!src) throw new Error(`dataset row ${row}: no image`)
@@ -64,7 +86,9 @@ async function loadPhoto(row) {
   if (!img.ok) throw new Error(`photo ${row}: ${img.status}`)
   const bytes = Buffer.from(await img.arrayBuffer())
   if (bytes.length > 3.5 * 1024 * 1024) throw new Error(`photo ${row} is ${(bytes.length / 1e6).toFixed(1)} MB, over the app's limit`)
-  return { base64: bytes.toString('base64'), mime: img.headers.get('content-type') || 'image/jpeg', kb: Math.round(bytes.length / 1024) }
+  const mime = sniffMime(bytes)
+  if (!mime) throw new Error(`photo ${row} is not a JPEG, PNG, WebP or GIF`)
+  return { base64: bytes.toString('base64'), mime, kb: Math.round(bytes.length / 1024) }
 }
 
 async function runModel(name, call) {

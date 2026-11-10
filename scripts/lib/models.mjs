@@ -20,7 +20,9 @@ export const CLAUDE_TEXT_MODEL = () => env('DIET_CLAUDE_TEXT_MODEL', 'claude-hai
 export const CLAUDE_VISION_MODEL = () => env('DIET_PHOTO_CLAUDE_MODEL', 'claude-sonnet-5-5')
 export const OLLAMA_TEXT_MODEL = () => env('OLLAMA_MODEL', 'gemma4:31b-cloud')
 export const OLLAMA_VISION_MODEL = () => env('OLLAMA_VISION_MODEL', 'gemma4:31b-cloud')
-export const NVIDIA_VISION_MODEL = () => env('NVIDIA_VISION_MODEL', 'meta/llama-3.2-90b-vision-instruct')
+// Changed after the first image test (10 Nov): meta/llama-3.2-90b-vision-instruct
+// took 40 to 60 s a photo and refused most of them ("I cannot provide...").
+export const NVIDIA_VISION_MODEL = () => env('NVIDIA_VISION_MODEL', 'meta/llama-4-maverick-17b-128e-instruct')
 
 export const hasClaude = () => Boolean(env('ANTHROPIC_API_KEY'))
 export const hasOllama = () => Boolean(env('OLLAMA_API_KEY'))
