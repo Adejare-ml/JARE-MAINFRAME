@@ -222,3 +222,78 @@ Storage bucket and policies; client compression to 1024 px; `diet-analyze` with 
 13. **Browser verification.** This container has no Supabase credentials, and migrations here are applied by hand. Proposal: apply Phase 1 migrations to a Supabase branch (or to the live project, with the owner's go-ahead each time) and check the screens against it with Playwright before reporting Phase 1 done.
 14. **Firsts.** Database views, a storage bucket, an HTML `<table>`, a Python worker and a third AI provider are all new to this repo. They are listed here so each is a choice, not an accident.
 15. **Old Meals module.** Its page, card and `analyze-meal` function are kept in the tree until Diet covers everything they do, then retired in a separate, reviewable commit. The `meals` table stays.
+
+---
+
+## 8. Phase 1 build notes (added after sign-off)
+
+Added when Phase 1 was built, so a teammate can follow what was done and why. Nothing above this section was changed.
+
+### What was built
+
+- **Logic, test-first** (`src/lib/diet/`, `tests/diet-*.test.js`, 74 tests): nutrition, recipes, totals and the 7-day average, settings, verdict, target, food search, Daily Sheet. All load under plain Node and are in the CI load list.
+- **Migrations**, numbered differently from section 2, which named 048 and 049:
+  - `048_diet.sql`: the nine tables, RLS, `log_diet_meal`, the two pricing and summing triggers, and the two views.
+  - `049_diet_seed.sql`: 65 foods, the Beans pot, two saved meals, and a settings row.
+  - `050_diet_backfill.sql`: the copy of `meals`.
+  - Run them in that order in the SQL editor. Each is idempotent and ends with a verify block.
+- **`scripts/db-test.mjs`**: five Diet checks, run as the signed-in owner (role `authenticated`):
+  - pricing from foods and recipes;
+  - idempotency on a client id;
+  - sheet totals equal the sum of their items, in the view as well;
+  - the Lagos day boundary;
+  - the 7-day average skipping unlogged days;
+  - the backfill, run twice;
+  - a second account seeing nothing.
+- **Screens**:
+  - `/diet` with five tabs: Today, Sheet, Weight, Library, Settings.
+  - `DietCard` on Daily HQ in place of `FoodToday`.
+  - `/meals` redirects to `/diet`, keeping the query string.
+  - The PWA shortcut now opens `/diet?add=1`.
+  - The Meals nav entry is hidden rather than deleted, so its comment stays.
+
+### Decisions made while building
+
+- **Every seeded food is marked `estimated`.** fao.org was unreachable from the build machine (network policy), so no figure was checked against WAFCT 2019. Each row's `source` says so. Editing a food in Library clears the mark.
+- **Item and meal figures are computed in the database by triggers**, not only in `log_diet_meal`. A direct edit in the table editor still re-prices and re-sums. Free items, with no food behind them, keep the figures they were given.
+- **Sources gain `manual`**, for meals picked food by food on the Today screen. The spec's four sources had no value for a hand-entered meal.
+- **`recipes.cooked_weight_g`** is optional. Without it, grams per portion is raw weight divided by portions, which understates the cooked plate. The kcal per portion is right either way.
+- **XLSX uses `write-excel-file/universal`**, imported only when Export is tapped (a separate chunk of about 70 kB). The library's browser build writes in a `blob:` Web Worker, which the CSP (`worker-src 'self'`) blocks.
+- **The verdict is computed in code for every Phase 1 meal.** All Phase 1 meals have known numbers, so no model is involved.
+- **Settings → Meals keeps its old calorie-target field**, with a pointer to Diet settings. Removing it means rewriting the code and comments around it, which this build does not do. Nothing reads that field now. Suggest removing it in a later change.
+- **The old Meals files are still in the tree.** `Meals.jsx`, `FoodToday.jsx`, `MealCapture.jsx` and the `meals` table are kept for Phase 3, which reuses the capture code.
+
+### Issues found and fixed during the browser check
+
+The check ran on a local copy: Postgres 16 with every migration applied, PostgREST 12 in Docker, and a stub for Supabase auth. Playwright drove it as an iPhone 13 and a Pixel 7 in the Lagos time zone.
+
+1. **The Daily Sheet widened the whole page on a phone** (634 px on a 390 px screen), so taps landed off target and the export buttons could not be pressed. The `sr-only` header label (`position: absolute`) was laid out against the page rather than the table's scroller. Fixed by making the scroller `relative`.
+2. **On a phone, kcal was off-screen in the sheet.** On screen, time and meal now share one two-line cell. The files keep all eight columns.
+3. **Breakfast listed after lunch when both were logged in the same minute.** Rows now sort by minute, then by slot. A test was added.
+4. **`/meals?snap=1` lost its query string**, so the old home-screen shortcut did not open the add sheet. The redirect now carries the query string.
+5. **`log_diet_meal` called `auth.uid()` explicitly.** That needs USAGE on the `auth` schema, which the harness stubs do not grant. RLS already scopes the lookup, so the call was removed.
+
+### Known limitation, not specific to Diet
+
+The light theme is a partial first slice (see `src/index.css`). Every page, Diet included, writes `text-white`, so numbers are unreadable in light mode. In the check, Diet was reviewed in dark mode, the app's default. The per-page light-theme pass is still open for the whole app.
+
+### Checked
+
+- `npm run lint`: 0 errors. The warnings are the React Compiler `set-state-in-effect` warnings that every page has.
+- `npm test`: 1,122 passing.
+- `npm run build`: clean.
+- `npm run test:db`: 32 of 32.
+- In the browser, all of these work:
+  - targets saved;
+  - a saved meal logs in one tap, in under 100 ms against the local database;
+  - a meal built from the Beans pot and an orange;
+  - verdicts shown;
+  - Sheet totals equal to the sum of its rows (kcal, protein, carbs, fat);
+  - an edit of the grams re-prices the item and the day;
+  - CSV and XLSX download on desktop and phone;
+  - the XLSX opens in LibreOffice and openpyxl, with numbers stored as numbers and totals matching;
+  - two weigh-ins draw the trend;
+  - the Daily HQ card shows kcal and protein left;
+  - the old shortcut opens the add sheet.
+- **Not checked: Excel itself.** It was not available on the build machine.
+- **Not checked: the live Supabase project.** No migration has been applied to it.
