@@ -153,6 +153,10 @@ export const GATED_COLUMNS = {
   'meal_items.estimates': '048_diet.sql',
   'weight_logs.weight_kg': '048_diet.sql',
   'pantry_items.finished': '048_diet.sql',
+  // The pantry ledger behind text and voice updates (Diet module, Phase 2).
+  // A database behind 051 costs the confirm step of a pantry update a
+  // notice naming the file; meals logged from text still work.
+  'pantry_events.outcome': '051_diet_pantry.sql',
 }
 
 /**

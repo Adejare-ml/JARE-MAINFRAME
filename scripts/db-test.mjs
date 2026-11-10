@@ -564,13 +564,73 @@ async function runChecks() {
     eq(akara.orig, 'Akara', 'original item kept under estimates.legacy_042')
   })
 
+  // ── Diet, Phase 2 (051): pantry updates from a sentence, and flags ──────
+  const applyPantry = async (clientId, updates, raw = null) =>
+    (await one('select apply_pantry_updates($1, $2::jsonb, $3) as r', [clientId, JSON.stringify(updates), raw])).r
+
+  await check('apply_pantry_updates: bought, used, finished, and a retry that applies nothing twice (051)', async () => {
+    await asOwner(async () => {
+      const beans = await foodId('brown beans, dry')
+      const egg = await foodId('egg, boiled')
+      const bought = await applyPantry('db-test-pantry-1', [
+        { action: 'bought', name: 'beans', food_id: beans, quantity: 2, unit: 'kg', cost_naira: 3000 },
+        { action: 'bought', name: 'eggs', food_id: egg, quantity: 30, unit: 'eggs', cost_naira: 5400 },
+      ], 'bought 2 kg beans for 3,000 and a crate of eggs for 5,400')
+      eq(bought.applied, 2, 'applied')
+      const row = await one("select quantity, unit, cost_naira, finished from pantry_items where food_id = $1", [beans])
+      eq(Number(row.quantity), 2, 'beans quantity')
+      eq(Number(row.cost_naira), 3000, 'beans cost')
+
+      const again = await applyPantry('db-test-pantry-1', [
+        { action: 'bought', name: 'beans', food_id: beans, quantity: 2, unit: 'kg', cost_naira: 3000 },
+        { action: 'bought', name: 'eggs', food_id: egg, quantity: 30, unit: 'eggs', cost_naira: 5400 },
+      ])
+      eq(again.applied, 0, 'a retry applies nothing')
+      eq(again.duplicates, 2, 'duplicates')
+      const n = await one('select count(*)::int as n from pantry_items where food_id = $1', [beans])
+      eq(n.n, 1, 'beans rows after a retry')
+
+      const used = await applyPantry('db-test-pantry-2', [{ action: 'used', name: 'eggs', food_id: egg, quantity: 3 }])
+      eq(used.results[0].outcome, 'reduced', 'used outcome')
+      eq(Number((await one('select quantity from pantry_items where food_id = $1', [egg])).quantity), 27, 'eggs left')
+
+      // "eggs finished", matched by name with no food id.
+      const done = await applyPantry('db-test-pantry-3', [{ action: 'finished', name: 'Eggs' }])
+      eq(done.results[0].outcome, 'finished', 'finished outcome')
+      eq((await one('select finished from pantry_items where food_id = $1', [egg])).finished, true, 'eggs finished')
+
+      const nothing = await applyPantry('db-test-pantry-4', [{ action: 'finished', name: 'garri' }])
+      eq(nothing.results[0].outcome, 'recorded', 'finishing something not in the pantry changes nothing')
+      const events = await one("select count(*)::int as n from pantry_events where client_id like 'db-test-pantry-%'")
+      eq(events.n, 5, 'ledger rows')
+    })
+  })
+
+  await check('log_diet_meal stores the parser flags and marks the meal for review (051)', async () => {
+    await asOwner(async () => {
+      const r = await logDiet('db-test-text-1', { meal_slot: 'lunch', source: 'text', raw_text: 'mama put rice and stew' }, [
+        { food_id: await foodId('white rice, boiled'), grams: 300, estimates: { claude_text: { grams: 300 } } },
+        { name: 'Mama put stew', grams: 120, kcal: 180, flagged: true, flag_reason: 'Not in your foods list' },
+      ])
+      const meal = await one('select source, raw_text, needs_review, kcal from meal_logs where id = $1', [r.id])
+      eq(meal.source, 'text', 'source')
+      eq(meal.needs_review, true, 'needs_review')
+      eq(meal.kcal, 390 + 180, 'kcal')
+      const flagged = await one("select flagged, flag_reason, estimates from meal_items where meal_id = $1 and name = 'Mama put stew'", [r.id])
+      eq(flagged.flagged, true, 'flagged')
+      eq(flagged.flag_reason, 'Not in your foods list', 'flag_reason')
+      const rice = await one("select estimates->'claude_text'->>'grams' as g from meal_items where meal_id = $1 and food_id is not null", [r.id])
+      eq(rice.g, '300', 'the model estimate kept beside the final numbers')
+    })
+  })
+
   await check('a second account sees no Diet rows, through the tables or the views (048)', async () => {
     const other = '33333333-3333-4333-8333-333333333333'
     await client.query('insert into auth.users (id, email) values ($1, $2)', [other, 'diet-stranger@example.test'])
     await client.query('set role authenticated')
     await client.query("select set_config('request.jwt.claims', $1, false)", [JSON.stringify({ sub: other, role: 'authenticated' })])
     try {
-      for (const t of ['meal_logs', 'meal_items', 'foods', 'recipes', 'saved_meals', 'diet_settings', 'diet_daily_totals', 'diet_7day_average']) {
+      for (const t of ['meal_logs', 'meal_items', 'foods', 'recipes', 'saved_meals', 'diet_settings', 'pantry_items', 'pantry_events', 'diet_daily_totals', 'diet_7day_average']) {
         const seen = await one(`select count(*)::int as n from ${t}`)
         eq(seen.n, 0, `${t} rows visible to a stranger`)
       }

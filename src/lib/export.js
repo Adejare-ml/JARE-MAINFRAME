@@ -60,6 +60,8 @@ export const EXPORT_TABLES = [
   { name: 'meal_items', order: 'created_at' },
   { name: 'weight_logs', order: 'logged_at' },
   { name: 'pantry_items', order: 'bought_at' },
+  // What each confirmed pantry update changed (051), Diet module Phase 2.
+  { name: 'pantry_events', order: 'created_at' },
 ]
 
 /**
