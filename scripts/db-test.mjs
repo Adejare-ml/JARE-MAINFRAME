@@ -442,6 +442,151 @@ async function runChecks() {
     eq(noPolicy.join(','), '', 'tables with RLS but no policy')
   })
 
+  // ── Diet (048-050), added for the Diet module, Phase 1 ──────────────────
+  // These run as the signed-in owner (role authenticated, the owner's
+  // claims), the way the browser calls them, so RLS and the grants are
+  // part of what is tested. Expected figures come from the 049 seed:
+  // egg 155 kcal / 12.6 g protein per 100 g, boiled plantain 116 / 0.8,
+  // Beans pot 802.772 kcal / 45.87 g protein per portion.
+  const asOwner = async (fn) => {
+    await client.query('set role authenticated')
+    try {
+      return await fn()
+    } finally {
+      await client.query('reset role')
+    }
+  }
+  const foodId = async (name) => (await one('select id from foods where lower(name) = $1', [name])).id
+  const logDiet = async (clientId, meal, items) =>
+    (await one('select log_diet_meal($1, $2::jsonb, $3::jsonb) as r', [clientId, JSON.stringify(meal), JSON.stringify(items)])).r
+
+  await check('log_diet_meal prices a saved meal from its foods and sums the meal, once per client id (048, 049)', async () => {
+    await asOwner(async () => {
+      const saved = await one("select id, items from saved_meals where name = '3 boiled eggs + 1 plantain'")
+      assert(saved, 'the 049 saved meal is missing')
+      // The client sends only references and amounts, plus a figure it has
+      // no business sending; the database prices the items itself.
+      const items = saved.items.map((i) => ({ ...i, kcal: 9999 }))
+      const meal = { eaten_at: '2026-11-09T07:00:00Z', meal_slot: 'breakfast', source: 'saved', saved_meal_id: saved.id }
+      const first = await logDiet('db-test-saved-1', meal, items)
+      eq(first.inserted, true, 'inserted')
+      // 233 (150 g egg) + 209 (180 g plantain); 18.9 + 1.4 g protein
+      eq(first.kcal, 442, 'kcal')
+      eq(Number(first.protein_g), 20.3, 'protein_g')
+      const again = await logDiet('db-test-saved-1', meal, items)
+      eq(again.inserted, false, 'a retry inserts nothing')
+      eq(again.reason, 'duplicate', 'reason')
+      const n = await one("select count(*)::int as n from meal_logs where client_id = 'db-test-saved-1'")
+      eq(n.n, 1, 'meal_logs rows for one client id')
+    })
+  })
+
+  await check('a Beans pot portion logs at 803 kcal and 45.9 g protein, and the day is the sum of its items (048, 049)', async () => {
+    await asOwner(async () => {
+      const recipe = await one("select id from recipes where name = 'Beans pot'")
+      const r = await logDiet('db-test-pot-1', { eaten_at: '2026-11-09T12:30:00Z', meal_slot: 'lunch' }, [
+        { recipe_id: recipe.id, portions: 1 },
+        { food_id: await foodId('orange'), grams: 130 },
+        { name: 'Zobo from the office', grams: 350, kcal: 160, carbs_g: 39.5 },
+      ])
+      // 803 + 61 (130 g orange) + 160 (kept: no food behind it)
+      eq(r.kcal, 1024, 'kcal')
+      const pot = await one("select grams, kcal, protein_g from meal_items where meal_id = $1 and recipe_id is not null", [r.id])
+      eq(pot.kcal, 803, 'pot kcal')
+      eq(Number(pot.protein_g), 45.9, 'pot protein')
+      eq(Number(pot.grams), 300.8, 'pot grams (raw weight / 5; no cooked weight recorded)')
+
+      // The Daily Sheet's done-criterion, against the database: the day's
+      // total in diet_daily_totals equals the sum of every item that day.
+      const items = await one(
+        `select sum(i.kcal)::int as kcal, sum(i.protein_g) as protein_g from meal_items i
+           join meal_logs l on l.id = i.meal_id where l.eaten_on = '2026-11-09'`,
+      )
+      const day = await one("select kcal, protein_g, meals from diet_daily_totals where eaten_on = '2026-11-09'")
+      eq(day.kcal, items.kcal, 'view kcal vs sum of items')
+      eq(Number(day.protein_g), Number(items.protein_g), 'view protein vs sum of items')
+      eq(day.kcal, 442 + 1024, 'day kcal')
+      eq(day.meals, 2, 'meals that day')
+
+      // Editing grams re-prices the item and re-sums the meal.
+      await client.query("update meal_items set grams = 260 where meal_id = $1 and name = 'Orange'", [r.id])
+      const edited = await one('select kcal from meal_logs where id = $1', [r.id])
+      eq(edited.kcal, 803 + 122 + 160, 'after editing the orange to 260 g')
+    })
+  })
+
+  await check('a late meal is filed under its Lagos day, and the 7-day average skips unlogged days (048)', async () => {
+    await asOwner(async () => {
+      // 23:30 UTC on the 11th is 00:30 on the 12th in Lagos.
+      const late = await logDiet('db-test-late-1', { eaten_at: '2026-11-11T23:30:00Z', meal_slot: 'snacks' }, [
+        { food_id: await foodId('groundnuts, roasted'), grams: 30 },
+      ])
+      const row = await one('select eaten_on::text as d, kcal from meal_logs where id = $1', [late.id])
+      eq(row.d, '2026-11-12', 'eaten_on')
+      eq(row.kcal, 176, 'kcal of 30 g groundnuts')
+      // Logged days: the 9th (1,551 after the edit above) and the 12th (176).
+      // The 10th and 11th are unlogged and must not count as zero.
+      const avg = await one("select days_logged::int as n, kcal from diet_7day_average where eaten_on = '2026-11-12'")
+      eq(avg.n, 2, 'days logged in the window')
+      eq(avg.kcal, Math.round((442 + 1085 + 176) / 2), 'average kcal')
+    })
+  })
+
+  await check('old Meals rows are copied into meal_logs with the same calories, once (050)', async () => {
+    await asOwner(async () => {
+      await client.query(
+        `select log_meal('db-test-legacy-1', '[{"name":"Jollof rice","calories":600,"protein_g":12,"grams":400},
+                                              {"name":"Akara","calories":80,"quantity":3}]'::jsonb,
+                         '2026-11-01'::date, '13:15'::time, 'lunch', 'from the old page', 'text')`,
+      )
+      await client.query(`select log_meal('db-test-legacy-2', '[{"name":"Coke","calories":210}]'::jsonb, '2026-11-01'::date, null, 'snack')`)
+    })
+    // The migration runs as postgres, from the SQL editor; twice, to prove
+    // a re-run copies nothing twice.
+    await applyFile(client, '050_diet_backfill.sql')
+    await applyFile(client, '050_diet_backfill.sql')
+    const logs = await q(
+      `select l.meal_slot, l.source, l.kcal, l.raw_text, to_char(l.eaten_at at time zone 'Africa/Lagos', 'HH24:MI') as t,
+              (select count(*)::int from meal_items i where i.meal_id = l.id) as items
+         from meal_logs l join meals m on m.id = l.legacy_meal_id
+        where m.client_id like 'db-test-legacy-%' order by l.kcal desc`,
+    )
+    eq(logs.length, 2, 'copied meals')
+    eq(logs[0].kcal, 840, 'jollof meal kcal (600 + 3 x 80)')
+    eq(logs[0].items, 2, 'jollof meal items')
+    eq(logs[0].t, '13:15', 'Lagos time kept')
+    eq(logs[0].source, 'text', 'source')
+    eq(logs[0].raw_text, 'from the old page', 'note carried into raw_text')
+    eq(logs[1].meal_slot, 'snacks', "'snack' becomes 'snacks'")
+    eq(logs[1].t, '12:00', 'no time kept: noon')
+    const akara = await one("select grams, kcal, estimates->'legacy_042'->>'name' as orig from meal_items where name = 'Akara'")
+    eq(akara.kcal, 240, 'akara x3')
+    eq(akara.orig, 'Akara', 'original item kept under estimates.legacy_042')
+  })
+
+  await check('a second account sees no Diet rows, through the tables or the views (048)', async () => {
+    const other = '33333333-3333-4333-8333-333333333333'
+    await client.query('insert into auth.users (id, email) values ($1, $2)', [other, 'diet-stranger@example.test'])
+    await client.query('set role authenticated')
+    await client.query("select set_config('request.jwt.claims', $1, false)", [JSON.stringify({ sub: other, role: 'authenticated' })])
+    try {
+      for (const t of ['meal_logs', 'meal_items', 'foods', 'recipes', 'saved_meals', 'diet_settings', 'diet_daily_totals', 'diet_7day_average']) {
+        const seen = await one(`select count(*)::int as n from ${t}`)
+        eq(seen.n, 0, `${t} rows visible to a stranger`)
+      }
+      // And the stranger cannot price an item off the owner's foods: the
+      // food is invisible, so the item keeps only what was sent.
+      const ownerFood = '00000000-0000-4000-8000-000000000000'
+      const r = await logDiet('db-test-stranger-1', { meal_slot: 'lunch' }, [{ food_id: ownerFood, name: 'x', grams: 100, kcal: 5 }])
+      eq(r.kcal, 5, 'stranger meal kcal')
+    } finally {
+      await client.query('reset role')
+      await client.query("select set_config('request.jwt.claims', $1, false)", [CLAIMS])
+      await client.query('delete from meal_logs where user_id = $1', [other])
+      await client.query('delete from auth.users where id = $1', [other])
+    }
+  })
+
   await check('a second account cannot read or write the owner rows through RLS', async () => {
     const other = '22222222-2222-4222-8222-222222222222'
     await client.query('insert into auth.users (id, email) values ($1, $2)', [other, 'stranger@example.test'])

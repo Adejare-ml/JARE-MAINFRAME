@@ -13,7 +13,10 @@ describe('EXPORT_TABLES', () => {
   it('drops bank email bodies and meal thumbnails from the CSV only', () => {
     const tx = EXPORT_TABLES.find((t) => t.name === 'transactions')
     expect(tx.csvOmit).toContain('raw_email')
-    expect(EXPORT_TABLES.filter((t) => t.csvOmit?.length).map((t) => t.name)).toEqual(['transactions', 'meals'])
+    // meal_logs joined the list with the Diet module (048): it carries the
+    // thumbnails copied from meals by 050.
+    expect(EXPORT_TABLES.filter((t) => t.csvOmit?.length).map((t) => t.name)).toEqual(['transactions', 'meals', 'meal_logs'])
+    expect(EXPORT_TABLES.find((t) => t.name === 'meal_logs').csvOmit).toEqual(['thumbnail'])
   })
 
   it('accounts for every table a migration creates, exported or excluded by name', () => {

@@ -47,6 +47,19 @@ export const EXPORT_TABLES = [
   // Accounts the audit found in the mail and what was decided about them
   // (043). A restore without them asks every question again.
   { name: 'discovered_accounts', order: 'first_seen_at' },
+  // The Diet module (048), which replaces meals above (kept: 050 copies it,
+  // and a restore should have both). The 042 thumbnails carried into
+  // meal_logs are dropped from the CSV for the same reason as meals'.
+  // Added for the Diet module, Phase 1 (docs/diet-module.md).
+  { name: 'diet_settings', order: 'created_at' },
+  { name: 'foods', order: 'name' },
+  { name: 'recipes', order: 'name' },
+  { name: 'recipe_ingredients', order: 'created_at' },
+  { name: 'saved_meals', order: 'sort_order' },
+  { name: 'meal_logs', order: 'eaten_at', csvOmit: ['thumbnail'] },
+  { name: 'meal_items', order: 'created_at' },
+  { name: 'weight_logs', order: 'logged_at' },
+  { name: 'pantry_items', order: 'bought_at' },
 ]
 
 /**

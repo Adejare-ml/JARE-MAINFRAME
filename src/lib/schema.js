@@ -138,6 +138,21 @@ export const GATED_COLUMNS = {
   // Meals logged from a photo. A whole table; a database behind 042 costs
   // the Meals page and the Daily HQ food card a notice naming the file.
   'meals.items': '042_meals.sql',
+  // The Diet module (048), which replaces Meals: nine tables at once, so a
+  // database behind 048 is missing them all. One key per table anyway,
+  // because probeSchema asks table by table and each screen gates on the
+  // table it reads. A database behind 048 costs the Diet page and the
+  // Daily HQ diet card a notice naming the file. Added for the Diet
+  // module, Phase 1 (docs/diet-module.md).
+  'diet_settings.meal_split': '048_diet.sql',
+  'foods.aliases': '048_diet.sql',
+  'recipes.portions': '048_diet.sql',
+  'recipe_ingredients.grams': '048_diet.sql',
+  'saved_meals.items': '048_diet.sql',
+  'meal_logs.eaten_on': '048_diet.sql',
+  'meal_items.estimates': '048_diet.sql',
+  'weight_logs.weight_kg': '048_diet.sql',
+  'pantry_items.finished': '048_diet.sql',
 }
 
 /**
