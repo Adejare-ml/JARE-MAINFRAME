@@ -239,6 +239,18 @@ The prompts are in `prompts/`. After editing one, run
 matches (a test fails until you do). The function's own tests run with
 `cd supabase/functions/diet-parse && deno test --allow-env`; CI runs them.
 
+
+### Diet: GitHub jobs (added after Phase 4)
+
+| Workflow | When | Needs |
+|---|---|---|
+| Deploy Diet Functions | by hand, and on main when the functions change | `SUPABASE_ACCESS_TOKEN`, `ANTHROPIC_API_KEY`, the NVIDIA key, `SUPABASE_SERVICE_KEY` |
+| Diet Check-in | 06:35 Lagos daily | `ANTHROPIC_API_KEY` and/or the Ollama key, the VAPID keys |
+| Diet Ollama Estimates | every 20 min, 06:00 to 23:40 Lagos | the Ollama key, the functions deployed |
+| Diet Image Test | by hand | any of the three model keys |
+
+Each key is set once, in GitHub; the deploy job copies the function keys into Supabase. See section 12 of `docs/diet-module.md`.
+
 ## How bank alerts become transactions
 
 ```
