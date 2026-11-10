@@ -26,7 +26,11 @@ export const OLLAMA_VISION_MODEL = () => env('OLLAMA_VISION_MODEL', 'gemma4:31b-
 // (410 Gone), so the default is back to the model the edge function uses until
 // the catalog listing below names a better one (repository variable
 // NVIDIA_VISION_MODEL overrides it without a code change).
-export const NVIDIA_VISION_MODEL = () => env('NVIDIA_VISION_MODEL', 'meta/llama-3.2-90b-vision-instruct')
+// Third run (10 Nov): llama-3.2-90b-vision timed out on 6 of 8 photos. The
+// catalog listed google/gemma-4-31b-it and nvidia/nemotron-3.5-super-vl-120b-a12b
+// as current vision models; Gemma 4 is tried first (the same family as the
+// Ollama default, so the two can be compared).
+export const NVIDIA_VISION_MODEL = () => env('NVIDIA_VISION_MODEL', 'google/gemma-4-31b-it')
 
 /** The NVIDIA catalog's model ids that look like they read images, for the image test's report. */
 export async function nvidiaVisionModels() {
