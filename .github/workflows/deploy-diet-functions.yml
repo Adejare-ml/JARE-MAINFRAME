@@ -1,0 +1,105 @@
+name: Deploy Diet Functions
+
+# Deploys the Diet edge functions (diet-parse, diet-photo, diet-coach) to the
+# Supabase project in SUPABASE_URL, and copies their keys from GitHub
+# secrets into the functions' secrets, so each key is pasted once, here.
+# Runs by hand, and on main whenever the functions or the Diet code they
+# import change. Needs SUPABASE_ACCESS_TOKEN (Supabase dashboard -> Account
+# -> Access Tokens). Added after the Diet module's Phase 4.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - supabase/functions/diet-*/**
+      - supabase/functions/_shared/**
+      - src/lib/diet/**
+
+concurrency:
+  group: deploy-diet-functions
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write    # so a failed run can tell someone
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - uses: supabase/setup-cli@v3
+        with:
+          version: latest
+      - name: Check the access token
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "::error::Add SUPABASE_ACCESS_TOKEN to the repository secrets (Supabase dashboard -> Account -> Access Tokens)."
+            exit 1
+          fi
+          ref=$(echo "$SUPABASE_URL" | sed -E 's#https://([a-z0-9]+)\.supabase\.co.*#\1#')
+          if ! echo "$ref" | grep -Eq '^[a-z0-9]{20}$'; then
+            echo "::error::SUPABASE_URL does not look like https://<ref>.supabase.co"
+            exit 1
+          fi
+          echo "PROJECT_REF=$ref" >> "$GITHUB_ENV"
+      - name: Copy the keys into the functions' secrets
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_KEY || secrets.NVIDIA_API_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          # Written to a file the runner deletes, so no value is on a command line or in the log.
+          umask 077
+          f="$RUNNER_TEMP/diet.env"
+          : > "$f"
+          [ -n "$ANTHROPIC_API_KEY" ] && echo "ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY" >> "$f"
+          [ -n "$NVIDIA_API_KEY" ] && echo "NVIDIA_API_KEY=$NVIDIA_API_KEY" >> "$f"
+          # The worker token the Ollama job sends: derived, not stored (scripts/lib/workerToken.mjs).
+          [ -n "$SUPABASE_SERVICE_KEY" ] && echo "DIET_WORKER_TOKEN=$(node scripts/lib/workerToken.mjs)" >> "$f"
+          if [ -s "$f" ]; then
+            supabase secrets set --project-ref "$PROJECT_REF" --env-file "$f"
+            echo "Set: $(cut -d= -f1 "$f" | paste -sd, -)"
+          else
+            echo "No keys in GitHub secrets to copy; the functions keep what they have."
+          fi
+          rm -f "$f"
+      - name: Deploy
+        run: |
+          # diet-parse and diet-coach check the owner's sign-in themselves and
+          # also sit behind Supabase's JWT check. diet-photo is deployed
+          # without it because the Ollama job calls it with the worker token,
+          # which the function checks itself (handler.ts, workerAllowed).
+          supabase functions deploy diet-parse --project-ref "$PROJECT_REF"
+          supabase functions deploy diet-coach --project-ref "$PROJECT_REF"
+          supabase functions deploy diet-photo --project-ref "$PROJECT_REF" --no-verify-jwt
+      - name: Check the functions answer
+        run: |
+          for f in diet-parse diet-photo diet-coach; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$SUPABASE_URL/functions/v1/$f")
+            echo "$f: GET $code"
+          done
+
+      - name: Report failure
+        if: failure()
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const title = 'Deploying the Diet functions is failing'
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+            const body = `The Diet edge functions did not deploy. The usual cause is a missing or expired SUPABASE_ACCESS_TOKEN secret (Supabase dashboard -> Account -> Access Tokens). The previous deploy keeps serving until this one succeeds.\n\nRun: ${runUrl}`
+            const { data: open } = await github.rest.issues.listForRepo({ owner: context.repo.owner, repo: context.repo.repo, state: 'all', per_page: 100 })
+            const existing = open.find((i) => i.title === title)
+            if (existing) {
+              if (existing.state === 'closed') await github.rest.issues.update({ owner: context.repo.owner, repo: context.repo.repo, issue_number: existing.number, state: 'open' })
+              await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: existing.number, body })
+            } else {
+              await github.rest.issues.create({ owner: context.repo.owner, repo: context.repo.repo, title, body })
+            }

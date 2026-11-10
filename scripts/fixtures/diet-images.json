@@ -1,0 +1,10 @@
+[
+  { "row": 2, "dish": "Jollof rice, takeaway pack", "words": ["jollof"] },
+  { "row": 10, "dish": "Jollof rice, fried plantain, stewed meat", "words": ["jollof"] },
+  { "row": 435, "dish": "Egusi soup, white rice, fried plantain", "words": ["egusi"] },
+  { "row": 11, "dish": "Egusi soup, bowl", "words": ["egusi"] },
+  { "row": 91, "dish": "Amala and ewedu", "words": ["amala", "ewedu"] },
+  { "row": 13, "dish": "Akara, three on a plate", "words": ["akara", "bean cake", "bean fritter"] },
+  { "row": 5, "dish": "Moi moi with boiled egg", "words": ["moi", "moin", "bean pudding"] },
+  { "row": 18, "dish": "Okra soup, bowl", "words": ["okra", "okro"] }
+]

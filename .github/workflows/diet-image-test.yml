@@ -1,0 +1,53 @@
+name: Diet Image Test
+
+# Runs the three photo models on a fixed set of Nigerian food photos and
+# writes a report (run summary, plus diet-image-test.json as an artifact):
+# which models answer, whether they name the dish, how far apart they are,
+# and how long the app would wait. Writes nothing to the database.
+# Added after the Diet module's Phase 4 (scripts/diet-image-test.mjs).
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: 'How many photos (all when empty)'
+        required: false
+        default: ''
+  push:
+    branches: [claude/relaxed-ritchie-567ibw]
+    paths:
+      - scripts/diet-image-test.mjs
+      - scripts/fixtures/diet-images.json
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - run: npm ci
+      - name: Run the photo models
+        run: node scripts/diet-image-test.mjs
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          OWNER_USER_ID: ${{ secrets.OWNER_USER_ID }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_KEY || secrets.NVIDIA_API_KEY }}
+          NVIDIA_BASE_URL: ${{ vars.NVIDIA_BASE_URL }}
+          NVIDIA_VISION_MODEL: ${{ vars.NVIDIA_VISION_MODEL }}
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_KEY || secrets.OLLAMA_API_KEY }}
+          OLLAMA_BASE_URL: ${{ vars.OLLAMA_BASE_URL }}
+          OLLAMA_VISION_MODEL: ${{ vars.OLLAMA_VISION_MODEL }}
+          DIET_IMAGE_LIMIT: ${{ inputs.limit }}
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: diet-image-test
+          path: diet-image-test.json
+          if-no-files-found: ignore

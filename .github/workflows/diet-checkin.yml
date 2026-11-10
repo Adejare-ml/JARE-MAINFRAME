@@ -1,0 +1,63 @@
+name: Diet Check-in
+
+# Every morning: yesterday's numbers, a plan for today (Claude, with Ollama
+# Cloud side by side), what to buy, and the photo-model scorecard in the run
+# summary. Sent as a push to the devices subscribed under Settings ->
+# Reminders. Added after the Diet module's Phase 4 (scripts/diet-checkin.mjs).
+on:
+  schedule:
+    # 06:35 Lagos = 05:35 UTC, before the day's first meal.
+    - cron: '35 5 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Build the check-in without sending the push'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  issues: write    # so a failed run can tell someone
+
+jobs:
+  checkin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - run: npm ci
+      - name: Diet check-in
+        run: node scripts/diet-checkin.mjs
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          OWNER_USER_ID: ${{ secrets.OWNER_USER_ID }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_KEY || secrets.OLLAMA_API_KEY }}
+          OLLAMA_BASE_URL: ${{ vars.OLLAMA_BASE_URL }}
+          OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ vars.VAPID_SUBJECT }}
+          # Things always on the list, comma-separated (repository variable).
+          DIET_SHOPPING_EXTRAS: ${{ vars.DIET_SHOPPING_EXTRAS }}
+          DIET_CHECKIN_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
+
+      - name: Report failure
+        if: failure()
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const title = 'Diet check-in is failing'
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+            const body = `The morning Diet check-in failed. Check that migrations 048 to 053 have run and that SUPABASE_SERVICE_KEY is current; a missing ANTHROPIC_API_KEY or OLLAMA key only costs the plan, not the run.\n\nRun: ${runUrl}`
+            const { data: open } = await github.rest.issues.listForRepo({ owner: context.repo.owner, repo: context.repo.repo, state: 'all', per_page: 100 })
+            const existing = open.find((i) => i.title === title)
+            if (existing) {
+              if (existing.state === 'closed') await github.rest.issues.update({ owner: context.repo.owner, repo: context.repo.repo, issue_number: existing.number, state: 'open' })
+              await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: existing.number, body })
+            } else {
+              await github.rest.issues.create({ owner: context.repo.owner, repo: context.repo.repo, title, body })
+            }

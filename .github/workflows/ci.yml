@@ -43,6 +43,13 @@ jobs:
           node --check scripts/lib/assertProgress.mjs
           node --check scripts/lib/ownerId.mjs
           node --check scripts/lib/recordRun.mjs
+          # Added after Diet Phase 4: the check-in, Ollama Cloud and image-test jobs.
+          node --check scripts/diet-checkin.mjs
+          node --check scripts/diet-ollama-estimates.mjs
+          node --check scripts/diet-image-test.mjs
+          node --check scripts/lib/models.mjs
+          node --check scripts/lib/push.mjs
+          node --check scripts/lib/workerToken.mjs
           node --check public/sw.js
 
       # `node --check` parses syntax without resolving imports, so it cannot see
@@ -54,7 +61,7 @@ jobs:
       # under plain Node, not just under the bundler.
       - name: Check shared modules load under Node
         run: |
-          for m in planning queries summary schema constants formatters debts repo repoProfile planReview planPrompt speech calendar sparkline transactionGroups insight recurring pendingTransactions haptics theme privacy weekreview activity recapPrompt recapReview nlQuery nlQueryPrompt swipeGesture contrast health projects repairs export transfers categories categoryRules reminders anomalies refunds monthRecap push auth discovery meals mealPrompt imagePrep setup latest wallets backup normalize batchPrompt walletRouting diet/nutrition diet/recipes diet/totals diet/settings diet/verdict diet/target diet/foods diet/sheet diet/library diet/prompts diet/promptText diet/parse diet/merge diet/prune diet/coach; do
+          for m in planning queries summary schema constants formatters debts repo repoProfile planReview planPrompt speech calendar sparkline transactionGroups insight recurring pendingTransactions haptics theme privacy weekreview activity recapPrompt recapReview nlQuery nlQueryPrompt swipeGesture contrast health projects repairs export transfers categories categoryRules reminders anomalies refunds monthRecap push auth discovery meals mealPrompt imagePrep setup latest wallets backup normalize batchPrompt walletRouting diet/nutrition diet/recipes diet/totals diet/settings diet/verdict diet/target diet/foods diet/sheet diet/library diet/prompts diet/promptText diet/parse diet/merge diet/prune diet/coach diet/checkin diet/visionSchema; do
             node --input-type=module -e "await import('./src/lib/$m.js')" \
               || { echo "::error::src/lib/$m.js does not load under Node"; exit 1; }
           done
@@ -64,6 +71,11 @@ jobs:
             || { echo "::error::scripts/lib/ownerId.mjs does not load under Node"; exit 1; }
           node --input-type=module -e "await import('./scripts/lib/recordRun.mjs')" \
             || { echo "::error::scripts/lib/recordRun.mjs does not load under Node"; exit 1; }
+          # Added after Diet Phase 4: the helpers the GitHub diet jobs import.
+          for s in models push workerToken; do
+            node --input-type=module -e "await import('./scripts/lib/$s.mjs')" \
+              || { echo "::error::scripts/lib/$s.mjs does not load under Node"; exit 1; }
+          done
 
   # The edge functions, which nothing in CI read before the Diet module's
   # Phase 2: analyze-meal and ask-question both imported a file that #180 had
