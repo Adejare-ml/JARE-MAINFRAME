@@ -11,10 +11,15 @@
  */
 
 import { supabase } from '../../lib/supabase'
-import { recipePortion, recipeItem } from '../../lib/diet/recipes'
-import { nutritionFor, sumNutrition } from '../../lib/diet/nutrition'
+import { sumNutrition } from '../../lib/diet/nutrition'
+// buildLibrary and priceItems moved to src/lib/diet/library.js in Phase 2,
+// so the diet-parse edge function can use them too; re-exported here so the
+// screens' imports are unchanged.
+import { buildLibrary, priceItems } from '../../lib/diet/library'
 import { mealVerdict } from '../../lib/diet/verdict'
 import { localDay, addDays } from '../../lib/diet/totals'
+
+export { buildLibrary, priceItems }
 
 export const MEAL_LOG_COLUMNS = 'id, client_id, eaten_at, eaten_on, meal_slot, source, status, kcal, protein_g, carbs_g, fat_g, verdict, reason, thumbnail, saved_meal_id'
 export const MEAL_ITEM_COLUMNS = 'id, meal_id, food_id, recipe_id, portions, position, name, grams, kcal, protein_g, carbs_g, fat_g, hidden'
@@ -41,48 +46,6 @@ export async function loadLibrary() {
   })
 }
 
-/** Index the rows the way the screens read them. */
-export function buildLibrary({ settings, foods, recipes, ingredients, saved }) {
-  const foodsById = new Map(foods.map((f) => [f.id, f]))
-  const ingredientsByRecipe = new Map()
-  for (const ing of ingredients) {
-    if (!ingredientsByRecipe.has(ing.recipe_id)) ingredientsByRecipe.set(ing.recipe_id, [])
-    ingredientsByRecipe.get(ing.recipe_id).push(ing)
-  }
-  const portions = new Map()
-  for (const r of recipes) portions.set(r.id, recipePortion(r, ingredientsByRecipe.get(r.id) || [], foodsById))
-  const recipesById = new Map(recipes.map((r) => [r.id, r]))
-  return { settings, foods, recipes, ingredients, saved, foodsById, recipesById, ingredientsByRecipe, portions }
-}
-
-/**
- * A saved meal's (or a basket's) references, priced for the screen. The
- * database prices them again on insert; this is the preview and the input
- * to the verdict.
- *
- * @param {Array<{food_id?: string, grams?: number, recipe_id?: string, portions?: number, name?: string}>} refs
- * @param {ReturnType<typeof buildLibrary>} lib
- */
-export function priceItems(refs, lib) {
-  return (refs || [])
-    .map((ref) => {
-      if (ref.recipe_id) {
-        const recipe = lib.recipesById.get(ref.recipe_id)
-        const portion = lib.portions.get(ref.recipe_id)
-        if (!recipe || !portion) return null
-        return recipeItem(recipe, portion, ref.portions ?? 1)
-      }
-      if (ref.food_id) {
-        const food = lib.foodsById.get(ref.food_id)
-        if (!food) return null
-        return { food_id: food.id, recipe_id: null, name: ref.name || food.name, grams: ref.grams, ...nutritionFor(food, ref.grams) }
-      }
-      if (ref.name) return { food_id: null, recipe_id: null, ...ref }
-      return null
-    })
-    .filter(Boolean)
-}
-
 /**
  * Log a meal through log_diet_meal (migration 048). The verdict is worked
  * out here, in code, because the numbers are already known: no model call
@@ -97,13 +60,23 @@ export function priceItems(refs, lib) {
  * @param {Array} args.todayLogs - meal_logs already logged that day
  * @param {string|null} [args.savedMealId]
  */
-export async function logMeal({ items, slot, source, at = new Date(), settings, todayLogs = [], savedMealId = null }) {
+export async function logMeal({ items, slot, source, at = new Date(), settings, todayLogs = [], savedMealId = null, rawText = null }) {
   const totals = sumNutrition(items)
   const v = mealVerdict({ settings, slot, meal: totals, earlier: todayLogs })
+  // Phase 2: every item also carries what the parser said about it
+  // (estimates, confidence, hidden, flagged), so the model's raw estimate is
+  // stored beside the final numbers (051 stores the flags).
+  const extra = (i) => ({
+    hidden: i.hidden === true,
+    confidence: i.confidence ?? null,
+    estimates: i.estimates ?? undefined,
+    flagged: i.flagged === true,
+    flag_reason: i.flag_reason ?? null,
+  })
   const payload = items.map((i) => {
-    if (i.recipe_id) return { recipe_id: i.recipe_id, portions: i.portions ?? 1, name: i.name }
-    if (i.food_id) return { food_id: i.food_id, grams: i.grams, name: i.name }
-    return { name: i.name, grams: i.grams, kcal: i.kcal, protein_g: i.protein_g, carbs_g: i.carbs_g, fat_g: i.fat_g, hidden: i.hidden === true }
+    if (i.recipe_id) return { recipe_id: i.recipe_id, portions: i.portions ?? 1, name: i.name, ...extra(i) }
+    if (i.food_id) return { food_id: i.food_id, grams: i.grams, name: i.name, ...extra(i) }
+    return { name: i.name, grams: i.grams, kcal: i.kcal, protein_g: i.protein_g, carbs_g: i.carbs_g, fat_g: i.fat_g, ...extra(i) }
   })
   const { data, error } = await supabase.rpc('log_diet_meal', {
     p_client_id: crypto.randomUUID(),
@@ -116,6 +89,7 @@ export async function logMeal({ items, slot, source, at = new Date(), settings, 
       verdict: v.verdict,
       reason: v.reason,
       saved_meal_id: savedMealId,
+      raw_text: rawText,
     },
     p_items: payload,
   })
@@ -149,4 +123,42 @@ export async function loadWeek(day) {
 export async function deleteMeal(id) {
   const { error } = await supabase.from('meal_logs').delete().eq('id', id)
   if (error) throw error
+}
+
+/**
+ * Send a typed or spoken note to the diet-parse edge function (Phase 2).
+ * Returns the matched, priced entry to review; nothing is logged yet.
+ *
+ * @param {string} text
+ * @returns {Promise<{ok: true, entry: object} | {ok: false, reason: string}>}
+ */
+export async function parseNote(text) {
+  const localTime = new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Lagos', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date())
+  const { data, error } = await supabase.functions.invoke('diet-parse', { body: { text, localTime } })
+  if (error) {
+    // A function that was never deployed answers 404, which supabase-js
+    // reports as a generic non-2xx error; say what it usually means.
+    const status = error.context?.status
+    return { ok: false, reason: status === 404 ? 'the diet-parse function is not deployed yet' : error.message || 'could not reach the parser' }
+  }
+  return data?.ok ? data : { ok: false, reason: data?.reason || 'the parser gave no answer' }
+}
+
+/**
+ * Apply confirmed pantry updates through apply_pantry_updates (051),
+ * idempotent on a client id minted here.
+ */
+export async function applyPantry(updates, rawText = null) {
+  const { data, error } = await supabase.rpc('apply_pantry_updates', {
+    p_client_id: crypto.randomUUID(),
+    p_updates: updates,
+    p_raw_text: rawText,
+  })
+  if (error) {
+    if (/apply_pantry_updates/.test(error.message || '') && /not find|does not exist/i.test(error.message || '')) {
+      throw new Error('run supabase/migrations/051_diet_pantry.sql to save pantry updates')
+    }
+    throw error
+  }
+  return data
 }
