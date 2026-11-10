@@ -62,6 +62,8 @@ export const EXPORT_TABLES = [
   { name: 'pantry_items', order: 'bought_at' },
   // What each confirmed pantry update changed (051), Diet module Phase 2.
   { name: 'pantry_events', order: 'created_at' },
+  // Every model's answer for each photo meal (052), Diet module Phase 3.
+  { name: 'meal_estimates', order: 'created_at' },
 ]
 
 /**

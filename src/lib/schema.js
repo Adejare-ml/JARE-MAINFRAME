@@ -157,6 +157,10 @@ export const GATED_COLUMNS = {
   // A database behind 051 costs the confirm step of a pantry update a
   // notice naming the file; meals logged from text still work.
   'pantry_events.outcome': '051_diet_pantry.sql',
+  // Photo logging (Diet module, Phase 3): the per-model answers and the
+  // private photo bucket. A database behind 052 costs the photo button a
+  // notice naming the file; every other way of logging still works.
+  'meal_estimates.answer': '052_diet_photos.sql',
 }
 
 /**
