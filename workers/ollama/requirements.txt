@@ -1,0 +1,4 @@
+# The laptop worker for the Diet module's photo analysis (Phase 3).
+# Only these two; HTTP uses the standard library.
+pydantic>=2.7,<3
+python-dotenv>=1.0,<2
