@@ -13,8 +13,8 @@
     {
       "name": "Log a meal",
       "short_name": "Meal",
-      "description": "Photograph what you are eating and log its calories",
-      "url": "/meals?snap=1",
+      "description": "Log what you are eating against your calorie and protein targets",
+      "url": "/diet?add=1",
       "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     }
   ],
