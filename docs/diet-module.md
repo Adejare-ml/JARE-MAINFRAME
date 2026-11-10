@@ -297,3 +297,71 @@ The light theme is a partial first slice (see `src/index.css`). Every page, Diet
   - the old shortcut opens the add sheet.
 - **Not checked: Excel itself.** It was not available on the build machine.
 - **Not checked: the live Supabase project.** No migration has been applied to it.
+
+---
+
+## 9. Phase 2 build notes (added after the Phase 2 plan was approved)
+
+Added when Phase 2 was built. Nothing above this section was changed.
+
+### What was built
+
+- **Prompts** (`prompts/`):
+  - `food-vision.md` and `coach.md`: the owner's text, with name, city and food rules replaced by `{{name}}`, `{{location}}` and `{{food_rules}}`, filled from `diet_settings` at call time.
+  - `text-parse.md`: new.
+  - `scripts/build-diet-prompts.mjs` copies them into `src/lib/diet/promptText.js` for the functions. `tests/diet-prompts.test.js` fails if the copies drift, or if a prompt names the owner.
+- **Logic** (`src/lib/diet/parse.js`, `prompts.js`, `library.js`), written test-first:
+  - every id the model picks is checked against the owner's own rows;
+  - matched items are priced from the foods table;
+  - saved meals expand into their items;
+  - unknown foods and guessed amounts are flagged;
+  - pantry updates are read and their naira amounts parsed ("1.5k", "₦3,000").
+  - `buildLibrary` and `priceItems` moved from `src/components/diet/api.js` to `library.js` so the function can share them.
+- **Edge Function `diet-parse`**:
+  - `claude-haiku-5-5` with structured outputs from a zod schema (`schema.ts`) and low effort;
+  - the owner's catalogue sits behind a prompt-cache breakpoint;
+  - one retry on an answer that fails validation;
+  - refusals are reported, not retried (Haiku 5.5 has no server-side fallback);
+  - the owner-only check copied from `analyze-meal`.
+  - The handler takes its clients and model call as parameters and has 10 Deno tests that use fakes (`handler_test.ts`).
+- **`051_diet_pantry.sql`**:
+  - `pantry_events`, the idempotency ledger and purchase history;
+  - `apply_pantry_updates` (bought, used, finished);
+  - `log_diet_meal` now also stores item flags and sets `needs_review`.
+  - Two new checks in `scripts/db-test.mjs`.
+- **Screens**:
+  - a describe box and mic in the add-food sheet (en-NG, then en-US on `language-not-supported`);
+  - a review panel with the question, flagged items first, gram or portion steppers, the verdict, a pantry checklist, and one tap on "Looks right".
+- **`public/_headers`** allows the microphone for this origin. This also unblocks the Daily HQ task dictation, which `microphone=()` had been blocking.
+- **Fixed**: `analyze-meal` and `ask-question` imported the old `src/lib/sync/normalize.js` path.
+- **New CI job `functions`**:
+  - every function's imports must resolve. `deno info` exits 0 on a missing file, so the job searches its output; checked against the old broken import, which it flags;
+  - `diet-parse` must type-check and pass its tests.
+
+### Decisions made while building
+
+- **The prompts live in `prompts/*.md` and are copied into JS.** A Supabase function imports JavaScript, not Markdown, unless it is given extra deploy configuration. Generating the JS copy keeps the Markdown as the text a person reviews.
+- **Zod lives only in the function**, imported through the function's own `deno.json`. The app's bundle has no zod, no SDK and no model name (checked with `grep` on `dist/`).
+- **The Deno tests are named `*_test.ts`**, so Vitest, which runs `tests/`, leaves them alone.
+- **Food-rules wording follows the sex set in Diet settings** ("He doesn't eat …"), and falls back to "They" when it is not set.
+- **A voice note is stored with `source: voice`**; if the transcript is edited before sending, the source is still `voice`. Typed notes are stored as `text`. Both keep the note in `raw_text`, and the model's raw item in `meal_items.estimates.claude_text`.
+
+### Checked
+
+- `npm run lint`: 0 errors.
+- `npm test`: 1,151 passing.
+- `npm run build`: clean, with no key, zod, SDK or model name in `dist/`.
+- `npm run test:db`: 34 of 34.
+- `deno check` and `deno test`: 10 of 10.
+- In the browser, against a local copy of the database, PostgREST, and the **real** `diet-parse` handler served by Deno:
+  - a typed meal was read, stepped and logged;
+  - a spoken meal went through a stub recogniser, which refused en-NG; the app fell back to en-US and stored the meal as `voice`;
+  - a saved meal plus an unknown item came back with a question, the unknown item flagged first, and the meal marked for review;
+  - a pantry note added beans at ₦3,000 and finished the eggs.
+  - The page stayed 390 px wide on a phone, with no page errors.
+
+### Not checked, and why
+
+- **No real Claude call was made.** This machine has no Anthropic key. Its proxy sends `api.anthropic.com` direct, so a key saved through the session's credential form would not be injected either. In the browser check, the model call was replaced by fixed answers; everything around it was the code that deploys.
+- **To finish the check**, set `ANTHROPIC_API_KEY`, deploy `diet-parse`, open Diet → Add food, and send the four test notes. The health probe at `GET /functions/v1/diet-parse` reports whether the key is set.
+- **The real speech recogniser was not exercised.** Headless Chromium has no speech service, so only the app's handling of it was tested.

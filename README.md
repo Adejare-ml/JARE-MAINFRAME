@@ -182,6 +182,31 @@ idempotent on a client id, like QuickLog's). Settings → System shows
 whether the function is deployed and whether it has a key. Every figure is
 an estimate: the review step is where you say "that was half a plate".
 
+### Diet: tracking, and logging by typing or saying it
+
+Added with the Diet module (`docs/diet-module.md`), which replaces Meals.
+Run `supabase/migrations/048_diet.sql`, `049_diet_seed.sql`,
+`050_diet_backfill.sql` and `051_diet_pantry.sql` in order, then open
+Diet → Settings and enter your targets. Manual and one-tap logging work
+from there with no model at all.
+
+Typing or saying a meal ("2 boiled eggs and a plantain", "bought 2 kg
+beans for 3,000") goes through the `diet-parse` edge function, which asks
+Claude (`claude-haiku-5-5`) to read the note against your own foods,
+recipes and saved meals and returns an entry for you to check. It writes
+nothing until you tap "Looks right". The key never reaches the browser:
+
+```bash
+supabase functions deploy diet-parse
+supabase secrets set ANTHROPIC_API_KEY=...         # required
+# optional: DIET_PARSE_MODEL (default claude-haiku-5-5), ALLOWED_ORIGIN
+```
+
+The prompts are in `prompts/`. After editing one, run
+`node scripts/build-diet-prompts.mjs` so the copy the functions import
+matches (a test fails until you do). The function's own tests run with
+`cd supabase/functions/diet-parse && deno test --allow-env`; CI runs them.
+
 ## How bank alerts become transactions
 
 ```
