@@ -78,3 +78,20 @@ describe('validateSettings', () => {
     expect(Object.keys(r.errors).sort()).toEqual(['birth_year', 'height_cm', 'kcal_target'])
   })
 })
+
+describe('validateSettings, model IDs and photo retention (Phase 3)', () => {
+  const base = { split: { breakfast: 20, lunch: 35, dinner: 30, snacks: 15 } }
+
+  it('keeps model IDs as typed, and empty as null (the defaults apply)', () => {
+    const r = validateSettings({ ...base, nvidia_vision_model: ' meta/llama-3.2-90b-vision-instruct ', ollama_vision_model: 'qwen3-vl:8b', photo_retention_days: '90' })
+    expect(r.ok).toBe(true)
+    expect(r.value).toMatchObject({ nvidia_vision_model: 'meta/llama-3.2-90b-vision-instruct', ollama_vision_model: 'qwen3-vl:8b', photo_retention_days: 90 })
+    expect(validateSettings(base).value).toMatchObject({ nvidia_vision_model: null, ollama_vision_model: null, photo_retention_days: null })
+  })
+
+  it('refuses a model ID with spaces or odd characters', () => {
+    const r = validateSettings({ ...base, ollama_vision_model: 'qwen vl; rm -rf' })
+    expect(r.ok).toBe(false)
+    expect(r.errors.ollama_vision_model).toMatch(/model ID/)
+  })
+})

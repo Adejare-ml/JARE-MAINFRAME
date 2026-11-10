@@ -95,3 +95,11 @@ describe('parseUserMessage', () => {
     expect(m).toContain('<note>\n2 boiled eggs\n</note>')
   })
 })
+
+describe('visionUserMessage (Phase 3)', () => {
+  it('fences the note and says so when there is none', async () => {
+    const { visionUserMessage } = await import('../src/lib/diet/prompts.js')
+    expect(visionUserMessage({ note: ' mama put, ₦1,500 ', localTime: '13:10' })).toBe('Local time: 13:10\n\n<note>\nmama put, ₦1,500\n</note>\n\nEstimate the food in this photo.')
+    expect(visionUserMessage({ note: '', localTime: '13:10' })).toMatch(/No note from the user\./)
+  })
+})

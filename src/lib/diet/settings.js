@@ -128,6 +128,14 @@ export function validateSettings(form, now = new Date()) {
   const avoid = Array.isArray(form?.avoid_foods) ? form.avoid_foods : String(form?.avoid_foods ?? '').split(',')
   value.avoid_foods = avoid.map((s) => text(s, 40)).filter(Boolean).slice(0, 20)
 
+  // Phase 3: the photo models, kept here so a catalogue change is a settings
+  // edit, not a deploy. Empty means the default in the diet-photo function.
+  for (const key of ['nvidia_vision_model', 'ollama_vision_model']) {
+    const id = text(form?.[key], 80)
+    if (id && !/^[A-Za-z0-9._:/-]+$/.test(id)) errors[key] = 'A model ID is letters, digits and . _ : / - only'
+    else value[key] = id
+  }
+
   const split = percentsToSplit(form?.split ?? splitToPercents(DEFAULT_SPLIT))
   if (!split.ok) errors.split = split.error
   else value.meal_split = split.split

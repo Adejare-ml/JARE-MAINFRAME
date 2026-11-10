@@ -34,7 +34,8 @@ function sameName(a, b) {
   return x === y || x.replace(/s$/, '') === y.replace(/s$/, '')
 }
 
-function findFood(lib, id, ...names) {
+/** A food by id, else by name or alias. Exported for merge.js (Phase 3). */
+export function findFood(lib, id, ...names) {
   if (id && lib.foodsById?.has(id)) return lib.foodsById.get(id)
   for (const name of names) {
     if (!name) continue

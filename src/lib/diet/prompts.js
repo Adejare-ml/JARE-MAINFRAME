@@ -97,3 +97,13 @@ export function parseUserMessage({ text, localTime }) {
   const note = String(text ?? '').trim()
   return `Local time: ${localTime || 'unknown'}\n\n<note>\n${note}\n</note>`
 }
+
+/**
+ * The user turn for a photo (Phase 3): the clock, and the owner's note if
+ * there is one, fenced off as data like the text parser's. The photo goes
+ * beside it as an image block.
+ */
+export function visionUserMessage({ note, localTime }) {
+  const text = String(note ?? '').trim()
+  return [`Local time: ${localTime || 'unknown'}`, text ? `<note>\n${text}\n</note>` : 'No note from the user.', 'Estimate the food in this photo.'].join('\n\n')
+}
