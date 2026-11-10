@@ -214,3 +214,27 @@ export function parseSpokenTasks(transcript, { max = MAX_SPOKEN_TASKS } = {}) {
 
   return tasks
 }
+
+/**
+ * Languages to try for food dictation, in order (Diet module, Phase 2).
+ *
+ * Nigerian English first, because it hears "akara" and "ewa agoyin" better
+ * where a browser has it. There is no API that lists which languages a
+ * recogniser supports: the only signal is a 'language-not-supported' error
+ * after start(), so the caller starts with the first and, on that error,
+ * starts again with the language this returns.
+ */
+export const SPEECH_LANGS = ['en-NG', 'en-US']
+
+/**
+ * The language to retry with after a recognition error, or null when the
+ * error is not about the language or there is nothing left to try.
+ *
+ * @param {string} current - the lang that failed
+ * @param {string} error - SpeechRecognitionErrorEvent.error
+ */
+export function fallbackSpeechLang(current, error) {
+  if (error !== 'language-not-supported') return null
+  const at = SPEECH_LANGS.indexOf(current)
+  return at >= 0 && at < SPEECH_LANGS.length - 1 ? SPEECH_LANGS[at + 1] : null
+}

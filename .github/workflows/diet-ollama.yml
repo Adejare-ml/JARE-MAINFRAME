@@ -1,0 +1,56 @@
+name: Diet Ollama Estimates
+
+# The third photo estimate, from Ollama Cloud: every 20 minutes through the
+# Lagos day, reads up to three new photo meals that have no Ollama answer
+# yet and stores the answer through the diet-photo function, which re-merges
+# the meal. Added after the Diet module's Phase 4
+# (scripts/diet-ollama-estimates.mjs). The laptop worker remains an option.
+on:
+  schedule:
+    # 06:00 to 23:40 Lagos (05:00 to 22:40 UTC).
+    - cron: '*/20 5-22 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: diet-ollama
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write    # so a failed run can tell someone
+
+jobs:
+  estimate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - run: npm ci
+      - name: Ollama estimates
+        run: node scripts/diet-ollama-estimates.mjs
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_KEY || secrets.OLLAMA_API_KEY }}
+          OLLAMA_BASE_URL: ${{ vars.OLLAMA_BASE_URL }}
+          OLLAMA_VISION_MODEL: ${{ vars.OLLAMA_VISION_MODEL }}
+
+      - name: Report failure
+        if: failure()
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const title = 'Diet Ollama estimates are failing'
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+            const body = `The Ollama Cloud photo estimate failed for every meal it tried. Meals are not lost: Claude and NVIDIA already logged them, and they are tried again on the next run. Check that the diet-photo function is deployed (Deploy Diet Functions) and that the Ollama key is current.\n\nRun: ${runUrl}`
+            const { data: open } = await github.rest.issues.listForRepo({ owner: context.repo.owner, repo: context.repo.repo, state: 'all', per_page: 100 })
+            const existing = open.find((i) => i.title === title)
+            if (existing) {
+              if (existing.state === 'closed') await github.rest.issues.update({ owner: context.repo.owner, repo: context.repo.repo, issue_number: existing.number, state: 'open' })
+              await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: existing.number, body })
+            } else {
+              await github.rest.issues.create({ owner: context.repo.owner, repo: context.repo.repo, title, body })
+            }

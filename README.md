@@ -182,6 +182,75 @@ idempotent on a client id, like QuickLog's). Settings → System shows
 whether the function is deployed and whether it has a key. Every figure is
 an estimate: the review step is where you say "that was half a plate".
 
+### Diet: tracking, and logging by typing or saying it
+
+Added with the Diet module (`docs/diet-module.md`), which replaces Meals.
+Run `supabase/migrations/048_diet.sql`, `049_diet_seed.sql`,
+`050_diet_backfill.sql` and `051_diet_pantry.sql` in order, then open
+Diet → Settings and enter your targets. Manual and one-tap logging work
+from there with no model at all.
+
+Typing or saying a meal ("2 boiled eggs and a plantain", "bought 2 kg
+beans for 3,000") goes through the `diet-parse` edge function, which asks
+Claude (`claude-haiku-5-5`) to read the note against your own foods,
+recipes and saved meals and returns an entry for you to check. It writes
+nothing until you tap "Looks right". The key never reaches the browser:
+
+```bash
+supabase functions deploy diet-parse
+supabase secrets set ANTHROPIC_API_KEY=...         # required
+# optional: DIET_PARSE_MODEL (default claude-haiku-5-5), ALLOWED_ORIGIN
+```
+
+A photo goes through the `diet-photo` edge function (Phase 3): it is resized
+to 1024 px on the phone, stored in the private `meal-photos` bucket (run
+`052_diet_photos.sql` first), read by Claude (`claude-sonnet-5-5`) and an
+NVIDIA vision model at the same time, merged, and shown for you to check.
+A third reading comes later from Ollama on your laptop
+(`workers/ollama/README.md`); logging never waits for it.
+
+```bash
+supabase functions deploy diet-photo
+supabase secrets set ANTHROPIC_API_KEY=...         # already set for diet-parse
+supabase secrets set NVIDIA_API_KEY=...            # build.nvidia.com
+supabase secrets set DIET_WORKER_TOKEN=...         # long random string; the laptop worker sends it
+```
+
+The coach (Phase 4) is the `diet-coach` function, on the same
+`ANTHROPIC_API_KEY`: after a meal from a note, a voice note or a photo it
+gives a verdict (fits, tight or over) and a one-line reason, and "What
+should I eat next?" on the Today screen suggests two or three meals, pantry
+food first. Saved and hand-picked meals are judged in code with no call.
+Every 14 days, with a new weigh-in, Today proposes a new target from the
+latest weight (never under 1,800 kcal) for you to accept or keep.
+
+```bash
+supabase functions deploy diet-coach
+```
+
+Then run `053_diet_coach.sql`.
+
+Photos older than the retention in Diet settings are deleted weekly by
+`.github/workflows/prune-meal-photos.yml` (nothing is deleted while the
+setting is empty).
+
+The prompts are in `prompts/`. After editing one, run
+`node scripts/build-diet-prompts.mjs` so the copy the functions import
+matches (a test fails until you do). The function's own tests run with
+`cd supabase/functions/diet-parse && deno test --allow-env`; CI runs them.
+
+
+### Diet: GitHub jobs (added after Phase 4)
+
+| Workflow | When | Needs |
+|---|---|---|
+| Deploy Diet Functions | by hand, and on main when the functions change | `SUPABASE_ACCESS_TOKEN`, `ANTHROPIC_API_KEY`, the NVIDIA key, `SUPABASE_SERVICE_KEY` |
+| Diet Check-in | 06:35 Lagos daily | `ANTHROPIC_API_KEY` and/or the Ollama key, the VAPID keys |
+| Diet Ollama Estimates | every 20 min, 06:00 to 23:40 Lagos | the Ollama key, the functions deployed |
+| Diet Image Test | by hand | any of the three model keys |
+
+Each key is set once, in GitHub; the deploy job copies the function keys into Supabase. See section 12 of `docs/diet-module.md`.
+
 ## How bank alerts become transactions
 
 ```

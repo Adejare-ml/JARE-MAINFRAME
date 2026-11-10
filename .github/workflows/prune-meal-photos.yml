@@ -1,0 +1,52 @@
+name: Prune Meal Photos
+
+# Deletes Diet meal photos older than the retention set in Diet settings
+# (Diet module, Phase 3; scripts/prune-meal-photos.mjs). Nothing is deleted
+# while the setting is empty. Weekly is plenty: photos are about 150 KB each.
+on:
+  schedule:
+    - cron: '47 2 * * 3'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'List what would be deleted, delete nothing'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  issues: write    # so a failed run can tell someone
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - run: npm ci
+      - name: Prune meal photos
+        run: node scripts/prune-meal-photos.mjs
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          OWNER_USER_ID: ${{ secrets.OWNER_USER_ID }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
+
+      - name: Report failure
+        if: failure()
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const title = 'Meal photo pruning is failing'
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+            const body = `The weekly meal photo prune failed at ${new Date().toISOString()}.\n\nRun: ${runUrl}\n\nNothing is lost when it fails: photos simply stay until the next run. Check that 052_diet_photos.sql has run and that SUPABASE_SERVICE_KEY is current.`
+            const { data: open } = await github.rest.issues.listForRepo({ owner: context.repo.owner, repo: context.repo.repo, state: 'all', per_page: 100 })
+            const existing = open.find((i) => i.title === title)
+            if (existing) {
+              if (existing.state === 'closed') await github.rest.issues.update({ owner: context.repo.owner, repo: context.repo.repo, issue_number: existing.number, state: 'open' })
+              await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: existing.number, body })
+            } else {
+              await github.rest.issues.create({ owner: context.repo.owner, repo: context.repo.repo, title, body })
+            }

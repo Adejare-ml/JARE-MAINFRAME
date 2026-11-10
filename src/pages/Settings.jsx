@@ -710,6 +710,15 @@ export default function Settings() {
               README). The target below is what the day's ring fills towards. Most adults land between 1,800 and
               2,600 kcal; a dietitian's figure beats a guess.
             </p>
+            {/* Added for the Diet module, Phase 1: Diet keeps its own targets
+                (diet_settings, 048), copied from this one once by 049. This
+                field still saves, but nothing reads it now. */}
+            <p className="text-xs text-orange-200 leading-relaxed">
+              Diet has replaced the Meals page and keeps its own calorie and protein targets.{' '}
+              <Link to="/diet?tab=settings" className="text-accent font-bold hover:underline">
+                Set them in Diet settings →
+              </Link>
+            </p>
             <form onSubmit={handleSaveCalorieTarget} className="flex gap-2">
               <label htmlFor="calorie-target" className="sr-only">
                 Daily calorie target

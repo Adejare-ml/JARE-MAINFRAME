@@ -28,7 +28,12 @@ export const NAV_ITEMS = [
   // Meals is secondary like Projects, but its camera is one tap from Daily
   // HQ (the food card hosts the capture sheet itself), so the bottom bar
   // stays at five.
-  { path: '/meals', label: 'Meals', icon: '🍽️', desktopOnly: true, secondary: true },
+  { path: '/meals', label: 'Meals', icon: '🍽️', desktopOnly: true, secondary: true, hidden: true },
+  // Diet replaced Meals (docs/diet-module.md, Phase 1): /meals redirects to
+  // /diet and is hidden here, so old bookmarks still land. Diet takes the
+  // same secondary slot; its card on Daily HQ is the one-tap way in, so the
+  // bottom bar stays at five.
+  { path: '/diet', label: 'Diet', icon: '🥗', desktopOnly: true, secondary: true },
   { path: '/ask', label: 'Ask', icon: '💬', hidden: true },
 ]
 

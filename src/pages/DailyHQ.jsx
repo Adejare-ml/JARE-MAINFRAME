@@ -26,7 +26,7 @@ import Yesterday from '../components/daily/Yesterday'
 import ActivityGrid from '../components/daily/ActivityGrid'
 import UpcomingBills from '../components/daily/UpcomingBills'
 import DiscoveredAccounts from '../components/daily/DiscoveredAccounts'
-import FoodToday from '../components/daily/FoodToday'
+import DietCard from '../components/daily/DietCard'
 import { DailyHQSkeleton } from '../components/ui/PageSkeleton'
 import WeekReview from '../components/daily/WeekReview'
 import {
@@ -709,7 +709,10 @@ export default function DailyHQ() {
 
         {/* Today's food, with the camera one tap away. Hosts its own
             capture sheet so a meal is logged without leaving this page. */}
-        <FoodToday />
+        {/* The Diet module replaced FoodToday with DietCard (Phase 1):
+            calories and protein left, and the add-food sheet one tap away.
+            The camera returns in Phase 3; see DietCard.jsx. */}
+        <DietCard />
 
         {/* WALLET SNAPSHOT — Dynamic */}
         <section className="bg-card rounded-3xl p-6 border border-white/10 relative overflow-hidden shadow-xl">

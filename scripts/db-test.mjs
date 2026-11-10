@@ -442,6 +442,275 @@ async function runChecks() {
     eq(noPolicy.join(','), '', 'tables with RLS but no policy')
   })
 
+  // ── Diet (048-050), added for the Diet module, Phase 1 ──────────────────
+  // These run as the signed-in owner (role authenticated, the owner's
+  // claims), the way the browser calls them, so RLS and the grants are
+  // part of what is tested. Expected figures come from the 049 seed:
+  // egg 155 kcal / 12.6 g protein per 100 g, boiled plantain 116 / 0.8,
+  // Beans pot 802.772 kcal / 45.87 g protein per portion.
+  const asOwner = async (fn) => {
+    await client.query('set role authenticated')
+    try {
+      return await fn()
+    } finally {
+      await client.query('reset role')
+    }
+  }
+  const foodId = async (name) => (await one('select id from foods where lower(name) = $1', [name])).id
+  const logDiet = async (clientId, meal, items) =>
+    (await one('select log_diet_meal($1, $2::jsonb, $3::jsonb) as r', [clientId, JSON.stringify(meal), JSON.stringify(items)])).r
+
+  await check('log_diet_meal prices a saved meal from its foods and sums the meal, once per client id (048, 049)', async () => {
+    await asOwner(async () => {
+      const saved = await one("select id, items from saved_meals where name = '3 boiled eggs + 1 plantain'")
+      assert(saved, 'the 049 saved meal is missing')
+      // The client sends only references and amounts, plus a figure it has
+      // no business sending; the database prices the items itself.
+      const items = saved.items.map((i) => ({ ...i, kcal: 9999 }))
+      const meal = { eaten_at: '2026-11-09T07:00:00Z', meal_slot: 'breakfast', source: 'saved', saved_meal_id: saved.id }
+      const first = await logDiet('db-test-saved-1', meal, items)
+      eq(first.inserted, true, 'inserted')
+      // 233 (150 g egg) + 209 (180 g plantain); 18.9 + 1.4 g protein
+      eq(first.kcal, 442, 'kcal')
+      eq(Number(first.protein_g), 20.3, 'protein_g')
+      const again = await logDiet('db-test-saved-1', meal, items)
+      eq(again.inserted, false, 'a retry inserts nothing')
+      eq(again.reason, 'duplicate', 'reason')
+      const n = await one("select count(*)::int as n from meal_logs where client_id = 'db-test-saved-1'")
+      eq(n.n, 1, 'meal_logs rows for one client id')
+    })
+  })
+
+  await check('a Beans pot portion logs at 803 kcal and 45.9 g protein, and the day is the sum of its items (048, 049)', async () => {
+    await asOwner(async () => {
+      const recipe = await one("select id from recipes where name = 'Beans pot'")
+      const r = await logDiet('db-test-pot-1', { eaten_at: '2026-11-09T12:30:00Z', meal_slot: 'lunch' }, [
+        { recipe_id: recipe.id, portions: 1 },
+        { food_id: await foodId('orange'), grams: 130 },
+        { name: 'Zobo from the office', grams: 350, kcal: 160, carbs_g: 39.5 },
+      ])
+      // 803 + 61 (130 g orange) + 160 (kept: no food behind it)
+      eq(r.kcal, 1024, 'kcal')
+      const pot = await one("select grams, kcal, protein_g from meal_items where meal_id = $1 and recipe_id is not null", [r.id])
+      eq(pot.kcal, 803, 'pot kcal')
+      eq(Number(pot.protein_g), 45.9, 'pot protein')
+      eq(Number(pot.grams), 300.8, 'pot grams (raw weight / 5; no cooked weight recorded)')
+
+      // The Daily Sheet's done-criterion, against the database: the day's
+      // total in diet_daily_totals equals the sum of every item that day.
+      const items = await one(
+        `select sum(i.kcal)::int as kcal, sum(i.protein_g) as protein_g from meal_items i
+           join meal_logs l on l.id = i.meal_id where l.eaten_on = '2026-11-09'`,
+      )
+      const day = await one("select kcal, protein_g, meals from diet_daily_totals where eaten_on = '2026-11-09'")
+      eq(day.kcal, items.kcal, 'view kcal vs sum of items')
+      eq(Number(day.protein_g), Number(items.protein_g), 'view protein vs sum of items')
+      eq(day.kcal, 442 + 1024, 'day kcal')
+      eq(day.meals, 2, 'meals that day')
+
+      // Editing grams re-prices the item and re-sums the meal.
+      await client.query("update meal_items set grams = 260 where meal_id = $1 and name = 'Orange'", [r.id])
+      const edited = await one('select kcal from meal_logs where id = $1', [r.id])
+      eq(edited.kcal, 803 + 122 + 160, 'after editing the orange to 260 g')
+    })
+  })
+
+  await check('a late meal is filed under its Lagos day, and the 7-day average skips unlogged days (048)', async () => {
+    await asOwner(async () => {
+      // 23:30 UTC on the 11th is 00:30 on the 12th in Lagos.
+      const late = await logDiet('db-test-late-1', { eaten_at: '2026-11-11T23:30:00Z', meal_slot: 'snacks' }, [
+        { food_id: await foodId('groundnuts, roasted'), grams: 30 },
+      ])
+      const row = await one('select eaten_on::text as d, kcal from meal_logs where id = $1', [late.id])
+      eq(row.d, '2026-11-12', 'eaten_on')
+      eq(row.kcal, 176, 'kcal of 30 g groundnuts')
+      // Logged days: the 9th (1,551 after the edit above) and the 12th (176).
+      // The 10th and 11th are unlogged and must not count as zero.
+      const avg = await one("select days_logged::int as n, kcal from diet_7day_average where eaten_on = '2026-11-12'")
+      eq(avg.n, 2, 'days logged in the window')
+      eq(avg.kcal, Math.round((442 + 1085 + 176) / 2), 'average kcal')
+    })
+  })
+
+  await check('old Meals rows are copied into meal_logs with the same calories, once (050)', async () => {
+    await asOwner(async () => {
+      await client.query(
+        `select log_meal('db-test-legacy-1', '[{"name":"Jollof rice","calories":600,"protein_g":12,"grams":400},
+                                              {"name":"Akara","calories":80,"quantity":3}]'::jsonb,
+                         '2026-11-01'::date, '13:15'::time, 'lunch', 'from the old page', 'text')`,
+      )
+      await client.query(`select log_meal('db-test-legacy-2', '[{"name":"Coke","calories":210}]'::jsonb, '2026-11-01'::date, null, 'snack')`)
+    })
+    // The migration runs as postgres, from the SQL editor; twice, to prove
+    // a re-run copies nothing twice.
+    await applyFile(client, '050_diet_backfill.sql')
+    await applyFile(client, '050_diet_backfill.sql')
+    const logs = await q(
+      `select l.meal_slot, l.source, l.kcal, l.raw_text, to_char(l.eaten_at at time zone 'Africa/Lagos', 'HH24:MI') as t,
+              (select count(*)::int from meal_items i where i.meal_id = l.id) as items
+         from meal_logs l join meals m on m.id = l.legacy_meal_id
+        where m.client_id like 'db-test-legacy-%' order by l.kcal desc`,
+    )
+    eq(logs.length, 2, 'copied meals')
+    eq(logs[0].kcal, 840, 'jollof meal kcal (600 + 3 x 80)')
+    eq(logs[0].items, 2, 'jollof meal items')
+    eq(logs[0].t, '13:15', 'Lagos time kept')
+    eq(logs[0].source, 'text', 'source')
+    eq(logs[0].raw_text, 'from the old page', 'note carried into raw_text')
+    eq(logs[1].meal_slot, 'snacks', "'snack' becomes 'snacks'")
+    eq(logs[1].t, '12:00', 'no time kept: noon')
+    const akara = await one("select grams, kcal, estimates->'legacy_042'->>'name' as orig from meal_items where name = 'Akara'")
+    eq(akara.kcal, 240, 'akara x3')
+    eq(akara.orig, 'Akara', 'original item kept under estimates.legacy_042')
+  })
+
+  // ── Diet, Phase 2 (051): pantry updates from a sentence, and flags ──────
+  const applyPantry = async (clientId, updates, raw = null) =>
+    (await one('select apply_pantry_updates($1, $2::jsonb, $3) as r', [clientId, JSON.stringify(updates), raw])).r
+
+  await check('apply_pantry_updates: bought, used, finished, and a retry that applies nothing twice (051)', async () => {
+    await asOwner(async () => {
+      const beans = await foodId('brown beans, dry')
+      const egg = await foodId('egg, boiled')
+      const bought = await applyPantry('db-test-pantry-1', [
+        { action: 'bought', name: 'beans', food_id: beans, quantity: 2, unit: 'kg', cost_naira: 3000 },
+        { action: 'bought', name: 'eggs', food_id: egg, quantity: 30, unit: 'eggs', cost_naira: 5400 },
+      ], 'bought 2 kg beans for 3,000 and a crate of eggs for 5,400')
+      eq(bought.applied, 2, 'applied')
+      const row = await one("select quantity, unit, cost_naira, finished from pantry_items where food_id = $1", [beans])
+      eq(Number(row.quantity), 2, 'beans quantity')
+      eq(Number(row.cost_naira), 3000, 'beans cost')
+
+      const again = await applyPantry('db-test-pantry-1', [
+        { action: 'bought', name: 'beans', food_id: beans, quantity: 2, unit: 'kg', cost_naira: 3000 },
+        { action: 'bought', name: 'eggs', food_id: egg, quantity: 30, unit: 'eggs', cost_naira: 5400 },
+      ])
+      eq(again.applied, 0, 'a retry applies nothing')
+      eq(again.duplicates, 2, 'duplicates')
+      const n = await one('select count(*)::int as n from pantry_items where food_id = $1', [beans])
+      eq(n.n, 1, 'beans rows after a retry')
+
+      const used = await applyPantry('db-test-pantry-2', [{ action: 'used', name: 'eggs', food_id: egg, quantity: 3 }])
+      eq(used.results[0].outcome, 'reduced', 'used outcome')
+      eq(Number((await one('select quantity from pantry_items where food_id = $1', [egg])).quantity), 27, 'eggs left')
+
+      // "eggs finished", matched by name with no food id.
+      const done = await applyPantry('db-test-pantry-3', [{ action: 'finished', name: 'Eggs' }])
+      eq(done.results[0].outcome, 'finished', 'finished outcome')
+      eq((await one('select finished from pantry_items where food_id = $1', [egg])).finished, true, 'eggs finished')
+
+      const nothing = await applyPantry('db-test-pantry-4', [{ action: 'finished', name: 'garri' }])
+      eq(nothing.results[0].outcome, 'recorded', 'finishing something not in the pantry changes nothing')
+      const events = await one("select count(*)::int as n from pantry_events where client_id like 'db-test-pantry-%'")
+      eq(events.n, 5, 'ledger rows')
+    })
+  })
+
+  await check('log_diet_meal stores the parser flags and marks the meal for review (051)', async () => {
+    await asOwner(async () => {
+      const r = await logDiet('db-test-text-1', { meal_slot: 'lunch', source: 'text', raw_text: 'mama put rice and stew' }, [
+        { food_id: await foodId('white rice, boiled'), grams: 300, estimates: { claude_text: { grams: 300 } } },
+        { name: 'Mama put stew', grams: 120, kcal: 180, flagged: true, flag_reason: 'Not in your foods list' },
+      ])
+      const meal = await one('select source, raw_text, needs_review, kcal from meal_logs where id = $1', [r.id])
+      eq(meal.source, 'text', 'source')
+      eq(meal.needs_review, true, 'needs_review')
+      eq(meal.kcal, 390 + 180, 'kcal')
+      const flagged = await one("select flagged, flag_reason, estimates from meal_items where meal_id = $1 and name = 'Mama put stew'", [r.id])
+      eq(flagged.flagged, true, 'flagged')
+      eq(flagged.flag_reason, 'Not in your foods list', 'flag_reason')
+      const rice = await one("select estimates->'claude_text'->>'grams' as g from meal_items where meal_id = $1 and food_id is not null", [r.id])
+      eq(rice.g, '300', 'the model estimate kept beside the final numbers')
+    })
+  })
+
+  // ── Diet, Phase 3 (052): photos, per-model estimates, replacing items ──
+  await check('meal-photos: the owner may write only inside their own folder, and the bucket is private (052)', async () => {
+    const bucket = await one("select public from storage.buckets where id = 'meal-photos'")
+    eq(bucket.public, false, 'bucket public')
+    await asOwner(async () => {
+      await client.query("insert into storage.objects (bucket_id, name) values ('meal-photos', $1)", [`${OWNER}/2026/11/a.jpg`])
+      let refused = false
+      try {
+        await client.query("insert into storage.objects (bucket_id, name) values ('meal-photos', '22222222-2222-4222-8222-222222222222/2026/11/b.jpg')")
+      } catch {
+        refused = true
+      }
+      assert(refused, "the owner wrote into another account's folder")
+      const mine = await one("select count(*)::int as n from storage.objects where bucket_id = 'meal-photos'")
+      eq(mine.n, 1, 'objects the owner can see')
+    })
+  })
+
+  await check('meal_estimates holds one row per model per meal, and diet_replace_items swaps the items in one go (052)', async () => {
+    await asOwner(async () => {
+      const r = await logDiet('db-test-photo-1', { meal_slot: 'lunch', source: 'photo', status: 'auto' }, [{ food_id: await foodId('white rice, boiled'), grams: 250 }])
+      await client.query("insert into meal_estimates (meal_id, model_key, model_id, status, answer, latency_ms) values ($1, 'claude', 'claude-sonnet-5-5', 'ok', '{\"items\": []}', 6100)", [r.id])
+      await client.query("insert into meal_estimates (meal_id, model_key, status, reason) values ($1, 'ollama', 'error', 'laptop off') on conflict (meal_id, model_key) do update set status = 'skipped'", [r.id])
+      let dup = false
+      try {
+        await client.query("insert into meal_estimates (meal_id, model_key, status, answer) values ($1, 'claude', 'ok', '{}')", [r.id])
+      } catch {
+        dup = true
+      }
+      assert(dup, 'a second claude estimate for one meal was accepted')
+
+      const out = (await one('select diet_replace_items($1, $2::jsonb, $3::jsonb) as r', [
+        r.id,
+        JSON.stringify([
+          { food_id: await foodId('white rice, boiled'), grams: 200, estimates: { claude: { grams: 250 }, nvidia: { grams: 180 } } },
+          { name: 'Chicken, grilled', grams: 120, kcal: 250, protein_g: 30, flagged: true, flag_reason: 'Only Claude saw this' },
+        ]),
+        JSON.stringify({ status: 'confirmed', meal_slot: 'dinner' }),
+      ])).r
+      eq(out.status, 'confirmed', 'status')
+      eq(out.kcal, 260 + 250, 'kcal re-summed from the new items')
+      const meal = await one('select meal_slot, needs_review, (select count(*)::int from meal_items where meal_id = $1) as n from meal_logs where id = $1', [r.id])
+      eq(meal.meal_slot, 'dinner', 'slot')
+      eq(meal.n, 2, 'items after replacing')
+      eq(meal.needs_review, true, 'a flagged item marks the meal for review')
+    })
+    // The edge function's service role does the same for the worker's re-merge.
+    await client.query('set role service_role')
+    try {
+      const m = await one("select id from meal_logs where client_id = 'db-test-photo-1'")
+      const res = (await one("select diet_replace_items($1, $2::jsonb) as r", [m.id, JSON.stringify([{ name: 'Rice', grams: 100, kcal: 130 }])])).r
+      eq(res.kcal, 130, 'service role re-merge kcal')
+      const owner = await one('select user_id::text as u from meal_items where meal_id = $1', [m.id])
+      eq(owner.u, OWNER, "replaced items keep the meal's owner")
+    } finally {
+      await client.query('reset role')
+    }
+  })
+
+  await check('a second account sees no Diet rows, through the tables or the views (048)', async () => {
+    const other = '33333333-3333-4333-8333-333333333333'
+    await client.query('insert into auth.users (id, email) values ($1, $2)', [other, 'diet-stranger@example.test'])
+    await client.query('set role authenticated')
+    await client.query("select set_config('request.jwt.claims', $1, false)", [JSON.stringify({ sub: other, role: 'authenticated' })])
+    try {
+      for (const t of ['meal_logs', 'meal_items', 'foods', 'recipes', 'saved_meals', 'diet_settings', 'pantry_items', 'pantry_events', 'meal_estimates', 'diet_daily_totals', 'diet_7day_average']) {
+        const seen = await one(`select count(*)::int as n from ${t}`)
+        eq(seen.n, 0, `${t} rows visible to a stranger`)
+      }
+      // And the stranger cannot price an item off the owner's foods: the
+      // food is invisible, so the item keeps only what was sent.
+      const ownerFood = '00000000-0000-4000-8000-000000000000'
+      const r = await logDiet('db-test-stranger-1', { meal_slot: 'lunch' }, [{ food_id: ownerFood, name: 'x', grams: 100, kcal: 5 }])
+      eq(r.kcal, 5, 'stranger meal kcal')
+      // Nor replace the owner's items (052): the owner's meal is invisible.
+      const ownerMeal = (await client.query("select id from meal_logs limit 1")).rows[0]
+      eq(ownerMeal?.id ?? null, (await one("select id from meal_logs where client_id = 'db-test-stranger-1'")).id, 'the only meal a stranger sees is their own')
+      const photo = await one("select count(*)::int as n from storage.objects where bucket_id = 'meal-photos'")
+      eq(photo.n, 0, "the owner's photos visible to a stranger")
+    } finally {
+      await client.query('reset role')
+      await client.query("select set_config('request.jwt.claims', $1, false)", [CLAIMS])
+      await client.query('delete from meal_logs where user_id = $1', [other])
+      await client.query('delete from auth.users where id = $1', [other])
+    }
+  })
+
   await check('a second account cannot read or write the owner rows through RLS', async () => {
     const other = '22222222-2222-4222-8222-222222222222'
     await client.query('insert into auth.users (id, email) values ($1, $2)', [other, 'stranger@example.test'])

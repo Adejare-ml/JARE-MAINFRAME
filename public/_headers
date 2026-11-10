@@ -16,9 +16,14 @@
 # through the webcam on a desktop (getUserMedia); on a phone the file input
 # opens the camera app and needs no policy. The photo goes to the
 # analyze-meal edge function on Supabase, inside connect-src already.
+# Added for the Diet module, Phase 2: the microphone is allowed for this
+# origin only, for food dictation (DescribeFood) and the Daily HQ task
+# dictation (DictateDay), which microphone=() had been silently blocking.
+# The audio goes to the browser's own speech service; only the transcript
+# reaches the diet-parse edge function, inside connect-src already.
 /*
   Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
-  Permissions-Policy: camera=(self), microphone=(), geolocation=(), payment=()
+  Permissions-Policy: camera=(self), microphone=(self), geolocation=(), payment=()
   X-Frame-Options: DENY

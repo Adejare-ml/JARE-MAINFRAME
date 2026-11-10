@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
 import { useSchemaCheck } from './hooks/useSchemaCheck'
 import { useCustomCategories } from './hooks/useCustomCategories'
@@ -22,7 +22,10 @@ const Projects = lazy(() => import('./pages/Projects'))
 const Debts = lazy(() => import('./pages/Debts'))
 const Repairs = lazy(() => import('./pages/Repairs'))
 const Ask = lazy(() => import('./pages/Ask'))
-const Meals = lazy(() => import('./pages/Meals'))
+// Diet replaced Meals (docs/diet-module.md): /meals now redirects, so the
+// Meals page is no longer imported. Its files stay in the tree for Phase 3,
+// which reuses the capture code. Added for the Diet module, Phase 1.
+const Diet = lazy(() => import('./pages/Diet'))
 
 function App() {
   const { session, loading, recovering, signIn, signOut, resetPassword, updatePassword, finishRecovery } = useAuth()
@@ -85,7 +88,8 @@ function App() {
         <Route path="/debts" element={<Debts />} />
         <Route path="/repairs" element={<Repairs />} />
         <Route path="/ask" element={<Ask />} />
-        <Route path="/meals" element={<Meals />} />
+        <Route path="/meals" element={<MealsRedirect />} />
+        <Route path="/diet" element={<Diet />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
         </Suspense>
@@ -100,4 +104,13 @@ export default function AppWrapper() {
       <App />
     </BrowserRouter>
   )
+}
+
+// /meals is Diet now. The query string comes along, so the old home-screen
+// shortcut (/meals?snap=1, installed before the manifest changed) still
+// opens the add-food sheet. A bare <Navigate to="/diet"> dropped it; found
+// in the Phase 1 browser check. Added for the Diet module, Phase 1.
+function MealsRedirect() {
+  const { search } = useLocation()
+  return <Navigate to={`/diet${search}`} replace />
 }

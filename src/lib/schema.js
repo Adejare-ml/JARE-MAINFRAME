@@ -138,6 +138,33 @@ export const GATED_COLUMNS = {
   // Meals logged from a photo. A whole table; a database behind 042 costs
   // the Meals page and the Daily HQ food card a notice naming the file.
   'meals.items': '042_meals.sql',
+  // The Diet module (048), which replaces Meals: nine tables at once, so a
+  // database behind 048 is missing them all. One key per table anyway,
+  // because probeSchema asks table by table and each screen gates on the
+  // table it reads. A database behind 048 costs the Diet page and the
+  // Daily HQ diet card a notice naming the file. Added for the Diet
+  // module, Phase 1 (docs/diet-module.md).
+  'diet_settings.meal_split': '048_diet.sql',
+  'foods.aliases': '048_diet.sql',
+  'recipes.portions': '048_diet.sql',
+  'recipe_ingredients.grams': '048_diet.sql',
+  'saved_meals.items': '048_diet.sql',
+  'meal_logs.eaten_on': '048_diet.sql',
+  'meal_items.estimates': '048_diet.sql',
+  'weight_logs.weight_kg': '048_diet.sql',
+  'pantry_items.finished': '048_diet.sql',
+  // The pantry ledger behind text and voice updates (Diet module, Phase 2).
+  // A database behind 051 costs the confirm step of a pantry update a
+  // notice naming the file; meals logged from text still work.
+  'pantry_events.outcome': '051_diet_pantry.sql',
+  // Photo logging (Diet module, Phase 3): the per-model answers and the
+  // private photo bucket. A database behind 052 costs the photo button a
+  // notice naming the file; every other way of logging still works.
+  'meal_estimates.answer': '052_diet_photos.sql',
+  // The coach's answer for a meal (Diet module, Phase 4). A database behind
+  // 053 costs the coach's verdict and "What should I eat next?" a notice;
+  // the verdict computed in code is still shown.
+  'meal_logs.coach': '053_diet_coach.sql',
 }
 
 /**

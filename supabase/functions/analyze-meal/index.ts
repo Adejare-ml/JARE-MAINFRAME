@@ -26,7 +26,9 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { MEAL_SYSTEM_PROMPT, buildMealPrompt } from '../../../src/lib/mealPrompt.js'
 import { parseMealAnalysis, LIMITS, MEAL_TYPES } from '../../../src/lib/meals.js'
-import { extractJsonObject } from '../../../src/lib/sync/normalize.js'
+// Fixed in the Diet module, Phase 2: this read '../../../src/lib/sync/normalize.js',
+// which #180 moved to src/lib/normalize.js, so the function could not deploy.
+import { extractJsonObject } from '../../../src/lib/normalize.js'
 
 const ALLOWED_ORIGIN = Deno.env.get('ALLOWED_ORIGIN') || 'https://jare-mainframe.pages.dev'
 
