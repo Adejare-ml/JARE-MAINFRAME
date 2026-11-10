@@ -365,3 +365,85 @@ Added when Phase 2 was built. Nothing above this section was changed.
 - **No real Claude call was made.** This machine has no Anthropic key. Its proxy sends `api.anthropic.com` direct, so a key saved through the session's credential form would not be injected either. In the browser check, the model call was replaced by fixed answers; everything around it was the code that deploys.
 - **To finish the check**, set `ANTHROPIC_API_KEY`, deploy `diet-parse`, open Diet → Add food, and send the four test notes. The health probe at `GET /functions/v1/diet-parse` reports whether the key is set.
 - **The real speech recogniser was not exercised.** Headless Chromium has no speech service, so only the app's handling of it was tested.
+
+---
+
+## 10. Phase 3 build notes (added after Phase 3 was approved)
+
+Added when Phase 3 was built. Nothing above this section was changed.
+
+### What was built
+
+- **Merge** (`src/lib/diet/merge.js`, 16 tests, written first). It follows the spec's rules:
+  - match items across models by food (name or alias), else by the words of the name in any order, with plurals folded and portion words dropped;
+  - take the median grams;
+  - price a matched food from the foods table, otherwise use the median of the models' figures;
+  - flag disagreements over 25% (largest over smallest), and items only one model saw;
+  - keep every model's raw item under `estimates[model]`.
+
+  `attachEstimates` stores a late estimate beside a confirmed meal without touching its numbers.
+- **Migration `052_diet_photos.sql`**:
+  - the private `meal-photos` bucket (2 MB, JPEG and WebP), with owner-only folder policies for select, insert and delete;
+  - `meal_estimates`, one row per model per photo meal, whether that model succeeded or failed, with the reason;
+  - `diet_replace_items`, which swaps a meal's items in one statement and works from the browser (RLS) and from the service role (re-merge).
+
+  There are two new db-test checks, and the test stubs gained a minimal `storage` schema.
+- **Edge Function `diet-photo`**, with three actions:
+  - `analyze` (owner JWT): Claude `claude-sonnet-5-5` and the NVIDIA model run in parallel, each with a 25 s limit and one retry on an invalid answer. The answers are merged, the meal is logged as `auto`, and every estimate is stored. Ollama is never waited for.
+  - `pending` (worker token): returns up to three photo meals from the last 48 hours with no Ollama estimate, each with a 15-minute signed URL and the filled prompt.
+  - `estimate` (worker token): validates the answer with zod, stores it, and re-merges. An `auto` meal gets the three-model merge; a confirmed or edited meal only gains the estimate beside each item.
+
+  There are 15 Deno tests with fakes, and CI now type-checks and tests every function that has a `deno.json`. The library loader moved to `supabase/functions/_shared/library.ts`.
+- **Claude call**: structured outputs from the zod schema at low effort, plus the server-side refusal fallback (`fallbacks: "default"`), as the Claude API guidance advises for `claude-sonnet-5-5`.
+- **NVIDIA call**: OpenAI-compatible, with the 640 px copy inline and the instructions in the user turn (as in `analyze-meal`). The model ID comes from Diet settings, then `NVIDIA_VISION_MODEL`, then the default.
+- **Ollama worker** (`workers/ollama/`, Python):
+  - only pydantic and python-dotenv, with HTTP from the standard library;
+  - strict pydantic validation and one retry;
+  - `keep_alive: 0`;
+  - output constrained to the schema with Ollama's `format`;
+  - it checks the model is pulled and smaller than 90% of `VRAM_GB` before each pass, and posts nothing otherwise, so meals stay pending;
+  - it opens no ports.
+
+  9 unittest tests; a new CI `worker` job runs them.
+- **Screens**:
+  - a camera button (`capture=environment`) on Today, on the Daily HQ card and in Add food;
+  - the photo flow: prepare the photo at 1024 px with a 640 px copy, upload it, have it read, then review;
+  - the review shows the photo, a chip per model with its time, the questions, flagged items first, steppers, "Looks right" and "Discard";
+  - `auto` meals on Today get a "Check" button;
+  - Diet settings gained the two model IDs and the photo retention.
+- **Pruning**: `scripts/prune-meal-photos.mjs` plus a weekly workflow (manual runs default to a dry run). It deletes through the Storage API, skips meals still `auto`, and does nothing while retention is empty. The rule is in `src/lib/diet/prune.js` (3 tests).
+
+### Decisions made while building
+
+- **The worker uses its own token (`DIET_WORKER_TOKEN`), not the service role key.** This replaces section 7, point 10. The laptop can list photo meals and add estimates through the function, and nothing else. The anon key it also sends is public; it only gets the request past the Supabase gateway.
+- **With one cloud model answering, items are not flagged "only one model saw this".** Every item would be flagged. The review says "Only one model read this photo" instead. A guessed amount is still flagged.
+- **A meal confirmed or edited before Ollama answers keeps the owner's numbers**, as the spec says. The estimate is stored in `meal_estimates` and beside each matching item.
+- **The photo is shown in the app from a `blob:` URL downloaded through the authenticated Storage API, not a signed URL.** The CSP allows `blob:` images but not the Supabase host. Signed URLs are used only for the worker.
+- **The photo flow takes no note**, to keep a snap to one tap. A note typed into Describe is separate (Phase 2). The function and prompt accept a note for later.
+- **Known limit of the merge:** two models naming a food that is not in the foods table with different words that are not reorderings ("jollof" against "party rice") stay two items, each flagged "Only X saw this". Adding the name as an alias in Library fixes it for next time.
+
+### Model choice, and what could not be checked
+
+- **Neither model catalog could be read here.** build.nvidia.com and ollama.com are not on this machine's network allowlist.
+  - The NVIDIA default stays `meta/llama-3.2-90b-vision-instruct`, the one `analyze-meal` already used.
+  - The Ollama default is `qwen3-vl:8b`, chosen from what I know of the catalog: about 6 GB, so it fits the 8 GB card on its own.
+  - Both are settings, not code. The worker measures the real size before running and refuses a model that does not fit.
+  - Check both against the catalogs before relying on them.
+- **No real model call was made.** There are no keys here. The cloud calls were replaced by fixed answers in the browser check, and Ollama by a fake HTTP server; everything around them was the code that deploys.
+
+### Checked
+
+- `npm run lint`: 0 errors.
+- `npm test`: all passing.
+- `npm run build`: clean.
+- `npm run test:db`: 36 of 36.
+- `deno test`: diet-parse 10, diet-photo 15.
+- `python -m unittest`: 9.
+- **End to end**, with Postgres plus the real Supabase storage server (`supabase/storage-api` v1.11.13, with Supabase's own storage schema under all 52 migrations), PostgREST, the real `diet-photo` handler under Deno, and the real Python worker. An iPhone 13 viewport in Chromium:
+  - **Snap:** a 2000 × 1500 photo was stored as a 1024 × 768 JPEG, read, merged, and pre-filled in 1.9 s (fixed model answers, so real model time is not in that figure). The meal was logged as `auto` with both estimates stored.
+  - **Worker pass:** it re-merged the `auto` meal with three models (rice flagged at 200 to 300 g); then Check, a step, and Looks right marked it `edited` and cleared the review flag.
+  - **Confirmed meal:** a second photo, confirmed at once, kept its numbers unchanged when the worker's estimate arrived; the estimate was attached to each item.
+  - **Discard:** a third photo was discarded, and the meal and the stored photo were both deleted.
+  - **Ollama requests:** always `keep_alive: 0`, the schema, and the image.
+  - **Layout:** the page stayed 390 px wide, with no page errors.
+- **Not checked:** real Claude, NVIDIA and Ollama answers; the 30-second target with real models; and Excel and phone cameras, as before.

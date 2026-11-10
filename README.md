@@ -202,6 +202,24 @@ supabase secrets set ANTHROPIC_API_KEY=...         # required
 # optional: DIET_PARSE_MODEL (default claude-haiku-5-5), ALLOWED_ORIGIN
 ```
 
+A photo goes through the `diet-photo` edge function (Phase 3): it is resized
+to 1024 px on the phone, stored in the private `meal-photos` bucket (run
+`052_diet_photos.sql` first), read by Claude (`claude-sonnet-5-5`) and an
+NVIDIA vision model at the same time, merged, and shown for you to check.
+A third reading comes later from Ollama on your laptop
+(`workers/ollama/README.md`); logging never waits for it.
+
+```bash
+supabase functions deploy diet-photo
+supabase secrets set ANTHROPIC_API_KEY=...         # already set for diet-parse
+supabase secrets set NVIDIA_API_KEY=...            # build.nvidia.com
+supabase secrets set DIET_WORKER_TOKEN=...         # long random string; the laptop worker sends it
+```
+
+Photos older than the retention in Diet settings are deleted weekly by
+`.github/workflows/prune-meal-photos.yml` (nothing is deleted while the
+setting is empty).
+
 The prompts are in `prompts/`. After editing one, run
 `node scripts/build-diet-prompts.mjs` so the copy the functions import
 matches (a test fails until you do). The function's own tests run with
