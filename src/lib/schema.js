@@ -161,6 +161,10 @@ export const GATED_COLUMNS = {
   // private photo bucket. A database behind 052 costs the photo button a
   // notice naming the file; every other way of logging still works.
   'meal_estimates.answer': '052_diet_photos.sql',
+  // The coach's answer for a meal (Diet module, Phase 4). A database behind
+  // 053 costs the coach's verdict and "What should I eat next?" a notice;
+  // the verdict computed in code is still shown.
+  'meal_logs.coach': '053_diet_coach.sql',
 }
 
 /**
