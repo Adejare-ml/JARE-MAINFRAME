@@ -28,7 +28,9 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { buildNlQueryPrompt, NL_QUERY_SYSTEM_PROMPT } from '../../../src/lib/nlQueryPrompt.js'
 import { runQuery } from '../../../src/lib/nlQuery.js'
-import { extractJsonObject } from '../../../src/lib/sync/normalize.js'
+// Fixed in the Diet module, Phase 2: this read '../../../src/lib/sync/normalize.js',
+// which #180 moved to src/lib/normalize.js, so the function could not deploy.
+import { extractJsonObject } from '../../../src/lib/normalize.js'
 
 // The app's own origin only. A finance app's model endpoint has no business
 // answering a page served from anywhere else. Override with ALLOWED_ORIGIN
