@@ -39,7 +39,10 @@ import { FoodVision, type FoodVisionT } from './schema.ts'
 export const SERVICE = 'diet-photo'
 export const DEFAULTS = {
   claude: 'claude-sonnet-5-5',
-  nvidia: 'meta/llama-3.2-90b-vision-instruct',
+  // Changed from meta/llama-3.2-90b-vision-instruct after the image test of
+  // 10 Nov: that model timed out or refused on 7 of 8 photos; Gemma 4 on
+  // NVIDIA answered 7 of 8, within 5 to 20% of Claude's totals.
+  nvidia: 'google/gemma-4-31b-it',
   ollama: 'qwen3-vl:8b',
 }
 const PENDING_WINDOW_HOURS = 48

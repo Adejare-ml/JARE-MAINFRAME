@@ -526,3 +526,16 @@ Asked for after Phase 4: the Claude and Ollama keys live in GitHub secrets, a da
 Claude is called with plain `fetch` in these scripts (no SDK in package.json), with structured outputs; a refusal is reported, not retried.
 
 Not verified from the build session: any real model call (no keys there), the deploy itself, and the push on a phone. The first runs on GitHub are the check.
+
+**Image test results, 10 Nov (four runs).**
+
+| Run | Claude (`claude-sonnet-5-5`) | NVIDIA | Ollama Cloud |
+|---|---|---|---|
+| 1 | refused every photo: the test sent the dataset's `binary/octet-stream` type (a test bug; the app sends JPEG/WebP) | `llama-3.2-90b-vision`: 40-60 s, mostly "I cannot..." | 402: the account needs credits or a plan |
+| 2 | 5 of 5 photos, 10-16 s, every dish named | `llama-4-maverick`: 410, retired | 402 |
+| 3 | 8 of 8 | `llama-3.2-90b-vision`: 1 of 8, the rest timed out | 402 |
+| 4 | 8 of 8 | `google/gemma-4-31b-it`: 7 of 8, totals 5 to 20% from Claude's, 10-57 s | 402 |
+
+What we have: Claude reads Nigerian plates well, names the dish, and lists oil and meat separately; Gemma 4 on NVIDIA is a usable second opinion and is now the default (`diet-photo`, the image test, the settings placeholder). What we need: an Ollama Cloud plan for the third estimate and for Ollama's plan in the check-in; the catalog's other current vision model, `nvidia/nemotron-3.5-super-vl-120b-a12b`, is untried.
+
+Found and fixed: hidden oil was counted twice when the dish is priced as served (fix in `merge.js`, 4 tests). Found and **not yet fixed**: in run 4 the merged total was higher than either model's on every photo (okra soup 1,565 kcal against 658 and 725). Part of that is the oil, which the fix removes; the rest looks like the same food named differently by the two models ("okra soup" and "okro soup", "egusi" and "melon soup") becoming two items, each "seen by one model" and flagged, and both counted. Until that is fixed, check flagged items on a photo meal and delete the duplicate.

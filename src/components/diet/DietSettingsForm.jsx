@@ -144,7 +144,7 @@ export default function DietSettingsForm({ settings, onSaved }) {
           deleted every week; blank keeps them.
         </p>
         <Field id="ds-nv" label="NVIDIA vision model (build.nvidia.com)" error={errors.nvidia_vision_model}>
-          <input id="ds-nv" value={form.nvidia_vision_model} onChange={set('nvidia_vision_model')} placeholder="meta/llama-3.2-90b-vision-instruct" className={input} autoCapitalize="off" spellCheck="false" />
+          <input id="ds-nv" value={form.nvidia_vision_model} onChange={set('nvidia_vision_model')} placeholder="google/gemma-4-31b-it" className={input} autoCapitalize="off" spellCheck="false" />
         </Field>
         <Field id="ds-ol" label="Ollama model on the laptop (fits in 8 GB)" error={errors.ollama_vision_model}>
           <input id="ds-ol" value={form.ollama_vision_model} onChange={set('ollama_vision_model')} placeholder="qwen3-vl:8b" className={input} autoCapitalize="off" spellCheck="false" />
