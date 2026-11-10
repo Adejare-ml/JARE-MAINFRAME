@@ -104,7 +104,7 @@ export function mergeEstimates(estimates, lib) {
   for (const m of perModel) for (const k of m.items.keys()) if (!keys.includes(k)) keys.push(k)
   const single = answered.length === 1
 
-  const items = keys.map((key) => {
+  const priced = keys.map((key) => {
     const seen = perModel.filter((m) => m.items.has(key)).map((m) => ({ model: m.model, item: m.items.get(key) }))
     const food = key.startsWith('food:') ? lib.foodsById?.get(key.slice(5)) : null
     const grams = round1(median(seen.map((s) => s.item.grams)) ?? 0)
@@ -145,6 +145,8 @@ export function mergeEstimates(estimates, lib) {
     }
   })
 
+  const { kept: items, absorbed } = dropCountedOil(priced, lib)
+
   items.sort((a, b) => Number(b.flagged) - Number(a.flagged) || b.kcal - a.kcal)
   const qualities = answered.map((e) => e.answer.image_quality).filter((q) => QUALITY_ORDER.includes(q))
   return {
@@ -155,7 +157,34 @@ export function mergeEstimates(estimates, lib) {
     no_food: answered.length > 0 && items.length === 0 && answered.every((e) => e.answer.image_quality === 'no_food' || (e.answer.items || []).length === 0),
     image_quality: qualities.length ? QUALITY_ORDER[Math.max(...qualities.map((q) => QUALITY_ORDER.indexOf(q)))] : null,
     questions: [...new Set(answered.map((e) => String(e.answer.question ?? '').trim()).filter(Boolean))],
+    absorbed,
   }
+}
+
+// Added after the first image test (10 Nov): the photo prompt asks for hidden
+// oil as an item of its own, but the seeded foods are priced as served, with
+// their oil (the source note says "Includes typical cooking oil", "with palm
+// oil", "Deep fried"). Counting both put a jollof pack at about 1,000 kcal
+// instead of about 750. Hidden oil is left out when another item in the meal
+// is priced from such a food; it is kept when nothing else counts it.
+const OIL_IN_FIGURES = /\boil\b|\boily\b|fried/i
+const IS_OIL = /\boil\b/i
+
+function pricedWithOil(food) {
+  return Boolean(food) && !IS_OIL.test(food.name || '') && OIL_IN_FIGURES.test(food.source || '')
+}
+
+function dropCountedOil(items, lib) {
+  const dish = items.find((i) => i.source === 'food' && pricedWithOil(lib.foodsById?.get(i.food_id)))
+  if (!dish) return { kept: items, absorbed: [] }
+  const kept = []
+  const absorbed = []
+  for (const it of items) {
+    const name = String(Object.values(it.estimates || {})[0]?.name ?? it.name)
+    if (it.hidden && IS_OIL.test(`${it.name} ${name}`)) absorbed.push({ name, kcal: it.kcal, into: dish.name })
+    else kept.push(it)
+  }
+  return { kept, absorbed }
 }
 
 /**

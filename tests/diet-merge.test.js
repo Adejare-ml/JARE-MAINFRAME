@@ -186,3 +186,41 @@ describe('attachEstimates', () => {
     ])
   })
 })
+
+// Added after the first image test (10 Nov): Claude lists hidden oil as its
+// own item, as prompts/food-vision.md asks, but the seeded foods are priced
+// as served, oil included ("Includes typical cooking oil", "Deep fried").
+// A jollof takeaway pack came out at about 1,000 kcal instead of about 750.
+describe('mergeEstimates: oil already in a food priced as served', () => {
+  const oily = buildLibrary({
+    foods: [
+      { id: 'jollof', name: 'Jollof rice', aliases: ['jollof'], kcal_per_100g: 165, protein_g: 3, carbs_g: 27, fat_g: 5, source: 'Estimate: ... Includes typical cooking oil.' },
+      { id: 'rice', name: 'White rice, boiled', aliases: ['white rice'], kcal_per_100g: 130, protein_g: 2.7, carbs_g: 28.2, fat_g: 0.3, source: 'Estimate: ... Cooked, unsalted.' },
+      { id: 'palm', name: 'Palm oil', aliases: ['red oil'], kcal_per_100g: 884, protein_g: 0, carbs_g: 0, fat_g: 100, source: 'Estimate: ... Pure oil.' },
+    ],
+  })
+  const oil = (name, grams = 30) => it_({ name, grams, kcal: grams * 9, fat_g: grams, hidden: true })
+
+  it('leaves out hidden oil when a dish in the meal is priced with its oil', () => {
+    const m = mergeEstimates([{ model: 'claude', answer: answer([it_({ name: 'jollof rice', grams: 450, kcal: 600 }), oil('cooking oil in jollof (absorbed)')]) }], oily)
+    expect(m.items.map((i) => i.name)).toEqual(['Jollof rice'])
+    expect(m.totals.kcal).toBe(743)
+    expect(m.absorbed).toEqual([{ name: 'cooking oil in jollof (absorbed)', kcal: 270, into: 'Jollof rice' }])
+  })
+
+  it('also when the oil matched the Palm oil food', () => {
+    const m = mergeEstimates([{ model: 'claude', answer: answer([it_({ name: 'jollof', grams: 300 }), oil('palm oil', 20)]) }], oily)
+    expect(m.items.map((i) => i.food_id)).toEqual(['jollof'])
+  })
+
+  it('keeps the oil when nothing in the meal already counts it', () => {
+    const m = mergeEstimates([{ model: 'claude', answer: answer([it_({ name: 'white rice', grams: 250 }), oil('oil drizzled on rice', 10)]) }], oily)
+    expect(m.items).toHaveLength(2)
+    expect(m.absorbed).toEqual([])
+  })
+
+  it('keeps oil the models did not call hidden, such as a bottle of oil in the photo', () => {
+    const m = mergeEstimates([{ model: 'claude', answer: answer([it_({ name: 'jollof rice', grams: 300 }), it_({ name: 'palm oil', grams: 15, kcal: 133, hidden: false })]) }], oily)
+    expect(m.items).toHaveLength(2)
+  })
+})
