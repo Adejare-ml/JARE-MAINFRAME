@@ -1,0 +1,9 @@
+{
+  "nodeModulesDir": "none",
+  "imports": {
+    "@anthropic-ai/sdk": "npm:@anthropic-ai/sdk@1.3.0",
+    "@anthropic-ai/sdk/helpers/zod": "npm:@anthropic-ai/sdk@1.3.0/helpers/zod",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.118.0",
+    "zod": "npm:zod@4.6.7"
+  }
+}

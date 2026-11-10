@@ -16,7 +16,7 @@
 // Added for the Diet module, Phase 2 (docs/diet-module.md).
 import { TEXT_PARSE_MD } from '../../../src/lib/diet/promptText.js'
 import { fillPrompt, catalogText, parseUserMessage } from '../../../src/lib/diet/prompts.js'
-import { buildLibrary } from '../../../src/lib/diet/library.js'
+import { loadLibraryWith } from '../_shared/library.ts'
 import { matchParsed, PARSE_LIMITS } from '../../../src/lib/diet/parse.js'
 import type { ParseResultT } from './schema.ts'
 
@@ -53,24 +53,9 @@ function corsHeaders(origin: string) {
 
 const LAGOS_TIME = new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Lagos', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
 
-/** Reads the owner's library through the caller's client, so RLS decides what it sees. */
-export async function loadLibraryWith(client: Client) {
-  const [settings, foods, recipes, ingredients, saved] = await Promise.all([
-    client.from('diet_settings').select('*').maybeSingle(),
-    client.from('foods').select('id, name, aliases, kcal_per_100g, protein_g, carbs_g, fat_g, typical_portion_g, portion_label').order('name'),
-    client.from('recipes').select('*').order('name'),
-    client.from('recipe_ingredients').select('*').order('position'),
-    client.from('saved_meals').select('*').order('name'),
-  ])
-  for (const res of [settings, foods, recipes, ingredients, saved]) if (res.error) throw new Error(res.error.message)
-  return buildLibrary({
-    settings: settings.data || null,
-    foods: foods.data || [],
-    recipes: recipes.data || [],
-    ingredients: ingredients.data || [],
-    saved: saved.data || [],
-  })
-}
+// loadLibraryWith moved to ../_shared/library.ts in Phase 3 (diet-photo uses it
+// too); re-exported here so existing imports keep working.
+export { loadLibraryWith }
 
 export function makeHandler(deps: Deps) {
   const origin = deps.env('ALLOWED_ORIGIN') || 'https://jare-mainframe.pages.dev'
