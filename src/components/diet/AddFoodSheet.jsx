@@ -9,6 +9,9 @@ import { mealVerdict } from '../../lib/diet/verdict'
 import { SLOTS, SLOT_LABELS, SLOT_ICONS, slotForHour, localDay, localTime, localHour } from '../../lib/diet/totals'
 import { priceItems, logMeal } from './api'
 import VerdictBadge from './VerdictBadge'
+// Phase 2: type or say it, then review what was read.
+import DescribeFood from './DescribeFood'
+import ParsedReview from './ParsedReview'
 
 const PORTION_STEPS = [0.5, 1, 1.5, 2]
 
@@ -38,6 +41,7 @@ export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onL
   const [saveName, setSaveName] = useState('')
   const [custom, setCustom] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [parsed, setParsed] = useState(null)
   const searchRef = useRef(null)
 
   // A fresh sheet every time it opens: the slot and clock follow the hour.
@@ -47,6 +51,7 @@ export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onL
     setBasket([])
     setPicking(null)
     setCustom(null)
+    setParsed(null)
     setSaveAs(mode === 'save')
     setSaveName('')
     setSlot(slotForHour(localHour()))
@@ -157,8 +162,29 @@ export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onL
           </button>
         </div>
 
+        {/* Phase 2: a note the parser has read, waiting for "Looks right".
+            It replaces the rest of the sheet until it is logged or dropped. */}
+        {parsed && (
+          <ParsedReview
+            entry={parsed.entry}
+            text={parsed.text}
+            source={parsed.source}
+            lib={lib}
+            todayLogs={todayLogs}
+            onBack={() => setParsed(null)}
+            onDone={(res) => {
+              onLogged?.(res)
+              onClose()
+            }}
+          />
+        )}
+
+        {/* Phase 2: type or say it. Only for logging, and only before a
+            meal has been started by hand, so the two ways do not mix. */}
+        {!parsed && mode === 'log' && basket.length === 0 && !picking && !custom && <DescribeFood onParsed={setParsed} />}
+
         {/* What is in the meal so far */}
-        {priced.length > 0 && (
+        {!parsed && priced.length > 0 && (
           <section aria-label="This meal" className="rounded-2xl bg-background/60 border border-white/10 p-3 space-y-2">
             <ul className="space-y-1">
               {priced.map((item, i) => (
@@ -191,7 +217,7 @@ export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onL
         )}
 
         {/* Find a food */}
-        {!picking && !custom && (
+        {!parsed && !picking && !custom && (
           <div className="space-y-2">
             <label htmlFor="diet-food-search" className="sr-only">
               Search foods and recipes
@@ -313,7 +339,7 @@ export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onL
         )}
 
         {/* Which meal, when, and whether to keep it */}
-        {basket.length > 0 && !picking && !custom && (
+        {!parsed && basket.length > 0 && !picking && !custom && (
           <div className="space-y-3">
             <div className="grid grid-cols-4 gap-1" role="radiogroup" aria-label="Meal">
               {SLOTS.map((s) => (
