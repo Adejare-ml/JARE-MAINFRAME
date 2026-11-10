@@ -31,6 +31,7 @@ jobs:
           node --check scripts/llm.mjs
           node --check scripts/test-llm.mjs
           node --check scripts/db-test.mjs
+          node --check scripts/build-diet-prompts.mjs
           node --check scripts/verify-repo.mjs
           node --check scripts/plan-month.mjs
           node --check scripts/snapshot-net-worth.mjs
@@ -52,7 +53,7 @@ jobs:
       # under plain Node, not just under the bundler.
       - name: Check shared modules load under Node
         run: |
-          for m in planning queries summary schema constants formatters debts repo repoProfile planReview planPrompt speech calendar sparkline transactionGroups insight recurring pendingTransactions haptics theme privacy weekreview activity recapPrompt recapReview nlQuery nlQueryPrompt swipeGesture contrast health projects repairs export transfers categories categoryRules reminders anomalies refunds monthRecap push auth discovery meals mealPrompt imagePrep setup latest wallets backup normalize batchPrompt walletRouting diet/nutrition diet/recipes diet/totals diet/settings diet/verdict diet/target diet/foods diet/sheet; do
+          for m in planning queries summary schema constants formatters debts repo repoProfile planReview planPrompt speech calendar sparkline transactionGroups insight recurring pendingTransactions haptics theme privacy weekreview activity recapPrompt recapReview nlQuery nlQueryPrompt swipeGesture contrast health projects repairs export transfers categories categoryRules reminders anomalies refunds monthRecap push auth discovery meals mealPrompt imagePrep setup latest wallets backup normalize batchPrompt walletRouting diet/nutrition diet/recipes diet/totals diet/settings diet/verdict diet/target diet/foods diet/sheet diet/library diet/prompts diet/promptText diet/parse; do
             node --input-type=module -e "await import('./src/lib/$m.js')" \
               || { echo "::error::src/lib/$m.js does not load under Node"; exit 1; }
           done
@@ -62,6 +63,37 @@ jobs:
             || { echo "::error::scripts/lib/ownerId.mjs does not load under Node"; exit 1; }
           node --input-type=module -e "await import('./scripts/lib/recordRun.mjs')" \
             || { echo "::error::scripts/lib/recordRun.mjs does not load under Node"; exit 1; }
+
+  # The edge functions, which nothing in CI read before the Diet module's
+  # Phase 2: analyze-meal and ask-question both imported a file that #180 had
+  # moved, and every check stayed green because none of them looks at Deno
+  # code (eslint ignores supabase/functions). This job resolves every
+  # function's module graph (`deno info` exits 0 on a missing file, so its
+  # output is searched instead), then type-checks and tests diet-parse,
+  # whose logic is written to be tested without a network or a model key.
+  functions:
+    runs-on: ubuntu-latest
+    env:
+      NO_COLOR: '1'
+      DENO_NO_PACKAGE_JSON: '1'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.9.6
+      - name: Every function's imports resolve
+        run: |
+          for f in supabase/functions/*/index.ts; do
+            dir=$(dirname "$f")
+            if [ -f "$dir/deno.json" ]; then cfg="--config $dir/deno.json"; else cfg="--no-config"; fi
+            deno info $cfg "$f" > info.txt 2>&1 || { cat info.txt; echo "::error::$f: deno info failed"; exit 1; }
+            if grep -E "\((missing|resolve error)\)" info.txt; then echo "::error::$f imports something that does not resolve"; exit 1; fi
+          done
+      - name: diet-parse type-checks and its tests pass
+        working-directory: supabase/functions/diet-parse
+        run: |
+          deno check index.ts handler.ts schema.ts
+          deno test --allow-env
 
   # The SQL layer, executed: every migration applied to a real Postgres in
   # the README's fresh-project order, then the functions the Routine and the
