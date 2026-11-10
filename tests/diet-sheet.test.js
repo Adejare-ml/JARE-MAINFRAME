@@ -38,6 +38,14 @@ describe('sheetRows', () => {
     expect(rows[2].time).toBe('13:30')
   })
 
+  it('puts breakfast before lunch when both were logged in the same minute', () => {
+    const same = [
+      { id: 'l', eaten_at: '2026-11-10T18:30:00Z', meal_slot: 'lunch', meal_items: [{ name: 'Beans pot', kcal: 803 }] },
+      { id: 'b', eaten_at: '2026-11-10T18:30:12Z', meal_slot: 'breakfast', meal_items: [{ name: 'Egg, boiled', kcal: 233 }] },
+    ]
+    expect(sheetRows(same).map((r) => r.meal)).toEqual(['Breakfast', 'Lunch'])
+  })
+
   it('is empty for a day with nothing logged', () => {
     expect(sheetRows([])).toEqual([])
   })

@@ -20,7 +20,7 @@
 
 import { toCsv } from '../export.js'
 import { toNumber, sumNutrition, round1 } from './nutrition.js'
-import { localTime, SLOT_LABELS, normaliseSlot } from './totals.js'
+import { localTime, SLOT_LABELS, SLOTS, normaliseSlot } from './totals.js'
 
 export const SHEET_COLUMNS = [
   { key: 'time', label: 'Time' },
@@ -39,7 +39,15 @@ export const SHEET_COLUMNS = [
  *   kcal: number, protein_g: number, carbs_g: number, fat_g: number, hidden: boolean}>}
  */
 export function sheetRows(logs) {
-  const sorted = [...(logs || [])].filter(Boolean).sort((a, b) => String(a.eaten_at).localeCompare(String(b.eaten_at)))
+  // By the minute the sheet shows, then by slot: two meals logged in the
+  // same minute (a saved breakfast tapped seconds before a hand-built lunch
+  // whose time box holds no seconds) read breakfast first. Found in the
+  // Phase 1 browser check.
+  const minute = (l) => String(new Date(l.eaten_at).toISOString()).slice(0, 16)
+  const slotIndex = (l) => SLOTS.indexOf(normaliseSlot(l.meal_slot))
+  const sorted = [...(logs || [])]
+    .filter(Boolean)
+    .sort((a, b) => minute(a).localeCompare(minute(b)) || slotIndex(a) - slotIndex(b) || String(a.eaten_at).localeCompare(String(b.eaten_at)))
   const rows = []
   for (const log of sorted) {
     const items = [...(log.meal_items || [])].sort((a, b) => (toNumber(a.position) ?? 0) - (toNumber(b.position) ?? 0))
