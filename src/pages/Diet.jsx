@@ -5,7 +5,8 @@ import { localDay } from '../lib/diet/totals'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import { GoalsSkeleton } from '../components/ui/PageSkeleton'
 import ErrorState from '../components/ui/ErrorState'
-import { loadLibrary, loadDay } from '../components/diet/api'
+import { loadLibrary, loadDay, loadWeek, loadLatestWeight } from '../components/diet/api'
+import { addDays } from '../lib/diet/totals'
 import DietToday from '../components/diet/DietToday'
 import DailySheet from '../components/diet/DailySheet'
 import WeightTab from '../components/diet/WeightTab'
@@ -41,6 +42,9 @@ export default function Diet() {
   const tab = TABS.some(([k]) => k === params.get('tab')) ? params.get('tab') : 'today'
   const [lib, setLib] = useState(null)
   const [todayLogs, setTodayLogs] = useState([])
+  // Phase 4: the days before today (the coach's patterns) and the newest weigh-in (the target review).
+  const [recent, setRecent] = useState([])
+  const [latestWeight, setLatestWeight] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [adding, setAdding] = useState(false)
@@ -56,9 +60,11 @@ export default function Diet() {
       return
     }
     try {
-      const [l, logs] = await Promise.all([loadLibrary(), loadDay(today)])
+      const [l, logs, week, weight] = await Promise.all([loadLibrary(), loadDay(today), loadWeek(addDays(today, -1)).catch(() => []), loadLatestWeight().catch(() => null)])
       setLib(l)
       setTodayLogs(logs)
+      setRecent(week)
+      setLatestWeight(weight)
       setError(null)
     } catch (err) {
       setError(err.message || 'Failed to load')
@@ -146,6 +152,8 @@ export default function Diet() {
             setAdding(true)
           }}
           onOpenSettings={() => goTab('settings')}
+          recent={recent}
+          latestWeight={latestWeight}
         />
       )}
       {tab === 'sheet' && <DailySheet key={sheetKey} day={sheetDay} onDayChange={setSheetDay} onChanged={load} />}

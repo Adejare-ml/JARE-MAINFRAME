@@ -251,3 +251,51 @@ export async function loadEstimates(mealId) {
   const { data } = await supabase.from('meal_estimates').select('model_key, model_id, status, reason, latency_ms, attempts').eq('meal_id', mealId)
   return data || []
 }
+
+// ── Phase 4: the coach and the target review ─────────────────────────────
+
+/**
+ * Ask the coach for a meal's verdict (diet-coach, action verdict). Called
+ * after a meal from a note, a voice note or a photo is confirmed, and not
+ * awaited: the meal is already logged with the verdict computed in code,
+ * and the coach's reason replaces it when it arrives (realtime refreshes
+ * the screen). A failure leaves the code verdict, which is the point.
+ */
+export async function coachMeal(mealId) {
+  try {
+    const { data } = await supabase.functions.invoke('diet-coach', { body: { action: 'verdict', meal_id: mealId } })
+    return data ?? null
+  } catch {
+    return null
+  }
+}
+
+/** "What should I eat next?" (diet-coach, action next). */
+export async function askWhatNext() {
+  const { data, error } = await supabase.functions.invoke('diet-coach', { body: { action: 'next' } })
+  if (error) {
+    const status = error.context?.status
+    return { ok: false, reason: status === 404 ? 'the diet-coach function is not deployed yet' : error.message || 'could not reach the coach' }
+  }
+  return data?.ok ? data : { ok: false, reason: data?.reason || 'the coach gave no answer' }
+}
+
+/** The newest weigh-in, for the 14-day target review. */
+export async function loadLatestWeight() {
+  const { data } = await supabase.from('weight_logs').select('weight_kg, logged_at').order('logged_at', { ascending: false }).limit(1).maybeSingle()
+  return data ?? null
+}
+
+/**
+ * The owner's answer to a target review. Accepting moves the target and
+ * the weight it was set at (target.js measures the next gap from it);
+ * keeping the current target only records that the review happened, so
+ * the next one is in 14 days.
+ */
+export async function decideTarget(proposal, accept) {
+  const row = accept
+    ? { kcal_target: proposal.kcal_target, weight_kg: proposal.weight_kg, target_reviewed_at: new Date().toISOString(), pending_target: null }
+    : { target_reviewed_at: new Date().toISOString(), pending_target: null }
+  const { error } = await supabase.from('diet_settings').update({ ...row, updated_at: new Date().toISOString() }).not('id', 'is', null)
+  if (error) throw error
+}

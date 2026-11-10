@@ -5,7 +5,9 @@ import { scaleItem } from '../../lib/diet/parse'
 import { sumNutrition, round1, toNumber } from '../../lib/diet/nutrition'
 import { mealVerdict } from '../../lib/diet/verdict'
 import { SLOTS, SLOT_LABELS, SLOT_ICONS, slotForHour, localHour } from '../../lib/diet/totals'
-import { logMeal, applyPantry } from './api'
+import { logMeal, applyPantry, coachMeal } from './api'
+import { needsCoach } from '../../lib/diet/coach'
+import { hasColumn } from '../../lib/schema'
 import VerdictBadge from './VerdictBadge'
 
 const PANTRY_WORDS = { bought: 'Bought', finished: 'Finished', used: 'Used' }
@@ -65,6 +67,8 @@ export default function ParsedReview({ entry, text, source, lib, todayLogs = [],
     if (onConfirm) {
       try {
         const res = await onConfirm(items, { slot, verdict: preview.verdict, reason: preview.reason, edited: items.some((i) => i.edited) || items.length !== entry.items.length })
+        // Phase 4: the coach's verdict, in the background.
+        if (res?.id && needsCoach({ source }) && hasColumn('meal_logs.coach')) coachMeal(res.id)
         confirmBuzz()
         toast.success(`${Number(res?.kcal ?? totals.kcal).toLocaleString()} kcal logged ✓`)
         onDone?.(res)
@@ -87,6 +91,9 @@ export default function ParsedReview({ entry, text, source, lib, todayLogs = [],
           rawText: text,
         })
       }
+      // Phase 4: the coach's verdict for a meal from a note or a voice note,
+      // in the background; the verdict computed in code is already stored.
+      if (logged?.id && needsCoach({ source }) && hasColumn('meal_logs.coach')) coachMeal(logged.id)
       if (keptPantry.length > 0) {
         await applyPantry(
           keptPantry.map(({ keep: _keep, ...u }) => u),

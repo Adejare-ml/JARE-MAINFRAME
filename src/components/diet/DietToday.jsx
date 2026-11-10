@@ -7,6 +7,12 @@ import { dayTotals, remaining, SLOTS, SLOT_LABELS, SLOT_ICONS, localTime, slotFo
 import { sumNutrition, round1 } from '../../lib/diet/nutrition'
 import { priceItems, logMeal, deleteMeal } from './api'
 import VerdictBadge from './VerdictBadge'
+// Phase 4: the coach and the target review.
+import WhatNext from './WhatNext'
+import TargetReviewCard from './TargetReviewCard'
+import { patternFlag } from '../../lib/diet/coach'
+import { targetReview } from '../../lib/diet/target'
+import { hasColumn } from '../../lib/schema'
 
 /**
  * Today: what is left, one-tap saved meals, and the meals so far.
@@ -17,7 +23,7 @@ import VerdictBadge from './VerdictBadge'
  *
  * Added for the Diet module, Phase 1 (docs/diet-module.md).
  */
-export default function DietToday({ lib, logs, onChanged, onAdd, onOpenSettings, onPhoto, onCheck }) {
+export default function DietToday({ lib, logs, onChanged, onAdd, onOpenSettings, onPhoto, onCheck, recent = [], latestWeight = null }) {
   const [logging, setLogging] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
   const settings = lib.settings
@@ -58,6 +64,11 @@ export default function DietToday({ lib, logs, onChanged, onAdd, onOpenSettings,
     setConfirmDelete(null)
     onChanged()
   }
+
+  // Phase 4: a pattern over the last days, worked out in code, and the
+  // 14-day target review when it is due.
+  const flag = patternFlag(recent, settings)
+  const review = targetReview({ settings, latestWeight })
 
   const kcalColor = left.over ? '#f87171' : left.kcal_ratio != null && left.kcal_ratio >= 0.85 ? '#fdba74' : 'var(--color-accent)'
 
@@ -135,6 +146,14 @@ export default function DietToday({ lib, logs, onChanged, onAdd, onOpenSettings,
           </div>
         )}
       </section>
+
+      {review && settings?.kcal_target && <TargetReviewCard review={review} current={settings.kcal_target} onDecided={onChanged} />}
+      {flag && (
+        <p className="rounded-2xl border border-orange-400/30 bg-orange-400/10 px-4 py-3 text-sm text-orange-200" role="note">
+          {flag}
+        </p>
+      )}
+      {hasColumn('meal_logs.coach') && <WhatNext />}
 
       <section className="bg-card rounded-3xl p-6 border border-white/5 space-y-4" aria-label="Today's meals">
         <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">Today's meals</h2>
