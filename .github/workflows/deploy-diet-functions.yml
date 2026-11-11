@@ -65,7 +65,7 @@ jobs:
           # The worker token the Ollama job sends: derived, not stored (scripts/lib/workerToken.mjs).
           [ -n "$SUPABASE_SERVICE_KEY" ] && echo "DIET_WORKER_TOKEN=$(node scripts/lib/workerToken.mjs)" >> "$f"
           if [ -s "$f" ]; then
-            supabase secrets set --project-ref "$PROJECT_REF" --env-file "$f"
+            supabase secrets set --project-ref "$PROJECT_REF" --env-file "$f" --yes
             echo "Set: $(cut -d= -f1 "$f" | paste -sd, -)"
           else
             echo "No keys in GitHub secrets to copy; the functions keep what they have."
@@ -73,13 +73,15 @@ jobs:
           rm -f "$f"
       - name: Deploy
         run: |
+          # --yes added on 11 Nov: Supabase CLI 3.x asks before it changes a
+          # project and stops when nobody can answer ("Confirmation required").
           # diet-parse and diet-coach check the owner's sign-in themselves and
           # also sit behind Supabase's JWT check. diet-photo is deployed
           # without it because the Ollama job calls it with the worker token,
           # which the function checks itself (handler.ts, workerAllowed).
-          supabase functions deploy diet-parse --project-ref "$PROJECT_REF"
-          supabase functions deploy diet-coach --project-ref "$PROJECT_REF"
-          supabase functions deploy diet-photo --project-ref "$PROJECT_REF" --no-verify-jwt
+          supabase functions deploy diet-parse --project-ref "$PROJECT_REF" --yes
+          supabase functions deploy diet-coach --project-ref "$PROJECT_REF" --yes
+          supabase functions deploy diet-photo --project-ref "$PROJECT_REF" --no-verify-jwt --yes
       - name: Check the functions answer
         run: |
           for f in diet-parse diet-photo diet-coach; do
