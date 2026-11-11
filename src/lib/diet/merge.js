@@ -54,9 +54,44 @@ function words(name) {
     .filter((w) => w && !FILLER.has(w))
 }
 
+// Added after the image test of 10 Nov: a name that holds every word of a
+// food's name or alias is that food ("stewed chicken piece" is Chicken,
+// stewed; "fish (catfish or similar)" is Fish, fried). The longest match
+// wins, a food whose whole name is in the item beats one matched by an
+// alias, and an item about oil only matches an oil (so "oil in moi moi
+// batter" is oil, not moi moi).
+const LOOSE_WORDS = new Set(['or', 'in', 'similar', 'like'])
+
+function looseWords(name) {
+  return words(name).filter((w) => !LOOSE_WORDS.has(w))
+}
+
+function foodByWords(lib, ...names) {
+  for (const name of names) {
+    const have = new Set(looseWords(name))
+    if (have.size === 0) continue
+    const oily = have.has('oil')
+    let best = null
+    let bestScore = 0
+    for (const food of lib.foods || []) {
+      for (const [label, isName] of [[food.name, true], ...(food.aliases || []).map((a) => [a, false])]) {
+        const need = looseWords(label)
+        if (need.length === 0 || need.includes('oil') !== oily || !need.every((w) => have.has(w))) continue
+        const score = need.length * 10 + (isName ? 5 : 0)
+        if (score > bestScore) {
+          best = food
+          bestScore = score
+        }
+      }
+    }
+    if (best) return best
+  }
+  return null
+}
+
 /** What makes two models' items the same item. */
 export function itemKey(item, lib) {
-  const food = findFood(lib, item?.food_id, item?.name, item?.local_name)
+  const food = findFood(lib, item?.food_id, item?.name, item?.local_name) || foodByWords(lib, item?.name, item?.local_name)
   if (food) return `food:${food.id}`
   const w = [...new Set(words(item?.name))].sort()
   return `name:${w.join(' ') || normaliseName(item?.name)}`
@@ -92,20 +127,61 @@ function byKey(answer, lib) {
   return out
 }
 
+// Added after the image test of 10 Nov: two names for one dish ("bean soup"
+// and "gbegiri beans soup") are one item when every word of the shorter is
+// in the longer and they share at least two words. The longer name is kept.
+function unifyNames(perModel) {
+  const nameKeys = new Set()
+  for (const m of perModel) for (const k of m.items.keys()) if (k.startsWith('name:')) nameKeys.add(k)
+  const wordsOf = (k) => k.slice(5).split(' ').filter((w) => w && !LOOSE_WORDS.has(w))
+  const target = new Map()
+  for (const a of nameKeys) {
+    const wa = wordsOf(a)
+    let best = null
+    for (const b of nameKeys) {
+      if (a === b) continue
+      const wb = wordsOf(b)
+      if (wb.length <= wa.length || wa.length < 2 || !wa.every((w) => wb.includes(w))) continue
+      if (!best || wb.length > wordsOf(best).length) best = b
+    }
+    if (best) target.set(a, best)
+  }
+  if (target.size === 0) return
+  for (const m of perModel) {
+    for (const [from, to] of target) {
+      if (!m.items.has(from)) continue
+      const it = m.items.get(from)
+      m.items.delete(from)
+      const prev = m.items.get(to)
+      m.items.set(to, prev ? { ...prev, grams: sum([prev, it], 'grams'), kcal: sum([prev, it], 'kcal'), protein_g: sum([prev, it], 'protein_g'), carbs_g: sum([prev, it], 'carbs_g'), fat_g: sum([prev, it], 'fat_g') } : it)
+    }
+  }
+}
+
 /**
  * @param {Array<{model: string, answer: object|null}>} estimates - answer is the
  *   validated food-vision JSON, or null when that model failed
  * @param {ReturnType<import('./library.js').buildLibrary>} lib
  */
 export function mergeEstimates(estimates, lib) {
-  const answered = (estimates || []).filter((e) => e && e.answer && MODELS.includes(e.model))
+  const answered = (estimates || []).filter((e) => e && e.answer && MODELS.includes(e.model)).sort((a, b) => MODELS.indexOf(a.model) - MODELS.indexOf(b.model))
   const perModel = answered.map((e) => ({ model: e.model, items: byKey(e.answer, lib) }))
+  unifyNames(perModel)
   const keys = []
   for (const m of perModel) for (const k of m.items.keys()) if (!keys.includes(k)) keys.push(k)
   const single = answered.length === 1
+  // Added after the image test of 10 Nov: the first model that answered gives
+  // the list; an item only the others saw is offered, not counted.
+  const base = answered[0]?.model
+  const extras = []
 
   const priced = keys.map((key) => {
     const seen = perModel.filter((m) => m.items.has(key)).map((m) => ({ model: m.model, item: m.items.get(key) }))
+    if (!single && !seen.some((s) => s.model === base)) {
+      const first = seen[0]
+      extras.push({ model: first.model, name: String(first.item.name).replace(/\s+/g, ' ').trim().slice(0, 80), grams: round1(toNumber(first.item.grams) ?? 0), kcal: Math.round(toNumber(first.item.kcal) ?? 0) })
+      return null
+    }
     const food = key.startsWith('food:') ? lib.foodsById?.get(key.slice(5)) : null
     const grams = round1(median(seen.map((s) => s.item.grams)) ?? 0)
     const figures = food
@@ -145,7 +221,7 @@ export function mergeEstimates(estimates, lib) {
     }
   })
 
-  const { kept: items, absorbed } = dropCountedOil(priced, lib)
+  const { kept: items, absorbed } = dropCountedOil(priced.filter(Boolean), lib)
 
   items.sort((a, b) => Number(b.flagged) - Number(a.flagged) || b.kcal - a.kcal)
   const qualities = answered.map((e) => e.answer.image_quality).filter((q) => QUALITY_ORDER.includes(q))
@@ -156,8 +232,14 @@ export function mergeEstimates(estimates, lib) {
     single_model: single,
     no_food: answered.length > 0 && items.length === 0 && answered.every((e) => e.answer.image_quality === 'no_food' || (e.answer.items || []).length === 0),
     image_quality: qualities.length ? QUALITY_ORDER[Math.max(...qualities.map((q) => QUALITY_ORDER.indexOf(q)))] : null,
-    questions: [...new Set(answered.map((e) => String(e.answer.question ?? '').trim()).filter(Boolean))],
+    questions: [
+      ...new Set([
+        ...answered.map((e) => String(e.answer.question ?? '').trim()).filter(Boolean),
+        ...extras.filter((x) => !(x.model && IS_OIL.test(x.name))).slice(0, 3).map((x) => `${MODEL_LABELS[x.model]} also saw ${x.name} (about ${x.grams} g, ${x.kcal} kcal). Add it if it was missed.`),
+      ]),
+    ],
     absorbed,
+    extras,
   }
 }
 
