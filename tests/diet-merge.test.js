@@ -65,10 +65,15 @@ describe('mergeEstimates', () => {
     expect(rice.estimates.ollama.name).toBe('Boiled rice')
   })
 
-  it('flags an item only one model saw', () => {
-    const odd = mergeEstimates(three, lib).items.find((i) => i.name === 'jollof?')
-    expect(odd.flagged).toBe(true)
-    expect(odd.flag_reason).toBe(`Only ${MODEL_LABELS.ollama} saw this`)
+  // Changed after the image test of 10 Nov: an item only a later model saw
+  // (here Ollama's "jollof?") is no longer counted; it is offered as a
+  // question. An item only the first model saw is still flagged and counted
+  // (see "one food counted once" below).
+  it('offers, without counting, an item only a later model saw', () => {
+    const m = mergeEstimates(three, lib)
+    expect(m.items.find((i) => i.name === 'jollof?')).toBeUndefined()
+    expect(m.extras).toEqual([{ model: 'ollama', name: 'jollof?', grams: 0, kcal: 0 }])
+    expect(m.questions).toContain(`${MODEL_LABELS.ollama} also saw jollof? (about 0 g, 0 kcal). Add it if it was missed.`)
   })
 
   it('flags a disagreement on grams of more than 25%, and not one of 25% or less', () => {
@@ -148,9 +153,11 @@ describe('mergeEstimates', () => {
       ],
       lib,
     )
-    expect(m.items[0].name).toBe('coke')
+    // Changed after the image test of 10 Nov: NVIDIA's coke, which Claude did
+    // not see, is a question now rather than a counted item.
+    expect(m.items.map((i) => i.name)).toEqual(['White rice, boiled'])
     expect(m.totals.kcal).toBe(m.items.reduce((a, i) => a + i.kcal, 0))
-    expect(m.questions).toEqual(['Is there meat under the rice?'])
+    expect(m.questions).toEqual(['Is there meat under the rice?', `${MODEL_LABELS.nvidia} also saw coke (about 350 g, 147 kcal). Add it if it was missed.`])
     expect(m.image_quality).toBe('partial')
   })
 
@@ -222,5 +229,98 @@ describe('mergeEstimates: oil already in a food priced as served', () => {
   it('keeps oil the models did not call hidden, such as a bottle of oil in the photo', () => {
     const m = mergeEstimates([{ model: 'claude', answer: answer([it_({ name: 'jollof rice', grams: 300 }), it_({ name: 'palm oil', grams: 15, kcal: 133, hidden: false })]) }], oily)
     expect(m.items).toHaveLength(2)
+  })
+})
+
+// Added after the image test of 10 Nov, from its real answers: merged totals
+// came out above both models' on most photos because one food could be
+// counted twice. Three causes, each tested below with the models' own words:
+// a name that only nearly matched a food ("stewed chicken piece"), two
+// names for one dish ("bean soup", "gbegiri beans soup"), and items only the
+// second model listed ("assorted meat" beside Claude's cow foot, ponmo and
+// fish) being added on top. The rule now: the first model that answered
+// (Claude, then NVIDIA, then Ollama) gives the list of items; the others
+// refine the amounts of the items they also saw; an item only another
+// model saw is not counted but offered as a question.
+describe('mergeEstimates: one food counted once', () => {
+  const real = buildLibrary({
+    foods: [
+      { id: 'chicken', name: 'Chicken, stewed', aliases: ['stewed chicken', 'chicken in stew'], kcal_per_100g: 215, protein_g: 25, carbs_g: 0, fat_g: 12.5 },
+      { id: 'fish', name: 'Fish, fried', aliases: ['fish', 'titus', 'mackerel', 'fried fish'], kcal_per_100g: 260, protein_g: 24, carbs_g: 0, fat_g: 18 },
+      { id: 'blend', name: 'Tomato and pepper blend', aliases: ['tomato pepper', 'pepper mix'], kcal_per_100g: 25, protein_g: 1, carbs_g: 5, fat_g: 0.3 },
+      { id: 'stew', name: 'Tomato stew', aliases: ['stew', 'red stew'], kcal_per_100g: 140, protein_g: 1.5, carbs_g: 7, fat_g: 12 },
+      { id: 'veg', name: 'Vegetable oil', aliases: ['oil', 'cooking oil'], kcal_per_100g: 884, protein_g: 0, carbs_g: 0, fat_g: 100 },
+      { id: 'moimoi', name: 'Moi moi', aliases: ['moin moin', 'moimoi'], kcal_per_100g: 150, protein_g: 7, carbs_g: 13, fat_g: 7.5 },
+      { id: 'jollof', name: 'Jollof rice', aliases: ['jollof'], kcal_per_100g: 165, protein_g: 3, carbs_g: 27, fat_g: 5 },
+      { id: 'rice', name: 'White rice, boiled', aliases: ['rice', 'white rice'], kcal_per_100g: 130, protein_g: 2.7, carbs_g: 28.2, fat_g: 0.3 },
+    ],
+  })
+
+  it('matches a name that holds every word of a food\'s name or alias', () => {
+    expect(itemKey({ name: 'stewed chicken piece' }, real)).toBe('food:chicken')
+    expect(itemKey({ name: 'fish (catfish or similar)' }, real)).toBe('food:fish')
+    expect(itemKey({ name: 'jollof rice (cooked parboiled rice)' }, real)).toBe('food:jollof')
+  })
+
+  it('prefers the food whose whole name is in the item, and keeps oil for oil', () => {
+    expect(itemKey({ name: 'tomato and pepper stew' }, real)).toBe('food:stew')
+    expect(itemKey({ name: 'oil in moi moi batter (palm or vegetable)' }, real)).toBe('food:veg')
+    expect(itemKey({ name: 'moi moi (steamed bean pudding), sliced' }, real)).toBe('food:moimoi')
+  })
+
+  it('counts the chicken once when one model says "stewed chicken" and the other "stewed chicken piece"', () => {
+    const m = mergeEstimates(
+      [
+        { model: 'claude', answer: answer([it_({ name: 'stewed chicken piece', grams: 90, kcal: 190 })]) },
+        { model: 'nvidia', answer: answer([it_({ name: 'stewed chicken', grams: 120, kcal: 220 })]) },
+      ],
+      real,
+    )
+    expect(m.items).toHaveLength(1)
+    expect(m.items[0]).toMatchObject({ food_id: 'chicken', grams: 105 })
+  })
+
+  it('treats a shorter name inside a longer one as the same dish', () => {
+    const m = mergeEstimates(
+      [
+        { model: 'claude', answer: answer([it_({ name: 'bean soup', grams: 150, kcal: 145 })]) },
+        { model: 'nvidia', answer: answer([it_({ name: 'gbegiri beans soup', grams: 150, kcal: 160 })]) },
+      ],
+      real,
+    )
+    expect(m.items).toHaveLength(1)
+    expect(m.items[0].models).toEqual(['claude', 'nvidia'])
+  })
+
+  it('does not count what only the second model listed, and asks about it instead', () => {
+    const m = mergeEstimates(
+      [
+        { model: 'claude', answer: answer([it_({ name: 'okra soup', grams: 250, kcal: 90 }), it_({ name: 'cow foot', grams: 90, kcal: 180 }), it_({ name: 'fish (catfish or similar)', grams: 70, kcal: 105 })]) },
+        { model: 'nvidia', answer: answer([it_({ name: 'okra soup', grams: 300, kcal: 120 }), it_({ name: 'fish', grams: 150, kcal: 220 }), it_({ name: 'assorted meat', grams: 100, kcal: 180 })]) },
+      ],
+      real,
+    )
+    expect(m.items.map((i) => i.name).sort()).toEqual(['Fish, fried', 'cow foot', 'okra soup'])
+    expect(m.extras).toEqual([{ model: 'nvidia', name: 'assorted meat', grams: 100, kcal: 180 }])
+    expect(m.questions).toContain('NVIDIA also saw assorted meat (about 100 g, 180 kcal). Add it if it was missed.')
+    expect(m.totals.kcal).toBe(m.items.reduce((a, i) => a + i.kcal, 0))
+  })
+
+  it('still flags an item only the first model saw, and counts it', () => {
+    const m = mergeEstimates(
+      [
+        { model: 'claude', answer: answer([it_({ name: 'white rice', grams: 200 }), it_({ name: 'cow foot', grams: 90, kcal: 180 })]) },
+        { model: 'nvidia', answer: answer([it_({ name: 'rice', grams: 210 })]) },
+      ],
+      real,
+    )
+    const foot = m.items.find((i) => i.name === 'cow foot')
+    expect(foot).toMatchObject({ flagged: true, flag_reason: `Only ${MODEL_LABELS.claude} saw this`, kcal: 180 })
+  })
+
+  it('uses NVIDIA as the base when Claude did not answer', () => {
+    const m = mergeEstimates([{ model: 'claude', answer: null }, { model: 'nvidia', answer: answer([it_({ name: 'rice', grams: 250 })]) }, { model: 'ollama', answer: answer([it_({ name: 'rice', grams: 230 }), it_({ name: 'egg', grams: 50, kcal: 78 })]) }], real)
+    expect(m.items.map((i) => i.name)).toEqual(['White rice, boiled'])
+    expect(m.extras.map((e) => e.name)).toEqual(['egg'])
   })
 })
