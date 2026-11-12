@@ -423,6 +423,7 @@ export default function Repairs() {
                   key={p.value}
                   type="button"
                   onClick={() => setForm({ ...form, priority: p.value })}
+                  aria-pressed={form.priority === p.value}
                   className={`px-3 py-3 rounded-xl border text-xs font-semibold min-h-[48px] transition-all ${
                     form.priority === p.value ? 'border-accent bg-accent/10 text-accent' : 'border-white/10 bg-background text-muted'
                   }`}
