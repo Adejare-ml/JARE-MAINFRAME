@@ -599,6 +599,7 @@ export default function Debts() {
                     key={k.value}
                     type="button"
                     onClick={() => setForm({ ...form, kind: k.value })}
+                    aria-pressed={form.kind === k.value}
                     className={`px-3 py-3 rounded-xl border text-xs font-semibold min-h-[48px] transition-all ${
                       form.kind === k.value
                         ? 'border-accent bg-accent/10 text-accent'
@@ -621,6 +622,7 @@ export default function Debts() {
                       key={d.value}
                       type="button"
                       onClick={() => setForm({ ...form, direction: d.value })}
+                      aria-pressed={form.direction === d.value}
                       className={`px-3 py-3 rounded-xl border text-xs font-semibold min-h-[48px] transition-all ${
                         form.direction === d.value
                           ? 'border-accent bg-accent/10 text-accent'
