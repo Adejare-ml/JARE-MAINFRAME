@@ -10,6 +10,9 @@ import {
   walletFromDiscovered,
   NAG_EVERY_DAYS,
   DISCOVERY_URL,
+  isSnoozed,
+  snoozeUntil,
+  accountsToAsk,
 } from '../src/lib/discovery.js'
 import { buildReminderDigest, KIND_URLS } from '../src/lib/reminders.js'
 
@@ -75,6 +78,19 @@ describe('asking the owner', () => {
     expect(dueToAsk(row({ first_seen_at: '2026-10-04T05:00:00Z' }), TODAY)).toBe(true)
     expect(dueToAsk(row({ first_seen_at: null }), TODAY)).toBe(true)
     expect(NAG_EVERY_DAYS).toBe(7)
+  })
+
+  it('since 048 asks once, then a week after the last time it asked, and never while snoozed', () => {
+    expect(dueToAsk(row({ first_seen_at: '2026-10-17T05:00:00Z', asked_at: null }), TODAY)).toBe(true)
+    expect(dueToAsk(row({ asked_at: '2026-10-17T08:20:00Z' }), TODAY)).toBe(false)
+    expect(dueToAsk(row({ asked_at: '2026-10-11T08:20:00Z' }), TODAY)).toBe(true)
+    expect(dueToAsk(row({ asked_at: null, snooze_until: '2026-10-25' }), TODAY)).toBe(false)
+    expect(dueToAsk(row({ asked_at: null, snooze_until: TODAY }), TODAY)).toBe(true)
+    expect(isSnoozed(row({ snooze_until: '2026-10-25' }), TODAY)).toBe(true)
+    expect(snoozeUntil(TODAY)).toBe('2026-10-25')
+    expect(awaitingDecision([row({ id: 'z', snooze_until: '2026-10-25' }), row({ id: 'a' })], TODAY).map((r) => r.id)).toEqual(['a'])
+    expect(awaitingDecision([row({ id: 'z', snooze_until: '2026-10-25' })]).map((r) => r.id)).toEqual(['z'])
+    expect(accountsToAsk([row({ id: 'k', asked_at: null }), row({ id: 's', snooze_until: '2026-10-25' })], TODAY).map((r) => r.id)).toEqual(['k'])
   })
 
   it('writes the digest line with the balance and when it was seen', () => {

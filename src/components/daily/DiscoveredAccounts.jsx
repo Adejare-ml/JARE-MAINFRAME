@@ -6,7 +6,7 @@ import { toast } from '../../lib/toast'
 import { toDateOnly } from '../../lib/queries'
 import { isMissingFunctionError } from '../../lib/corrections'
 import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh'
-import { awaitingDecision, describeDiscovered, suggestWalletType, DISCOVERY_URL } from '../../lib/discovery'
+import { awaitingDecision, describeDiscovered, suggestWalletType, snoozeUntil, DISCOVERY_URL } from '../../lib/discovery'
 
 const TYPES = ['bank', 'mobile', 'savings', 'investment', 'cash']
 
@@ -25,6 +25,8 @@ const TYPES = ['bank', 'mobile', 'savings', 'investment', 'cash']
  */
 export default function DiscoveredAccounts({ compact = false }) {
   const available = hasColumn('discovered_accounts.status')
+  // "Later" (048): a week's snooze the owner sets; behind 048 the button is absent.
+  const canSnooze = hasColumn('discovered_accounts.snooze_until')
   const [rows, setRows] = useState([])
   const [busy, setBusy] = useState(null)
   const [choosing, setChoosing] = useState(null) // id being tracked, with name/type inputs
@@ -36,11 +38,11 @@ export default function DiscoveredAccounts({ compact = false }) {
     if (!available) return
     const { data, error } = await supabase
       .from('discovered_accounts')
-      .select('id, slug, sender, label, status, last_balance, last_seen_on, first_seen_at, times_seen')
+      .select(`id, slug, sender, label, status, last_balance, last_seen_on, first_seen_at, times_seen${canSnooze ? ', snooze_until' : ''}`)
       .eq('status', 'new')
       .order('first_seen_at', { ascending: true })
     if (!error) setRows(data || [])
-  }, [available])
+  }, [available, canSnooze])
 
   useEffect(() => {
     load()
@@ -48,7 +50,8 @@ export default function DiscoveredAccounts({ compact = false }) {
   useRealtimeRefresh(['discovered_accounts'], load, { channelPrefix: 'discovered', enabled: available })
 
   if (!available || rows.length === 0) return null
-  const pending = awaitingDecision(rows)
+  const pending = awaitingDecision(rows, today)
+  if (pending.length === 0) return null
 
   const startTrack = (row) => {
     setChoosing(row.id)
@@ -77,6 +80,21 @@ export default function DiscoveredAccounts({ compact = false }) {
     } finally {
       setBusy(null)
     }
+  }
+
+  const snooze = async (row) => {
+    setBusy(row.id)
+    const { error } = await supabase
+      .from('discovered_accounts')
+      .update({ snooze_until: snoozeUntil(today), updated_at: new Date().toISOString() })
+      .eq('id', row.id)
+    setBusy(null)
+    if (error) {
+      toast.error('Could not snooze it: ' + error.message)
+      return
+    }
+    toast.success(`Will ask about ${row.label || row.slug} again next week.`)
+    load()
   }
 
   const ignore = async (row) => {
@@ -129,6 +147,16 @@ export default function DiscoveredAccounts({ compact = false }) {
                   >
                     Track
                   </button>
+                  {canSnooze && (
+                    <button
+                      type="button"
+                      onClick={() => snooze(row)}
+                      disabled={busy === row.id}
+                      className="px-3 rounded-xl bg-white/5 border border-white/10 text-muted hover:text-white text-xs font-bold min-h-[44px] disabled:opacity-50"
+                    >
+                      Later
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => ignore(row)}

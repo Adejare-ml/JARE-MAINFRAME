@@ -35,6 +35,7 @@ import webpush from 'web-push'
 import { buildReminderDigest, toPushPayload, classifySendError, alarmWithoutSubscriber, describeDigest } from '../src/lib/reminders.js'
 import { toDateOnly, daysAgo } from '../src/lib/queries.js'
 import { summarizeRuns, unwellJobs } from '../src/lib/health.js'
+import { accountsToAsk } from '../src/lib/discovery.js'
 import { resolveOwnerUserId } from './lib/ownerId.mjs'
 import { recordRun } from './lib/recordRun.mjs'
 import { assertProgress } from './lib/assertProgress.mjs'
@@ -173,7 +174,9 @@ async function readEverything(today) {
     readJobHealth(),
     // Accounts the audit found in the mail and the owner has not decided on
     // (043). Behind the migration the table is missing and this is [].
-    optional('discovered_accounts', supabase.from('discovered_accounts').select('id, slug, label, sender, status, last_balance, last_seen_on, first_seen_at, times_seen').eq('user_id', OWNER_USER_ID).eq('status', 'new')),
+    // Every column: asked_at and snooze_until arrive with 048 and
+    // src/lib/discovery.js reads them when present.
+    optional('discovered_accounts', supabase.from('discovered_accounts').select('*').eq('user_id', OWNER_USER_ID).eq('status', 'new')),
     // Repayments linked to a debt (029): the same rows Daily HQ and Debts
     // read, so the digest never says a loan is due that the ledger has paid.
     optional('linked repayments', supabase.from('transactions').select('id, debt_id, type, amount, voided').eq('user_id', OWNER_USER_ID).not('debt_id', 'is', null)),
@@ -304,6 +307,18 @@ async function main() {
       assertProgress([{ ok: false, reason: `${alarm}, and no device is subscribed to hear it (Settings → Reminders)` }])
     }
     return
+  }
+
+  // The accounts this digest asks about are stamped, so the next ask is a
+  // week from now (048). Before 048 the rows have no asked_at and the
+  // weekly rule falls back to first_seen_at; the update is skipped.
+  const asked = accountsToAsk(input.discoveredAccounts, today)
+  if (!DRY_RUN && asked.length > 0 && 'asked_at' in asked[0]) {
+    const { error } = await supabase
+      .from('discovered_accounts')
+      .update({ asked_at: new Date().toISOString() })
+      .in('id', asked.map((a) => a.id))
+    if (error) console.warn(`   (could not stamp asked_at: ${error.message})`)
   }
 
   const payload = toPushPayload(digest)

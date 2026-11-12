@@ -15,6 +15,10 @@ successful run instead of from yesterday only, re-searches the days
 reconcile names, and reports how many mails it found against how many it
 recorded. It needs migrations 040 to 043 applied.
 
+Since 048 (7 Nov) an unknown slug is no longer noted from a refusal, a
+tracked sender's statements keep its balance, and a mistyped slug is
+answered with the nearest known one: the step 2b paragraph changed.
+
 The first run after pasting it catches up 14 days on its own. The gaps
 reconcile found reach back to 22 Sep, so once, by hand, run the Routine
 with the message "search from 2026/09/20" so that one run covers the rest;
@@ -65,7 +69,7 @@ The function returns JSON. "inserted": true means recorded (its "flags" may say 
 
 select note_discovered_account($q$<slug: the sender's domain word, lowercase letters only, e.g. kuda, moniepoint, fairmoney>$q$, $q$<the sender address>$q$, $q$<the account or bank name as the mail prints it>$q$, <the balance stated as a plain number, or null>, $q$<YYYY-MM-DD of the mail>$q$, $q$<gmail message id>$q$);
 
-It answers {"noted": true, "status": ...}: "new" means the owner has not decided yet (the app will ask them), "tracking" means a wallet now exists and you should send that mail's alerts through ingest_alert_transaction with that slug from the next run, "ignored" means the owner said no: do not mention that sender again. "reason": "already a wallet" means use ingest_alert_transaction with that slug instead. In the output, list each newly noted sender in one line with its last balance.
+It answers {"noted": true, "status": ...}: "new" means the owner has not decided yet (the app will ask them), "tracking" means a wallet now exists: send that mail's alerts through ingest_alert_transaction with that slug, and in this same run search the last 14 days of that sender's mail and record every alert in it (the database answers "duplicate" for anything already there), "ignored" means the owner said no: do not mention that sender again. "reason": "already a wallet" means use ingest_alert_transaction with that slug instead; a statement mail that only states a balance is kept on that wallet by this call ("balance_noted": true) and needs nothing more. A refusal from ingest_alert_transaction that says "did you mean <slug>?" is a slug you mistyped: use the slug it names, do not run step 2b for it. In the output, list each newly noted sender in one line with its last balance.
 
 3. When every alert has been handled, run exactly once (same quoting rule, tag $q$ plus the date as YYYYMMDD):
 select record_sync_run($qsync$claude-audit$qsync$, <true if no alert was skipped and the Gmail search worked, otherwise false>, $qsync$<F mails found (D debit, C credit) for <window start> to <today>; N recorded, M already there, K skipped: short reasons>$qsync$);

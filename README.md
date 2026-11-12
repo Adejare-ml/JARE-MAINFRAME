@@ -121,8 +121,15 @@ line in the morning push on the day the account is first seen and weekly
 after that while it waits (never daily). **Track** creates a wallet with
 that slug and sender address, starting at the last stated balance, so the
 next alert lands in the ledger with no prompt change; **Ignore** mutes it.
-Settings → Accounts found in mail lists every account ever noticed with its
-status, and lets you change your mind either way. The `system` column names
+**Later** asks again next week (`snooze_until`, migration 048), and the
+morning reminder stamps `asked_at` when it asks so the question comes once
+a week, not daily. Settings → Accounts found in mail lists every account
+ever noticed with its status, and lets you change your mind either way.
+A sighting comes only from the Routine's explicit `note_discovered_account`
+call (prompt step 2b): a mistyped slug in an `ingest_alert_transaction` call
+is refused with the nearest known slug named, and mints nothing (048). A
+statement mail from a bank that is already a wallet keeps its balance on
+that wallet, forward only. The `system` column names
 where a sighting came from (`gmail` today) so a later source, SMS
 forwarding or a bank API, feeds the same table.
 
