@@ -209,6 +209,9 @@ NVIDIA vision model at the same time, merged, and shown for you to check.
 A third reading comes later from Ollama on your laptop
 (`workers/ollama/README.md`); logging never waits for it.
 
+Since 13 Nov the photo reader uses `claude-haiku-5-5` to cut cost; set the
+function secret `DIET_PHOTO_CLAUDE_MODEL=claude-sonnet-5-5` to go back.
+
 ```bash
 supabase functions deploy diet-photo
 supabase secrets set ANTHROPIC_API_KEY=...         # already set for diet-parse
