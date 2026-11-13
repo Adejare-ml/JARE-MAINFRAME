@@ -17,7 +17,8 @@ function env(name, fallback = '') {
 }
 
 export const CLAUDE_TEXT_MODEL = () => env('DIET_CLAUDE_TEXT_MODEL', 'claude-haiku-5-5')
-export const CLAUDE_VISION_MODEL = () => env('DIET_PHOTO_CLAUDE_MODEL', 'claude-sonnet-5-5')
+// Changed 13 Nov from claude-sonnet-5-5 to match the app's photo reader.
+export const CLAUDE_VISION_MODEL = () => env('DIET_PHOTO_CLAUDE_MODEL', 'claude-haiku-5-5')
 export const OLLAMA_TEXT_MODEL = () => env('OLLAMA_MODEL', 'gemma4:31b-cloud')
 export const OLLAMA_VISION_MODEL = () => env('OLLAMA_VISION_MODEL', 'gemma4:31b-cloud')
 // Changed after the first image test (10 Nov): meta/llama-3.2-90b-vision-instruct

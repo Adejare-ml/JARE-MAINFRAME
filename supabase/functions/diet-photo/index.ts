@@ -12,6 +12,8 @@
 //   DIET_WORKER_TOKEN        a long random string the laptop worker sends; worker actions are off without it
 //   NVIDIA_VISION_MODEL      optional; diet_settings.nvidia_vision_model wins when set
 //   DIET_PHOTO_CLAUDE_MODEL  optional, default claude-sonnet-5-5
+//   (Changed 13 Nov to save cost: the default is now claude-haiku-5-5, see
+//   DEFAULTS in handler.ts. Set this to claude-sonnet-5-5 to go back.)
 //   NVIDIA_BASE_URL          default https://integrate.api.nvidia.com/v1
 //   ALLOWED_ORIGIN           default https://jare-mainframe.pages.dev
 //
@@ -41,7 +43,37 @@ const TIMEOUT_MS = 25_000
 
 const anthropic = new Anthropic({ apiKey: env('ANTHROPIC_API_KEY') || 'unset', timeout: TIMEOUT_MS, maxRetries: 0 })
 
-const callClaude: VisionCall = async ({ model, system, user, image, mime }) => {
+// Added 13 Nov: Haiku has no server-side refusal fallback, so it is called
+// plainly, as diet-parse and diet-coach call it; a refusal comes back as
+// stop_reason "refusal" and is reported, not retried. Sonnet keeps the
+// fallback when DIET_PHOTO_CLAUDE_MODEL names it.
+const callClaude: VisionCall = async (args) => (/haiku/i.test(args.model) ? callPlain(args) : callWithFallback(args))
+
+const callPlain: VisionCall = async ({ model, system, user, image, mime }) => {
+  try {
+    const res = await anthropic.messages.parse({
+      model,
+      max_tokens: 4000,
+      output_config: { effort: 'low', format: zodOutputFormat(FoodVision) },
+      system,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: mime as 'image/jpeg' | 'image/webp', data: image } },
+            { type: 'text', text: user },
+          ],
+        },
+      ],
+    })
+    return { answer: res.stop_reason === 'refusal' ? null : res.parsed_output, stopReason: res.stop_reason }
+  } catch (err) {
+    if (err instanceof Anthropic.APIError) throw err
+    return { answer: null, stopReason: 'invalid' }
+  }
+}
+
+const callWithFallback: VisionCall = async ({ model, system, user, image, mime }) => {
   try {
     const res = await anthropic.beta.messages.parse({
       model,
