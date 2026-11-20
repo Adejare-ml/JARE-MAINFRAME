@@ -29,3 +29,6 @@
 ## 2026-10-25 - ARIA Selection States on Custom Option Buttons
 **Learning:** Custom selection or toggle buttons inside components (like QuickLog's category, wallet, and tag pickers) often lack `aria-pressed` states and explicit `type="button"` attributes, leaving screen readers unaware of the active selection and risking accidental form submissions.
 **Action:** When auditing custom selection lists, ensure the selected state is conveyed via `aria-pressed={true/false}` on each button, and that `type="button"` is explicitly set to prevent unintended default behaviors.
+## 2024-05-18 - Missing button types on interactive elements
+**Learning:** Found multiple instances where interactive buttons (tabs, back buttons, close buttons, clear buttons, action buttons) in UI components like QuickLog lacked `type="button"`. This can cause unpredictable form submission behavior if these components are ever rendered within a form context, leading to unexpected page reloads or data loss.
+**Action:** When creating or modifying button elements used for UI interaction (not form submission), always explicitly add `type="button"`.

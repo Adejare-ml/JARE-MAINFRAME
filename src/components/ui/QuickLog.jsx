@@ -299,6 +299,7 @@ export default function QuickLog() {
   if (!isOpen) {
     return (
       <button
+        type="button"
         onClick={() => setIsOpen(true)}
         className="fixed bottom-20 right-4 lg:bottom-8 lg:right-8 z-40 bg-accent text-black font-extrabold w-14 h-14 rounded-full flex items-center justify-center text-3xl shadow-xl shadow-accent/25 hover:scale-110 active:scale-95 transition-all min-h-[48px] min-w-[48px]"
         aria-label="Quick log"
@@ -323,6 +324,7 @@ export default function QuickLog() {
       ) : (
       <div role="tablist" aria-label="Transaction Type" className="flex bg-[#0f0f0f] rounded-xl p-1 border border-white/5">
         <button
+          type="button"
           id="quicklog-tab-debit"
           role="tab"
           aria-controls="quicklog-amount-panel"
@@ -333,6 +335,7 @@ export default function QuickLog() {
           💸 Debit
         </button>
         <button
+          type="button"
           id="quicklog-tab-credit"
           role="tab"
           aria-controls="quicklog-amount-panel"
@@ -343,6 +346,7 @@ export default function QuickLog() {
           💰 Credit
         </button>
         <button
+          type="button"
           id="quicklog-tab-transfer"
           role="tab"
           aria-controls="quicklog-amount-panel"
@@ -380,12 +384,14 @@ export default function QuickLog() {
 
       <div className="flex space-x-3 pt-4">
         <button
+          type="button"
           onClick={() => setAmount('')}
           className="flex-1 bg-white/5 text-muted hover:text-white rounded-xl font-bold text-sm min-h-[48px] transition-colors"
         >
           Clear
         </button>
         <button
+          type="button"
           onClick={handleNext}
           disabled={!amount || parseFloat(amount) <= 0}
           className="flex-1 bg-accent text-black rounded-xl font-bold text-sm min-h-[48px] disabled:opacity-50 hover:bg-accent/90 transition-colors"
@@ -433,6 +439,7 @@ export default function QuickLog() {
 
       <div className="pt-2">
         <button
+          type="button"
           onClick={handleNext}
           disabled={!category}
           className="w-full bg-accent text-black rounded-xl font-bold text-sm min-h-[48px] disabled:opacity-50 hover:bg-accent/90 transition-colors"
@@ -496,6 +503,7 @@ export default function QuickLog() {
 
       <div className="pt-2 mt-auto">
         <button
+          type="button"
           onClick={handleNext}
           disabled={disabledNext}
           className="w-full bg-accent text-black rounded-xl font-bold text-sm min-h-[48px] disabled:opacity-50 hover:bg-accent/90 transition-colors"
@@ -561,6 +569,7 @@ export default function QuickLog() {
 
       <div className="pt-2 mt-auto">
         <button
+          type="button"
           onClick={handleNext}
           disabled={!isValidDate(txDate) || txDate > today}
           className="w-full bg-accent text-black rounded-xl font-bold text-sm min-h-[48px] hover:bg-accent/90 transition-colors disabled:opacity-50"
@@ -650,6 +659,7 @@ export default function QuickLog() {
 
         <div className="pt-2 mt-auto">
           <button
+            type="button"
             onClick={handleSubmit}
             disabled={isSubmitting || justLogged}
             className="w-full bg-accent text-black rounded-xl font-extrabold text-base py-4 hover:bg-accent/90 transition-all shadow-lg shadow-accent/20 disabled:opacity-50 min-h-[48px] flex items-center justify-center gap-2"
@@ -690,6 +700,7 @@ export default function QuickLog() {
           <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-card">
             {step > STEPS.AMOUNT ? (
               <button
+                type="button"
                 onClick={handleBack}
                 className="text-muted hover:text-white font-bold text-sm min-h-[48px] min-w-[48px] flex items-center"
                 aria-label="Go back"
@@ -710,6 +721,7 @@ export default function QuickLog() {
             </div>
 
             <button
+              type="button"
               onClick={() => setIsOpen(false)}
               className="w-9 h-9 rounded-full bg-white/5 hover:bg-white/10 text-muted hover:text-white flex items-center justify-center font-bold text-sm min-h-[48px] min-w-[48px]"
               aria-label="Close"
