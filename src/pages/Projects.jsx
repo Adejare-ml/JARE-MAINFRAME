@@ -354,9 +354,10 @@ export default function Projects() {
         {TABS.map((t) => (
           <button
             key={t.id}
+            type="button"
             role="tab"
             aria-selected={tab === t.id}
-            aria-controls={`tabpanel-${t.id}`}
+            aria-controls="projects-tabpanel"
             id={`tab-${t.id}`}
             onClick={() => setTab(t.id)}
             className={`px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap min-h-[48px] transition-all ${
@@ -369,7 +370,7 @@ export default function Projects() {
       </div>
 
       {/* List */}
-      <div role="tabpanel" id={`tabpanel-${tab}`} aria-labelledby={`tab-${tab}`}>
+      <div role="tabpanel" id="projects-tabpanel" aria-labelledby={`tab-${tab}`}>
         {visible.length === 0 ? (
         <div className="bg-card rounded-3xl border border-white/5">
           <EmptyState
