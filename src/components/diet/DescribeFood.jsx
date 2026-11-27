@@ -112,13 +112,13 @@ export default function DescribeFood({ onParsed }) {
           }}
           rows={2}
           placeholder="What did you eat?"
-          className="flex-1 min-w-0 px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px] resize-none"
+          className="flex-1 min-w-0 px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px] resize-none"
         />
         {canSpeak && (
           <button
             type="button"
             onClick={() => (listening ? stop() : listen())}
-            className={`shrink-0 w-12 h-12 rounded-xl border text-lg ${listening ? 'border-red-400 bg-red-400/15 animate-pulse' : 'border-white/10 bg-white/5'}`}
+            className={`shrink-0 w-12 h-12 rounded-xl border text-lg ${listening ? 'border-red-400 bg-red-400/15 animate-pulse' : 'border-border bg-surface-2'}`}
             aria-label={listening ? 'Stop listening' : 'Say it'}
             aria-pressed={listening}
           >
@@ -127,11 +127,11 @@ export default function DescribeFood({ onParsed }) {
         )}
       </div>
       {error && (
-        <p className="text-[11px] text-orange-300" role="alert">
+        <p className="text-xs text-orange-300" role="alert">
           {error}
         </p>
       )}
-      <button type="submit" disabled={!text.trim() || busy} className="w-full min-h-[48px] rounded-xl bg-white/10 border border-white/10 text-white text-sm font-bold disabled:opacity-40">
+      <button type="submit" disabled={!text.trim() || busy} className="w-full min-h-[48px] rounded-xl bg-surface-2 border border-border text-foreground text-sm font-bold disabled:opacity-40">
         {busy ? 'Reading it…' : 'Fill it in for me'}
       </button>
     </form>

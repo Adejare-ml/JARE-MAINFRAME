@@ -7,7 +7,7 @@ import { isMissingFunctionError } from '../../lib/corrections'
 import { describeDiscovered, suggestWalletType } from '../../lib/discovery'
 
 const WORD = { new: 'Waiting for you', tracking: 'Tracked', ignored: 'Ignored' }
-const DOT = { new: 'bg-orange-400', tracking: 'bg-accent', ignored: 'bg-white/20' }
+const DOT = { new: 'bg-orange-400', tracking: 'bg-accent', ignored: 'bg-surface-2' }
 
 /**
  * Every account the audit has ever noticed in the mail, with its status
@@ -78,8 +78,8 @@ export default function DiscoveredAccountsSettings() {
   }
 
   return (
-    <section id="discovered" className="bg-card rounded-3xl p-6 border border-white/10 space-y-4 scroll-mt-20">
-      <div className="border-b border-white/5 pb-3">
+    <section id="discovered" className="bg-card rounded-3xl p-6 border border-border space-y-4 scroll-mt-20">
+      <div className="border-b border-border pb-3">
         <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">Accounts found in mail</h2>
         <p className="text-xs text-muted mt-2 leading-relaxed">
           Every bank, fintech or savings app the morning audit has seen alerts from without a wallet for it, with the
@@ -100,12 +100,12 @@ export default function DiscoveredAccountsSettings() {
       ) : (
         <ul className="space-y-2">
           {rows.map((row) => (
-            <li key={row.id} className="flex items-start justify-between gap-3 p-3 rounded-2xl bg-background/40 border border-white/5">
+            <li key={row.id} className="flex items-start justify-between gap-3 p-3 rounded-2xl bg-background/40 border border-border">
               <div className="flex items-start gap-2.5 min-w-0">
                 <span className={`mt-1.5 w-2 h-2 shrink-0 rounded-full ${DOT[row.status] || DOT.new}`} aria-hidden="true" />
                 <div className="min-w-0">
-                  <p className="text-sm font-bold text-white truncate">{describeDiscovered(row, today)}</p>
-                  <p className="text-[11px] text-muted truncate">
+                  <p className="text-sm font-bold text-foreground truncate">{describeDiscovered(row, today)}</p>
+                  <p className="text-xs text-muted truncate">
                     {WORD[row.status] || row.status}
                     {row.sender ? ` · ${row.sender}` : ''}
                     {row.system && row.system !== 'gmail' ? ` · via ${row.system}` : ''}
@@ -128,7 +128,7 @@ export default function DiscoveredAccountsSettings() {
                     type="button"
                     onClick={() => setStatus(row, 'ignored')}
                     disabled={busy === row.id}
-                    className="px-3 rounded-xl bg-white/5 border border-white/10 text-muted hover:text-white text-xs font-bold min-h-[44px] disabled:opacity-50"
+                    className="px-3 rounded-xl bg-surface-2 border border-border text-muted hover:text-foreground text-xs font-bold min-h-[44px] disabled:opacity-50"
                   >
                     Ignore
                   </button>
@@ -138,7 +138,7 @@ export default function DiscoveredAccountsSettings() {
                     type="button"
                     onClick={() => setStatus(row, 'new')}
                     disabled={busy === row.id}
-                    className="px-3 rounded-xl bg-white/5 border border-white/10 text-muted hover:text-white text-xs font-bold min-h-[44px] disabled:opacity-50"
+                    className="px-3 rounded-xl bg-surface-2 border border-border text-muted hover:text-foreground text-xs font-bold min-h-[44px] disabled:opacity-50"
                   >
                     Ask again
                   </button>

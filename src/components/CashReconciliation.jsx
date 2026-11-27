@@ -136,18 +136,18 @@ export default function CashReconciliation({ onReconciled }) {
   if (!shouldShow || !cashWallet) return null;
 
   return (
-    <div className="bg-[#1a1a1a] rounded-xl p-5 shadow-sm border border-neutral-800 mb-6 text-[#f5f5f5]">
+    <div className="bg-card rounded-xl p-5 shadow-sm border border-neutral-800 mb-6 text-foreground">
       <h3 className="text-lg font-bold mb-3">Quick cash check 💰</h3>
       
       {!showUpdateForm ? (
         <div>
-          <p className="text-[#a0a0a0] mb-5">
-            Your cash balance is <span className="text-white font-semibold money">{formatNaira(cashWallet.balance)}</span>. Does that still look right?
+          <p className="text-muted mb-5">
+            Your cash balance is <span className="text-foreground font-semibold money">{formatNaira(cashWallet.balance)}</span>. Does that still look right?
           </p>
           <div className="flex flex-col sm:flex-row gap-3">
             <button
               onClick={handleLooksRight}
-              className="flex-1 bg-[#22c55e] hover:bg-[#1ea951] text-white font-medium py-3 px-4 rounded-lg min-h-[48px] transition-colors"
+              className="flex-1 bg-accent hover:bg-accent text-foreground font-medium py-3 px-4 rounded-lg min-h-[48px] transition-colors"
             >
               Yes, looks right
             </button>
@@ -156,7 +156,7 @@ export default function CashReconciliation({ onReconciled }) {
                 setSubmissionId(crypto.randomUUID())
                 setShowUpdateForm(true)
               }}
-              className="flex-1 bg-transparent border border-[#a0a0a0] hover:bg-neutral-800 text-white font-medium py-3 px-4 rounded-lg min-h-[48px] transition-colors"
+              className="flex-1 bg-transparent border border-muted hover:bg-neutral-800 text-foreground font-medium py-3 px-4 rounded-lg min-h-[48px] transition-colors"
             >
               No, let me update
             </button>
@@ -164,17 +164,17 @@ export default function CashReconciliation({ onReconciled }) {
         </div>
       ) : (
         <form onSubmit={handleUpdateSubmit} className="animate-fade-in">
-          <p className="text-[#a0a0a0] mb-4">How much cash do you have right now?</p>
+          <p className="text-muted mb-4">How much cash do you have right now?</p>
           
           <div className="relative mb-4">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#a0a0a0] font-medium">₦</span>
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted font-medium">₦</span>
             <input
               type="number"
               step="0.01"
               value={actualCash}
               onChange={(e) => setActualCash(e.target.value)}
               placeholder="0.00"
-              className="w-full bg-[#0f0f0f] border border-neutral-700 text-white rounded-lg py-3 pl-10 pr-4 min-h-[48px] focus:outline-none focus:border-[#22c55e]"
+              className="w-full bg-background border border-neutral-700 text-foreground rounded-lg py-3 pl-10 pr-4 min-h-[48px] focus:outline-none focus:border-accent"
               required
             />
           </div>
@@ -185,14 +185,14 @@ export default function CashReconciliation({ onReconciled }) {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 bg-[#22c55e] hover:bg-[#1ea951] disabled:opacity-50 text-white font-medium py-3 px-4 rounded-lg min-h-[48px] transition-colors"
+              className="flex-1 bg-accent hover:bg-accent disabled:opacity-50 text-foreground font-medium py-3 px-4 rounded-lg min-h-[48px] transition-colors"
             >
               {isSubmitting ? 'Updating...' : 'Update balance'}
             </button>
             <button
               type="button"
               onClick={() => setShowUpdateForm(false)}
-              className="px-4 py-3 min-h-[48px] font-medium text-[#a0a0a0] hover:text-white transition-colors"
+              className="px-4 py-3 min-h-[48px] font-medium text-muted hover:text-foreground transition-colors"
             >
               Cancel
             </button>

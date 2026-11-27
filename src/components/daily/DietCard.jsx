@@ -47,7 +47,7 @@ export default function DietCard() {
 
   if (!available) {
     return (
-      <section className="bg-card rounded-3xl p-6 border border-white/5">
+      <section className="bg-card rounded-3xl p-6 border border-border">
         <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-1">Diet today</p>
         <p className="text-xs text-orange-300 leading-relaxed">
           Run <code className="font-mono">supabase/migrations/048_diet.sql</code> (then 049 and 050) to track calories and protein.
@@ -61,7 +61,7 @@ export default function DietCard() {
   const ringColor = left.over ? '#f87171' : left.kcal_ratio != null && left.kcal_ratio >= 0.85 ? '#fdba74' : 'var(--color-accent)'
 
   return (
-    <section className="bg-card rounded-3xl p-6 border border-white/5" aria-label="Diet today">
+    <section className="bg-card rounded-3xl p-6 border border-border" aria-label="Diet today">
       <div className="flex items-center gap-4">
         <ProgressRing value={left.kcal_ratio ?? 0} size={64} strokeWidth={6} color={ringColor}>
           <span className="text-lg" aria-hidden="true">
@@ -71,15 +71,15 @@ export default function DietCard() {
         <div className="min-w-0 flex-1">
           <p className="text-xs font-semibold text-muted uppercase tracking-wider">Diet today</p>
           {left.kcal_left != null ? (
-            <p className={`text-xl font-extrabold tabular-nums ${left.over ? 'text-red-400' : 'text-white'}`}>
+            <p className={`text-xl font-extrabold tabular-nums ${left.over ? 'text-red-400' : 'text-foreground'}`}>
               {Math.abs(left.kcal_left).toLocaleString()} <span className="text-sm font-bold text-muted">kcal {left.over ? 'over' : 'left'}</span>
             </p>
           ) : (
-            <p className="text-xl font-extrabold text-white tabular-nums">
+            <p className="text-xl font-extrabold text-foreground tabular-nums">
               {totals.kcal.toLocaleString()} <span className="text-sm font-bold text-muted">kcal</span>
             </p>
           )}
-          <p className="text-[11px] text-muted truncate">
+          <p className="text-xs text-muted truncate">
             {left.protein_left != null
               ? left.protein_met
                 ? `Protein target met (${totals.protein_g} g)`
@@ -91,7 +91,7 @@ export default function DietCard() {
         </div>
       </div>
       <div className="grid grid-cols-[1fr_1fr_auto] gap-2 mt-4">
-        <label className={`flex items-center justify-center gap-2 bg-accent text-black font-extrabold text-sm rounded-xl min-h-[48px] cursor-pointer hover:bg-accent/90 ${lib ? '' : 'opacity-60 pointer-events-none'}`}>
+        <label className={`flex items-center justify-center gap-2 bg-accent text-on-accent font-extrabold text-sm rounded-xl min-h-[48px] cursor-pointer hover:bg-accent/90 ${lib ? '' : 'opacity-60 pointer-events-none'}`}>
           <span aria-hidden="true">📷</span> Snap
           <input
             type="file"
@@ -115,11 +115,11 @@ export default function DietCard() {
             setOpen(true)
           }}
           disabled={!lib}
-          className="flex items-center justify-center gap-2 bg-white/10 border border-white/10 text-white font-extrabold text-sm rounded-xl min-h-[48px] hover:bg-white/15 disabled:opacity-60"
+          className="flex items-center justify-center gap-2 bg-surface-2 border border-border text-foreground font-extrabold text-sm rounded-xl min-h-[48px] hover:bg-surface-2 disabled:opacity-60"
         >
           <span aria-hidden="true">＋</span> Log food
         </button>
-        <Link to="/diet" className="flex items-center justify-center px-4 rounded-xl bg-white/5 border border-white/5 text-white text-sm font-bold min-h-[48px] hover:bg-white/10">
+        <Link to="/diet" className="flex items-center justify-center px-4 rounded-xl bg-surface-2 border border-border text-foreground text-sm font-bold min-h-[48px] hover:bg-surface-2">
           Diet →
         </Link>
       </div>

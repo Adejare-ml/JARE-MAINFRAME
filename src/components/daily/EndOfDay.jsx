@@ -37,7 +37,7 @@ export default function EndOfDay({ open, onToggle, onSaveReason, busyId }) {
   }
 
   return (
-    <section className="bg-card rounded-3xl p-6 border border-white/5 space-y-4">
+    <section className="bg-card rounded-3xl p-6 border border-border space-y-4">
       <div>
         <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">
           Before you close
@@ -52,7 +52,7 @@ export default function EndOfDay({ open, onToggle, onSaveReason, busyId }) {
         {open.map((task) => (
           <li
             key={task.id}
-            className="bg-background/50 border border-white/5 rounded-2xl p-3 space-y-2"
+            className="bg-background/50 border border-border rounded-2xl p-3 space-y-2"
           >
             <div className="flex items-center gap-2">
               <button
@@ -63,17 +63,17 @@ export default function EndOfDay({ open, onToggle, onSaveReason, busyId }) {
                 className="flex-shrink-0 disabled:opacity-60"
               >
                 <span
-                  className="w-6 h-6 rounded-lg border-2 border-white/20 flex items-center justify-center text-xs font-bold text-transparent"
+                  className="w-6 h-6 rounded-lg border-2 border-border flex items-center justify-center text-xs font-bold text-transparent"
                   aria-hidden="true"
                 >
                   ✓
                 </span>
               </button>
-              <span className="min-w-0 flex-1 text-sm text-white">{task.title}</span>
+              <span className="min-w-0 flex-1 text-sm text-foreground">{task.title}</span>
             </div>
 
             {task.blocked_reason && reasonId !== task.id && (
-              <p className="text-[11px] text-muted pl-8">
+              <p className="text-xs text-muted pl-8">
                 <span className="text-muted-dim">Why not: </span>
                 {task.blocked_reason}
               </p>
@@ -92,7 +92,7 @@ export default function EndOfDay({ open, onToggle, onSaveReason, busyId }) {
                 }}
                 placeholder="The client review overran…"
                 aria-label={`What got in the way of "${task.title}"`}
-                className="w-full px-4 py-2.5 bg-background border border-accent rounded-xl text-white text-xs placeholder-hint focus:outline-none min-h-[44px]"
+                className="w-full px-4 py-2.5 bg-background border border-accent rounded-xl text-foreground text-xs placeholder-hint focus:outline-none min-h-[44px]"
               />
             ) : (
               onSaveReason && (
@@ -103,7 +103,7 @@ export default function EndOfDay({ open, onToggle, onSaveReason, busyId }) {
                     setDraft(task.blocked_reason || '')
                   }}
                   aria-label={task.blocked_reason ? `Change reason for not completing "${task.title}"` : `Add reason for not completing "${task.title}"`}
-                  className="text-[11px] text-muted hover:text-white underline underline-offset-2 pl-8"
+                  className="text-xs text-muted hover:text-foreground underline underline-offset-2 pl-8"
                 >
                   {task.blocked_reason ? 'Change why' : 'Say what got in the way'}
                 </button>

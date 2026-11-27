@@ -157,14 +157,14 @@ export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onL
   }
 
   const input =
-    'w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]'
+    'w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]'
 
   return (
     <Sheet isOpen={isOpen} onClose={onClose} title={mode === 'save' ? 'New saved meal' : 'Add food'} desktopCenter>
       <div className="px-5 pb-5 pt-1 overflow-y-auto space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-white">{mode === 'save' ? 'New saved meal' : 'Add food'}</h2>
-          <button type="button" onClick={onClose} className="w-12 h-12 -mr-2 rounded-full text-muted hover:text-white" aria-label="Close">
+          <h2 className="text-lg font-bold text-foreground">{mode === 'save' ? 'New saved meal' : 'Add food'}</h2>
+          <button type="button" onClick={onClose} className="w-12 h-12 -mr-2 rounded-full text-muted hover:text-foreground" aria-label="Close">
             ✕
           </button>
         </div>
@@ -193,7 +193,7 @@ export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onL
             camera on a phone; on a desktop it is a file picker. */}
         {!photo && !parsed && mode === 'log' && basket.length === 0 && !picking && !custom && (
           photosReady ? (
-            <label className="flex items-center justify-center gap-2 bg-accent text-black font-extrabold text-sm rounded-xl min-h-[52px] cursor-pointer hover:bg-accent/90">
+            <label className="flex items-center justify-center gap-2 bg-accent text-on-accent font-extrabold text-sm rounded-xl min-h-[52px] cursor-pointer hover:bg-accent/90">
               <span aria-hidden="true">📷</span> Snap the plate
               <input
                 type="file"
@@ -208,7 +208,7 @@ export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onL
               />
             </label>
           ) : (
-            <p className="text-[11px] text-orange-300">Run supabase/migrations/052_diet_photos.sql to log meals from a photo.</p>
+            <p className="text-xs text-orange-300">Run supabase/migrations/052_diet_photos.sql to log meals from a photo.</p>
           )
         )}
 
@@ -235,15 +235,15 @@ export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onL
 
         {/* What is in the meal so far */}
         {!photo && !parsed && priced.length > 0 && (
-          <section aria-label="This meal" className="rounded-2xl bg-background/60 border border-white/10 p-3 space-y-2">
+          <section aria-label="This meal" className="rounded-2xl bg-background/60 border border-border p-3 space-y-2">
             <ul className="space-y-1">
               {priced.map((item, i) => (
                 <li key={basket[i]?.key ?? i} className="flex items-center gap-2 text-sm">
-                  <span className="flex-1 min-w-0 truncate text-white">
+                  <span className="flex-1 min-w-0 truncate text-foreground">
                     {item.name}
                     <span className="text-muted"> · {item.recipe_id ? `${item.portions} portion${item.portions === 1 ? '' : 's'}` : `${round1(item.grams)} g`}</span>
                   </span>
-                  <span className="tabular-nums text-white">{item.kcal}</span>
+                  <span className="tabular-nums text-foreground">{item.kcal}</span>
                   <span className="tabular-nums text-muted w-14 text-right">{round1(item.protein_g)} g P</span>
                   <button
                     type="button"
@@ -256,13 +256,13 @@ export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onL
                 </li>
               ))}
             </ul>
-            <div className="flex items-center justify-between border-t border-white/5 pt-2">
-              <span className="text-sm font-bold text-white tabular-nums">
+            <div className="flex items-center justify-between border-t border-border pt-2">
+              <span className="text-sm font-bold text-foreground tabular-nums">
                 {totals.kcal.toLocaleString()} kcal · {totals.protein_g} g protein
               </span>
               {mode === 'log' && <VerdictBadge verdict={preview.verdict} />}
             </div>
-            {mode === 'log' && preview.reason && <p className="text-[11px] text-muted leading-relaxed">{preview.reason}</p>}
+            {mode === 'log' && preview.reason && <p className="text-xs text-muted leading-relaxed">{preview.reason}</p>}
           </section>
         )}
 
@@ -282,16 +282,16 @@ export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onL
               className={input}
               autoComplete="off"
             />
-            <ul className="max-h-64 overflow-y-auto divide-y divide-white/5 rounded-2xl border border-white/5" aria-label="Foods and recipes">
+            <ul className="max-h-64 overflow-y-auto divide-y divide-border rounded-2xl border border-border" aria-label="Foods and recipes">
               {results.map((r) => {
                 const portion = r.kind === 'recipe' ? lib.portions.get(r.id) : null
                 return (
                   <li key={`${r.kind}-${r.id}`}>
-                    <button type="button" onClick={() => pick(r)} className="w-full flex items-center gap-3 px-3 py-2 min-h-[48px] text-left hover:bg-white/5">
+                    <button type="button" onClick={() => pick(r)} className="w-full flex items-center gap-3 px-3 py-2 min-h-[48px] text-left hover:bg-surface-2">
                       <span aria-hidden="true">{r.kind === 'recipe' ? '🍲' : '🥘'}</span>
                       <span className="flex-1 min-w-0">
-                        <span className="block text-sm text-white truncate">{r.name}</span>
-                        <span className="block text-[11px] text-muted">
+                        <span className="block text-sm text-foreground truncate">{r.name}</span>
+                        <span className="block text-xs text-muted">
                           {r.kind === 'recipe'
                             ? portion
                               ? `${portion.kcal} kcal · ${portion.protein_g} g protein a portion`
@@ -316,7 +316,7 @@ export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onL
         {/* How much */}
         {picking && (
           <section className="rounded-2xl border border-accent/30 bg-accent/5 p-4 space-y-3" aria-label={`How much ${picking.name}`}>
-            <p className="text-sm font-bold text-white">{picking.name}</p>
+            <p className="text-sm font-bold text-foreground">{picking.name}</p>
             <div className="flex flex-wrap gap-2">
               {picking.kind === 'recipe'
                 ? PORTION_STEPS.map((p) => (
@@ -324,7 +324,7 @@ export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onL
                       key={p}
                       type="button"
                       onClick={() => setAmount(String(p))}
-                      className={`px-3 min-h-[44px] rounded-xl border text-xs font-bold ${toNumber(amount) === p ? 'border-accent bg-accent/10 text-accent' : 'border-white/10 text-muted'}`}
+                      className={`px-3 min-h-[44px] rounded-xl border text-xs font-bold ${toNumber(amount) === p ? 'border-accent bg-accent/10 text-accent' : 'border-border text-muted'}`}
                     >
                       {p} portion{p === 1 ? '' : 's'}
                     </button>
@@ -334,7 +334,7 @@ export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onL
                       key={o.label}
                       type="button"
                       onClick={() => setAmount(String(o.grams))}
-                      className={`px-3 min-h-[44px] rounded-xl border text-xs font-bold ${toNumber(amount) === o.grams ? 'border-accent bg-accent/10 text-accent' : 'border-white/10 text-muted'}`}
+                      className={`px-3 min-h-[44px] rounded-xl border text-xs font-bold ${toNumber(amount) === o.grams ? 'border-accent bg-accent/10 text-accent' : 'border-border text-muted'}`}
                     >
                       {o.label}
                     </button>
@@ -356,10 +356,10 @@ export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onL
               />
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => setPicking(null)} className="min-h-[48px] rounded-xl bg-white/5 text-white text-sm font-bold">
+              <button type="button" onClick={() => setPicking(null)} className="min-h-[48px] rounded-xl bg-surface-2 text-foreground text-sm font-bold">
                 Back
               </button>
-              <button type="button" onClick={addPicked} className="min-h-[48px] rounded-xl bg-accent text-black text-sm font-extrabold">
+              <button type="button" onClick={addPicked} className="min-h-[48px] rounded-xl bg-accent text-on-accent text-sm font-extrabold">
                 Add
               </button>
             </div>
@@ -368,8 +368,8 @@ export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onL
 
         {/* Not in the list */}
         {custom && (
-          <section className="rounded-2xl border border-white/10 p-4 space-y-2" aria-label="Custom item">
-            <p className="text-sm font-bold text-white">Custom item</p>
+          <section className="rounded-2xl border border-border p-4 space-y-2" aria-label="Custom item">
+            <p className="text-sm font-bold text-foreground">Custom item</p>
             <input aria-label="Name" value={custom.name} onChange={(e) => setCustom({ ...custom, name: e.target.value })} placeholder="Name, e.g. mama put stew" className={input} />
             <div className="grid grid-cols-2 gap-2">
               <input aria-label="Grams" type="number" inputMode="decimal" value={custom.grams ?? ''} onChange={(e) => setCustom({ ...custom, grams: e.target.value })} placeholder="Grams" className={input} />
@@ -378,10 +378,10 @@ export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onL
               <input aria-label="Fat (g)" type="number" inputMode="decimal" value={custom.fat_g ?? ''} onChange={(e) => setCustom({ ...custom, fat_g: e.target.value })} placeholder="Fat g" className={input} />
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => setCustom(null)} className="min-h-[48px] rounded-xl bg-white/5 text-white text-sm font-bold">
+              <button type="button" onClick={() => setCustom(null)} className="min-h-[48px] rounded-xl bg-surface-2 text-foreground text-sm font-bold">
                 Back
               </button>
-              <button type="button" onClick={addCustom} className="min-h-[48px] rounded-xl bg-accent text-black text-sm font-extrabold">
+              <button type="button" onClick={addCustom} className="min-h-[48px] rounded-xl bg-accent text-on-accent text-sm font-extrabold">
                 Add
               </button>
             </div>
@@ -399,7 +399,7 @@ export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onL
                   role="radio"
                   aria-checked={slot === s}
                   onClick={() => setSlot(s)}
-                  className={`min-h-[48px] rounded-xl border text-[11px] font-bold ${slot === s ? 'border-accent bg-accent/10 text-accent' : 'border-white/10 text-muted'}`}
+                  className={`min-h-[48px] rounded-xl border text-xs font-bold ${slot === s ? 'border-accent bg-accent/10 text-accent' : 'border-border text-muted'}`}
                 >
                   <span aria-hidden="true">{SLOT_ICONS[s]}</span> {SLOT_LABELS[s]}
                 </button>
@@ -414,7 +414,7 @@ export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onL
               </div>
             )}
             {mode === 'log' && (
-              <label className="flex items-center gap-3 text-sm text-white min-h-[48px]">
+              <label className="flex items-center gap-3 text-sm text-foreground min-h-[48px]">
                 <input type="checkbox" checked={saveAs} onChange={(e) => setSaveAs(e.target.checked)} className="w-5 h-5 accent-[var(--color-accent)]" />
                 Also save it for one-tap logging
               </label>
@@ -426,7 +426,7 @@ export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onL
               type="button"
               onClick={submit}
               disabled={busy}
-              className="w-full min-h-[52px] rounded-xl bg-accent text-black font-extrabold text-sm disabled:opacity-60"
+              className="w-full min-h-[52px] rounded-xl bg-accent text-on-accent font-extrabold text-sm disabled:opacity-60"
             >
               {busy ? 'Saving…' : mode === 'save' ? 'Save meal' : `Log ${totals.kcal.toLocaleString()} kcal`}
             </button>

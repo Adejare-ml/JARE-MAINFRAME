@@ -107,23 +107,23 @@ export default function MealReview({
   return (
     <div className="space-y-5">
       {/* The total, first: it is the number being decided. */}
-      <div className="bg-background border border-white/10 rounded-2xl p-4 flex items-end justify-between gap-3">
+      <div className="bg-background border border-border rounded-2xl p-4 flex items-end justify-between gap-3">
         <div>
           <p className="text-xs text-muted font-semibold uppercase tracking-wider">This meal</p>
-          <p className="text-3xl font-extrabold text-white tabular-nums">
+          <p className="text-3xl font-extrabold text-foreground tabular-nums">
             {total.toLocaleString()} <span className="text-base font-bold text-muted">kcal</span>
           </p>
           {macros && (
-            <p className="text-[11px] text-muted-dim mt-0.5">
+            <p className="text-xs text-muted-dim mt-0.5">
               P {macros.protein_g} g · C {macros.carbs_g} g · F {macros.fat_g} g
             </p>
           )}
         </div>
-        <p className={`text-[11px] font-semibold text-right max-w-[45%] ${band.cls}`}>{band.text}</p>
+        <p className={`text-xs font-semibold text-right max-w-[45%] ${band.cls}`}>{band.text}</p>
       </div>
 
       {(qualityNote || advice) && (
-        <p className="text-[11px] text-muted-dim leading-relaxed">
+        <p className="text-xs text-muted-dim leading-relaxed">
           {qualityNote}
           {qualityNote && advice ? ' ' : ''}
           {advice}
@@ -133,10 +133,10 @@ export default function MealReview({
       {/* The dishes */}
       <ul className="space-y-2" aria-label="Dishes in this meal">
         {items.map((item) => (
-          <li key={item.id} className="bg-white/5 border border-white/5 rounded-2xl p-3">
+          <li key={item.id} className="bg-surface-2 border border-border rounded-2xl p-3">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <p className="text-sm font-bold text-white truncate">
+                <p className="text-sm font-bold text-foreground truncate">
                   {item.name}
                   {item.confidence === 'low' && (
                     <span className="ml-1 text-orange-300" title="The model was unsure about this one" aria-label="uncertain">
@@ -144,7 +144,7 @@ export default function MealReview({
                     </span>
                   )}
                 </p>
-                <p className="text-[11px] text-muted truncate">
+                <p className="text-xs text-muted truncate">
                   {item.portion || 'portion as seen'}
                   {item.note ? ` · ${item.note}` : ''}
                 </p>
@@ -152,7 +152,7 @@ export default function MealReview({
               <button
                 type="button"
                 onClick={() => remove(item.id)}
-                className="shrink-0 w-9 h-9 rounded-full bg-white/5 hover:bg-red-500/20 text-muted hover:text-red-300 flex items-center justify-center text-sm min-h-[48px] min-w-[48px]"
+                className="shrink-0 w-9 h-9 rounded-full bg-surface-2 hover:bg-red-500/20 text-muted hover:text-red-300 flex items-center justify-center text-sm min-h-[48px] min-w-[48px]"
                 aria-label={`Remove ${item.name}`}
               >
                 ✕
@@ -163,22 +163,22 @@ export default function MealReview({
                 <button
                   type="button"
                   onClick={() => update(item.id, withQuantity(item, stepQuantity(item.quantity, -1)))}
-                  className="w-10 h-10 rounded-xl bg-background border border-white/10 text-white font-bold min-h-[48px] min-w-[48px]"
+                  className="w-10 h-10 rounded-xl bg-background border border-border text-foreground font-bold min-h-[48px] min-w-[48px]"
                   aria-label="Less"
                 >
                   −
                 </button>
-                <span className="w-12 text-center text-sm font-bold text-white tabular-nums">{quantityLabel(item.quantity)}</span>
+                <span className="w-12 text-center text-sm font-bold text-foreground tabular-nums">{quantityLabel(item.quantity)}</span>
                 <button
                   type="button"
                   onClick={() => update(item.id, withQuantity(item, stepQuantity(item.quantity, +1)))}
-                  className="w-10 h-10 rounded-xl bg-background border border-white/10 text-white font-bold min-h-[48px] min-w-[48px]"
+                  className="w-10 h-10 rounded-xl bg-background border border-border text-foreground font-bold min-h-[48px] min-w-[48px]"
                   aria-label="More"
                 >
                   +
                 </button>
               </div>
-              <span className="text-sm font-bold text-white tabular-nums">{itemCalories(item).toLocaleString()} kcal</span>
+              <span className="text-sm font-bold text-foreground tabular-nums">{itemCalories(item).toLocaleString()} kcal</span>
             </div>
           </li>
         ))}
@@ -196,7 +196,7 @@ export default function MealReview({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="eba, moi moi, Coke…"
-          className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+          className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
         />
         {matches.length > 0 && (
           <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5" aria-label="Matching dishes">
@@ -205,10 +205,10 @@ export default function MealReview({
                 <button
                   type="button"
                   onClick={() => addDish(row)}
-                  className="w-full text-left px-3 py-2.5 rounded-xl bg-white/5 hover:bg-accent/15 border border-white/5 min-h-[48px]"
+                  className="w-full text-left px-3 py-2.5 rounded-xl bg-surface-2 hover:bg-accent/15 border border-border min-h-[48px]"
                 >
-                  <span className="block text-sm font-semibold text-white">{row[0]}</span>
-                  <span className="block text-[11px] text-muted">
+                  <span className="block text-sm font-semibold text-foreground">{row[0]}</span>
+                  <span className="block text-xs text-muted">
                     {row[1]} · {row[2]} kcal
                   </span>
                 </button>
@@ -223,7 +223,7 @@ export default function MealReview({
               value={customName || query}
               onChange={(e) => setCustomName(e.target.value)}
               aria-label="Dish name"
-              className="flex-1 min-w-0 px-3 py-2.5 bg-background border border-white/10 rounded-xl text-white text-sm min-h-[48px]"
+              className="flex-1 min-w-0 px-3 py-2.5 bg-background border border-border rounded-xl text-foreground text-sm min-h-[48px]"
             />
             <input
               type="number"
@@ -233,9 +233,9 @@ export default function MealReview({
               onChange={(e) => setCustomKcal(e.target.value)}
               placeholder="kcal"
               aria-label="Calories"
-              className="w-24 px-3 py-2.5 bg-background border border-white/10 rounded-xl text-white text-sm min-h-[48px]"
+              className="w-24 px-3 py-2.5 bg-background border border-border rounded-xl text-foreground text-sm min-h-[48px]"
             />
-            <button type="submit" className="px-4 rounded-xl bg-accent text-black font-bold text-sm min-h-[48px]">
+            <button type="submit" className="px-4 rounded-xl bg-accent text-on-accent font-bold text-sm min-h-[48px]">
               Add
             </button>
           </form>
@@ -253,7 +253,7 @@ export default function MealReview({
               onClick={() => onMealTypeChange(t)}
               aria-pressed={mealType === t}
               className={`py-2.5 rounded-xl border text-xs font-bold capitalize min-h-[48px] transition-all ${
-                mealType === t ? 'bg-accent/20 border-accent text-white' : 'bg-white/5 border-white/5 text-muted hover:text-white'
+                mealType === t ? 'bg-accent/20 border-accent text-foreground' : 'bg-surface-2 border-border text-muted hover:text-foreground'
               }`}
             >
               <span aria-hidden="true">{MEAL_TYPE_ICONS[t]}</span> {t}
@@ -273,7 +273,7 @@ export default function MealReview({
             value={eatenOn}
             max={today}
             onChange={(e) => onEatenOnChange(e.target.value)}
-            className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-accent min-h-[48px]"
+            className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm focus:outline-none focus:border-accent min-h-[48px]"
           />
         </div>
         <div>
@@ -287,7 +287,7 @@ export default function MealReview({
             onChange={(e) => onNoteChange(e.target.value)}
             maxLength={200}
             placeholder="where, with whom…"
-            className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+            className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
           />
         </div>
       </div>

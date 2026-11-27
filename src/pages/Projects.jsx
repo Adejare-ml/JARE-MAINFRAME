@@ -280,7 +280,7 @@ export default function Projects() {
   if (!available) {
     return (
       <div className="space-y-6 pb-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-white">Projects 🛠️</h1>
+        <h1 className="text-2xl md:text-3xl font-bold text-foreground">Projects 🛠️</h1>
         <div className="rounded-2xl bg-orange-500/10 border border-orange-500/20 p-5 text-sm text-orange-300 leading-relaxed">
           Run <code className="font-mono">supabase/migrations/026_projects.sql</code> in the Supabase SQL editor to switch this
           page on.
@@ -292,7 +292,7 @@ export default function Projects() {
   if (pageError) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-white">Projects 🛠️</h1>
+        <h1 className="text-2xl md:text-3xl font-bold text-foreground">Projects 🛠️</h1>
         <ErrorState message={pageError} onRetry={fetchProjects} />
       </div>
     )
@@ -304,12 +304,12 @@ export default function Projects() {
     <div className="space-y-6 pb-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-white">Projects 🛠️</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground">Projects 🛠️</h1>
           <p className="text-muted text-sm mt-0.5">Monthly project tracker with milestones</p>
         </div>
         <button
           onClick={openAdd}
-          className="px-4 py-2.5 bg-accent text-black rounded-xl text-sm font-bold min-h-[48px] flex-shrink-0"
+          className="px-4 py-2.5 bg-accent text-on-accent rounded-xl text-sm font-bold min-h-[48px] flex-shrink-0"
         >
           + New
         </button>
@@ -317,14 +317,14 @@ export default function Projects() {
 
       {candidates.length > 0 && (
         <div className="bg-accent/10 border border-accent/20 rounded-2xl p-4 flex items-center justify-between gap-3">
-          <p className="text-sm text-white">
+          <p className="text-sm text-foreground">
             {candidates.length} unfinished project{candidates.length === 1 ? '' : 's'} from{' '}
             {candidates.length === 1 ? 'last month' : 'earlier months'}
           </p>
           <button
             onClick={carryOver}
             disabled={carrying}
-            className="px-4 py-2 bg-accent text-black rounded-xl text-xs font-bold min-h-[44px] flex-shrink-0 disabled:opacity-50"
+            className="px-4 py-2 bg-accent text-on-accent rounded-xl text-xs font-bold min-h-[44px] flex-shrink-0 disabled:opacity-50"
           >
             {carrying ? 'Carrying…' : 'Carry over'}
           </button>
@@ -332,11 +332,11 @@ export default function Projects() {
       )}
 
       {/* This month */}
-      <section className="bg-card rounded-2xl p-5 border border-white/5">
+      <section className="bg-card rounded-2xl p-5 border border-border">
         <h2 className="text-xs font-semibold text-muted uppercase tracking-wider mb-4">{monthLabel}</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            ['Total', counts.total, 'text-white'],
+            ['Total', counts.total, 'text-foreground'],
             ['Active', counts.active, 'text-accent'],
             ['Coding', counts.coding, 'text-blue-400'],
             ['Hands-on', counts.handsOn, 'text-orange-400'],
@@ -360,7 +360,7 @@ export default function Projects() {
             id={`tab-${t.id}`}
             onClick={() => setTab(t.id)}
             className={`px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap min-h-[48px] transition-all ${
-              tab === t.id ? 'bg-accent text-black' : 'bg-card text-muted hover:text-white border border-white/5'
+              tab === t.id ? 'bg-accent text-on-accent' : 'bg-card text-muted hover:text-foreground border border-border'
             }`}
           >
             {t.label}
@@ -371,7 +371,7 @@ export default function Projects() {
       {/* List */}
       <div role="tabpanel" id={`tabpanel-${tab}`} aria-labelledby={`tab-${tab}`}>
         {visible.length === 0 ? (
-        <div className="bg-card rounded-3xl border border-white/5">
+        <div className="bg-card rounded-3xl border border-border">
           <EmptyState
             icon="🛠️"
             title={tab === 'all' ? 'No projects yet' : 'Nothing in this tab'}
@@ -396,26 +396,26 @@ export default function Projects() {
               <div
                 key={project.id}
                 className={`bg-card rounded-2xl p-5 border transition-all ${
-                  isComplete ? 'border-white/5 opacity-60' : 'border-white/10'
+                  isComplete ? 'border-border opacity-60' : 'border-border'
                 }`}
               >
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span aria-hidden="true">{typeMeta?.icon || '🛠️'}</span>
-                      <h3 className="text-sm font-bold text-white truncate">{project.name}</h3>
+                      <h3 className="text-sm font-bold text-foreground truncate">{project.name}</h3>
                       {isComplete && (
-                        <span className="text-[9px] bg-white/5 text-muted px-1.5 py-0.5 rounded-full uppercase font-bold">
+                        <span className="text-xs bg-surface-2 text-muted px-1.5 py-0.5 rounded-full uppercase font-bold">
                           Complete
                         </span>
                       )}
                       {project.carried_from && (
-                        <span className="text-[9px] bg-orange-500/15 text-orange-300 px-1.5 py-0.5 rounded-full uppercase font-bold">
+                        <span className="text-xs bg-orange-500/15 text-orange-300 px-1.5 py-0.5 rounded-full uppercase font-bold">
                           From {monthKey(project.carried_from)}
                         </span>
                       )}
                     </div>
-                    <p className="text-[10px] text-muted mt-0.5">
+                    <p className="text-xs text-muted mt-0.5">
                       {typeMeta?.label || 'Project'} · {monthKey(project.month)}
                       {project.stack && ` · ${project.stack}`}
                     </p>
@@ -424,7 +424,7 @@ export default function Projects() {
                     <button
                       onClick={() => openEdit(project)}
                       aria-label={`Edit ${project.name}`}
-                      className="w-11 h-11 flex items-center justify-center rounded-xl hover:bg-white/5 text-muted hover:text-white"
+                      className="w-11 h-11 flex items-center justify-center rounded-xl hover:bg-surface-2 text-muted hover:text-foreground"
                     >
                       ✏️
                     </button>
@@ -448,7 +448,7 @@ export default function Projects() {
                       </p>
                       <p className="text-xs text-muted tabular-nums">{Math.round(progress.share * 100)}%</p>
                     </div>
-                    <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                    <div className="h-2 bg-surface-2 rounded-full overflow-hidden">
                       <div className="h-full bg-accent rounded-full" style={{ width: `${progress.share * 100}%` }} />
                     </div>
                     <ul className="space-y-1 pt-1">
@@ -461,19 +461,19 @@ export default function Projects() {
                             className="w-full flex items-center gap-2.5 py-1.5 text-left min-h-[40px]"
                           >
                             <span
-                              className={`w-5 h-5 shrink-0 rounded-md border-2 flex items-center justify-center text-[10px] font-black ${
-                                m.completed ? 'bg-accent border-accent text-black' : 'border-white/20 text-transparent'
+                              className={`w-5 h-5 shrink-0 rounded-md border-2 flex items-center justify-center text-xs font-black ${
+                                m.completed ? 'bg-accent border-accent text-on-accent' : 'border-border text-transparent'
                               }`}
                               aria-hidden="true"
                             >
                               ✓
                             </span>
-                            <span className={`text-sm flex-1 min-w-0 truncate ${m.completed ? 'text-muted line-through' : 'text-white'}`}>
+                            <span className={`text-sm flex-1 min-w-0 truncate ${m.completed ? 'text-muted line-through' : 'text-foreground'}`}>
                               {m.title}
                             </span>
                             {m.due_date && (
                               <span
-                                className={`text-[11px] shrink-0 ${
+                                className={`text-xs shrink-0 ${
                                   !m.completed && m.due_date < toDateOnly(new Date()) ? 'text-red-400' : 'text-muted'
                                 }`}
                               >
@@ -488,14 +488,14 @@ export default function Projects() {
                 )}
 
                 {project.done_criteria && (
-                  <p className="text-[11px] text-muted mt-3 pt-3 border-t border-white/5">
+                  <p className="text-xs text-muted mt-3 pt-3 border-t border-border">
                     <span className="text-muted-dim">Done when:</span> {project.done_criteria}
                   </p>
                 )}
 
                 <button
                   onClick={() => setStatus(project, isComplete ? 'active' : 'complete')}
-                  className="mt-3 w-full py-2.5 text-xs font-semibold rounded-xl bg-white/5 hover:bg-white/10 text-muted hover:text-white min-h-[44px] transition-colors"
+                  className="mt-3 w-full py-2.5 text-xs font-semibold rounded-xl bg-surface-2 hover:bg-surface-2 text-muted hover:text-foreground min-h-[44px] transition-colors"
                 >
                   {isComplete ? 'Reopen' : 'Mark complete'}
                 </button>
@@ -506,13 +506,13 @@ export default function Projects() {
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleDelete(project.id)}
-                        className="flex-1 py-2.5 bg-red-500 text-white text-xs font-bold rounded-lg min-h-[44px]"
+                        className="flex-1 py-2.5 bg-red-500 text-foreground text-xs font-bold rounded-lg min-h-[44px]"
                       >
                         Delete
                       </button>
                       <button
                         onClick={() => setConfirmDeleteId(null)}
-                        className="flex-1 py-2.5 bg-white/5 text-muted text-xs font-bold rounded-lg min-h-[44px]"
+                        className="flex-1 py-2.5 bg-surface-2 text-muted text-xs font-bold rounded-lg min-h-[44px]"
                       >
                         Cancel
                       </button>
@@ -530,12 +530,12 @@ export default function Projects() {
       <Sheet isOpen={showModal} onClose={() => setShowModal(false)} title={editing ? 'Edit project' : 'New project'} desktopCenter>
         <form onSubmit={handleSave} className={`p-6 space-y-4 overflow-y-auto ${shake ? 'animate-shake' : ''}`}>
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-white">{editing ? 'Edit' : 'New'}</h2>
+            <h2 className="text-lg font-bold text-foreground">{editing ? 'Edit' : 'New'}</h2>
             <button
               type="button"
               onClick={() => setShowModal(false)}
               aria-label="Close"
-              className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-white/10 text-muted hover:text-white"
+              className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-surface-2 text-muted hover:text-foreground"
             >
               ✕
             </button>
@@ -556,7 +556,7 @@ export default function Projects() {
                   type="button"
                   onClick={() => setForm({ ...form, type: t.value })}
                   className={`px-3 py-3 rounded-xl border text-xs font-semibold min-h-[48px] transition-all ${
-                    form.type === t.value ? 'border-accent bg-accent/10 text-accent' : 'border-white/10 bg-background text-muted'
+                    form.type === t.value ? 'border-accent bg-accent/10 text-accent' : 'border-border bg-background text-muted'
                   }`}
                 >
                   {t.icon} {t.label}
@@ -572,7 +572,7 @@ export default function Projects() {
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder="What are you building?"
               required
-              className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+              className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
             />
           </div>
 
@@ -582,7 +582,7 @@ export default function Projects() {
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
               placeholder="Optional"
-              className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+              className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
             />
           </div>
 
@@ -593,7 +593,7 @@ export default function Projects() {
                 value={form.stack}
                 onChange={(e) => setForm({ ...form, stack: e.target.value })}
                 placeholder={form.type === 'coding' ? 'React, Supabase' : 'Optional'}
-                className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+                className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
               />
             </div>
             <div>
@@ -602,7 +602,7 @@ export default function Projects() {
                 value={form.done_criteria}
                 onChange={(e) => setForm({ ...form, done_criteria: e.target.value })}
                 placeholder="It ships"
-                className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+                className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
               />
             </div>
           </div>
@@ -619,7 +619,7 @@ export default function Projects() {
               </button>
             </div>
             {form.milestones.length === 0 ? (
-              <p className="text-[11px] text-muted-dim">Break it into steps you can tick off.</p>
+              <p className="text-xs text-muted-dim">Break it into steps you can tick off.</p>
             ) : (
               <div className="space-y-2">
                 {form.milestones.map((m) => (
@@ -629,8 +629,8 @@ export default function Projects() {
                       onClick={() => setMilestone(m.key, { completed: !m.completed })}
                       aria-pressed={m.completed}
                       aria-label={m.completed ? 'Mark not done' : 'Mark done'}
-                      className={`w-6 h-6 shrink-0 rounded-md border-2 flex items-center justify-center text-[10px] font-black ${
-                        m.completed ? 'bg-accent border-accent text-black' : 'border-white/20 text-transparent'
+                      className={`w-6 h-6 shrink-0 rounded-md border-2 flex items-center justify-center text-xs font-black ${
+                        m.completed ? 'bg-accent border-accent text-on-accent' : 'border-border text-transparent'
                       }`}
                     >
                       ✓
@@ -639,14 +639,14 @@ export default function Projects() {
                       value={m.title}
                       onChange={(e) => setMilestone(m.key, { title: e.target.value })}
                       placeholder="Milestone"
-                      className="flex-1 min-w-0 px-3 py-2.5 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[44px]"
+                      className="flex-1 min-w-0 px-3 py-2.5 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[44px]"
                     />
                     <input
                       type="date"
                       value={m.due_date}
                       onChange={(e) => setMilestone(m.key, { due_date: e.target.value })}
                       aria-label="Due date"
-                      className="w-32 px-2 py-2.5 bg-background border border-white/10 rounded-xl text-white text-xs focus:outline-none focus:border-accent min-h-[44px]"
+                      className="w-32 px-2 py-2.5 bg-background border border-border rounded-xl text-foreground text-xs focus:outline-none focus:border-accent min-h-[44px]"
                     />
                     <button
                       type="button"
@@ -665,7 +665,7 @@ export default function Projects() {
           <button
             type="submit"
             disabled={saving || justSaved}
-            className="w-full py-3.5 bg-accent text-black font-bold text-sm rounded-xl min-h-[48px] disabled:opacity-50 flex items-center justify-center"
+            className="w-full py-3.5 bg-accent text-on-accent font-bold text-sm rounded-xl min-h-[48px] disabled:opacity-50 flex items-center justify-center"
           >
             {justSaved ? (
               <span className="inline-block text-lg animate-check-pop" aria-hidden="true">

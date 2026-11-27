@@ -41,15 +41,15 @@ export default function DayBrief({ brief }) {
   const tight = free < 120
 
   return (
-    <section className="bg-card rounded-3xl p-5 border border-white/5 space-y-3">
+    <section className="bg-card rounded-3xl p-5 border border-border space-y-3">
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">Today’s shape</h2>
         {busy > 0 && (
-          <span className="text-[11px] text-muted tabular-nums">{formatDuration(busy)} booked</span>
+          <span className="text-xs text-muted tabular-nums">{formatDuration(busy)} booked</span>
         )}
       </div>
 
-      <p className={`text-2xl font-bold tabular-nums ${tight ? 'text-yellow-400' : 'text-white'}`}>
+      <p className={`text-2xl font-bold tabular-nums ${tight ? 'text-yellow-400' : 'text-foreground'}`}>
         {formatDuration(free)}
         <span className="text-muted text-sm font-normal"> free</span>
       </p>
@@ -66,14 +66,14 @@ export default function DayBrief({ brief }) {
               <span className="text-muted tabular-nums w-11 flex-shrink-0">
                 {event.allDay ? 'all day' : formatClock(minutesIntoDay(event.start))}
               </span>
-              <span className="text-white/80 truncate">{event.title}</span>
+              <span className="text-foreground truncate">{event.title}</span>
             </li>
           ))}
         </ul>
       )}
 
       {tight && events.length > 0 && (
-        <p className="text-[11px] text-yellow-400/90">
+        <p className="text-xs text-yellow-400/90">
           Not much room. Worth picking one thing rather than three.
         </p>
       )}

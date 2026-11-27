@@ -12,5 +12,5 @@ const STYLES = {
 
 export default function VerdictBadge({ verdict }) {
   if (!verdict || !STYLES[verdict]) return null
-  return <span className={`inline-block px-2 py-0.5 rounded-full border text-[10px] font-extrabold uppercase tracking-wider ${STYLES[verdict]}`}>{verdict}</span>
+  return <span className={`inline-block px-2 py-0.5 rounded-full border text-xs font-extrabold uppercase tracking-wider ${STYLES[verdict]}`}>{verdict}</span>
 }

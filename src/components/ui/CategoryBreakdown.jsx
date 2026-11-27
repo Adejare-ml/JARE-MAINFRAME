@@ -22,8 +22,8 @@ export default function CategoryBreakdown({ byCategory, budgetByCategory = {}, a
   if (rows.length === 0) return null
 
   return (
-    <div className="bg-card rounded-3xl p-6 border border-white/5">
-      <h3 className="text-lg font-bold text-white mb-5">WHERE IT WENT</h3>
+    <div className="bg-card rounded-3xl p-6 border border-border">
+      <h3 className="text-lg font-bold text-foreground mb-5">WHERE IT WENT</h3>
       <div className="space-y-4">
         {rows.map((row) => {
           const isOther = row.category === 'Other'
@@ -33,25 +33,25 @@ export default function CategoryBreakdown({ byCategory, budgetByCategory = {}, a
           const inner = (
             <>
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-sm text-white flex items-center gap-2 min-w-0">
+                <span className="text-sm text-foreground flex items-center gap-2 min-w-0">
                   <span className="flex-shrink-0">{isOther ? '📦' : getCategoryIcon(row.category)}</span>
                   <span className="truncate">{row.category}</span>
-                  <span className="text-[10px] text-muted flex-shrink-0">
+                  <span className="text-xs text-muted flex-shrink-0">
                     {Math.round(row.share * 100)}%
                   </span>
                 </span>
                 <span className="text-right flex-shrink-0">
-                  <span className="block text-sm font-bold text-white tabular-nums money">
+                  <span className="block text-sm font-bold text-foreground tabular-nums money">
                     {formatNaira(row.total)}
                   </span>
                   {average != null && (
-                    <span className="block text-[10px] text-muted-dim tabular-nums money">
+                    <span className="block text-xs text-muted-dim tabular-nums money">
                       avg {formatNaira(average)}
                     </span>
                   )}
                 </span>
               </div>
-              <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+              <div className="h-2 bg-surface-2 rounded-full overflow-hidden">
                 <div
                   className={`h-full rounded-full ${isOther ? 'bg-gray-500' : getCategoryColor(row.category)}`}
                   style={{ width: `${Math.max(2, row.share * 100)}%` }}
@@ -61,13 +61,13 @@ export default function CategoryBreakdown({ byCategory, budgetByCategory = {}, a
                   used up, not how much of total spend it accounts for. */}
               {row.target != null && (
                 <div className="mt-1.5">
-                  <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                  <div className="h-1.5 bg-surface-2 rounded-full overflow-hidden">
                     <div
                       className={`h-full rounded-full ${row.overBudget ? 'bg-red-500' : 'bg-accent'}`}
                       style={{ width: `${Math.max(2, Math.min(100, (row.total / row.target) * 100))}%` }}
                     />
                   </div>
-                  <p className={`text-[10px] mt-1 ${row.overBudget ? 'text-red-400' : 'text-muted-dim'}`}>
+                  <p className={`text-xs mt-1 ${row.overBudget ? 'text-red-400' : 'text-muted-dim'}`}>
                     {row.overBudget ? (
                       <>
                         <span className="money">{formatNaira(row.total - row.target)}</span> over the{' '}

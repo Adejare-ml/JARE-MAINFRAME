@@ -6,14 +6,14 @@ const navItems = sidebarItems()
 
 export default function Sidebar({ onSignOut }) {
   return (
-    <aside className="hidden lg:flex flex-col w-60 h-screen bg-card border-r border-white/5 fixed left-0 top-0 z-40">
+    <aside className="hidden lg:flex flex-col w-60 h-screen bg-card border-r border-border fixed left-0 top-0 z-40">
       {/* Logo / Brand */}
-      <div className="p-6 border-b border-white/5 flex items-center justify-between">
-        <h1 className="text-xl font-bold text-white tracking-tight">
+      <div className="p-6 border-b border-border flex items-center justify-between">
+        <h1 className="text-xl font-bold text-foreground tracking-tight">
           <span className="text-accent">J</span>are
           <span className="text-muted ml-1 text-sm font-normal">Mainframe</span>
         </h1>
-        <ZenModeToggle className="w-9 h-9 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-sm transition-colors flex-shrink-0" />
+        <ZenModeToggle className="w-9 h-9 rounded-lg bg-surface-2 hover:bg-surface-2 flex items-center justify-center text-sm transition-colors flex-shrink-0" />
       </div>
 
       {/* Navigation */}
@@ -27,7 +27,7 @@ export default function Sidebar({ onSignOut }) {
               `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 min-h-[48px] ${
                 isActive
                   ? 'bg-accent/15 text-accent'
-                  : 'text-muted hover:text-white hover:bg-white/5'
+                  : 'text-muted hover:text-foreground hover:bg-surface-2'
               }`
             }
           >
@@ -38,7 +38,7 @@ export default function Sidebar({ onSignOut }) {
       </nav>
 
       {/* Sign Out */}
-      <div className="p-3 border-t border-white/5">
+      <div className="p-3 border-t border-border">
         <button
           onClick={onSignOut}
           className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-muted hover:text-red-400 hover:bg-red-400/10 transition-all duration-200 w-full min-h-[48px]"

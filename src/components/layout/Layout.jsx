@@ -17,16 +17,16 @@ export default function Layout({ children, onSignOut, pendingMigrations = [] }) 
       <Sidebar onSignOut={onSignOut} />
 
       {/* Mobile Top Header with Gear Icon */}
-      <div className="lg:hidden flex items-center justify-between px-4 py-3 border-b border-white/5 bg-card/95 backdrop-blur-md sticky top-0 z-30">
-        <h1 className="text-base font-bold text-white tracking-tight">
+      <div className="lg:hidden flex items-center justify-between px-4 py-3 border-b border-border bg-card/95 backdrop-blur-md sticky top-0 z-30">
+        <h1 className="text-base font-bold text-foreground tracking-tight">
           <span className="text-accent">J</span>are
           <span className="text-muted ml-1 text-xs font-normal">Mainframe</span>
         </h1>
         <div className="flex items-center gap-1.5">
-          <ZenModeToggle className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-lg transition-colors min-h-[48px] min-w-[48px]" />
+          <ZenModeToggle className="w-10 h-10 rounded-xl bg-surface-2 hover:bg-surface-2 flex items-center justify-center text-lg transition-colors min-h-[48px] min-w-[48px]" />
           <Link
             to="/settings"
-            className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-lg transition-colors min-h-[48px] min-w-[48px]"
+            className="w-10 h-10 rounded-xl bg-surface-2 hover:bg-surface-2 flex items-center justify-center text-lg transition-colors min-h-[48px] min-w-[48px]"
             aria-label="Settings"
           >
             ⚙️

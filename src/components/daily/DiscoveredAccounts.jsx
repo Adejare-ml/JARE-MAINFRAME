@@ -95,7 +95,7 @@ export default function DiscoveredAccounts({ compact = false }) {
   }
 
   return (
-    <section className="bg-card rounded-3xl p-6 border border-white/5 space-y-3">
+    <section className="bg-card rounded-3xl p-6 border border-border space-y-3">
       <div className="flex items-center justify-between">
         <h2 className="text-xs font-semibold text-muted uppercase tracking-wider flex items-center gap-2">
           <span aria-hidden="true">📬</span> Found in your mail
@@ -112,12 +112,12 @@ export default function DiscoveredAccounts({ compact = false }) {
       </p>
       <ul className="space-y-2">
         {pending.map((row) => (
-          <li key={row.id} className="rounded-2xl bg-background/40 border border-white/5 p-3 space-y-2">
+          <li key={row.id} className="rounded-2xl bg-background/40 border border-border p-3 space-y-2">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-sm font-bold text-white truncate">{row.label || row.slug}</p>
-                <p className="text-[11px] text-muted truncate">{describeDiscovered(row, today)}</p>
-                {row.sender && <p className="text-[10px] text-muted-dim truncate">{row.sender}</p>}
+                <p className="text-sm font-bold text-foreground truncate">{row.label || row.slug}</p>
+                <p className="text-xs text-muted truncate">{describeDiscovered(row, today)}</p>
+                {row.sender && <p className="text-xs text-muted-dim truncate">{row.sender}</p>}
               </div>
               {choosing !== row.id && (
                 <div className="flex gap-2 shrink-0">
@@ -125,7 +125,7 @@ export default function DiscoveredAccounts({ compact = false }) {
                     type="button"
                     onClick={() => startTrack(row)}
                     disabled={busy === row.id}
-                    className="px-3 rounded-xl bg-accent text-black text-xs font-extrabold min-h-[44px] disabled:opacity-50"
+                    className="px-3 rounded-xl bg-accent text-on-accent text-xs font-extrabold min-h-[44px] disabled:opacity-50"
                   >
                     Track
                   </button>
@@ -133,7 +133,7 @@ export default function DiscoveredAccounts({ compact = false }) {
                     type="button"
                     onClick={() => ignore(row)}
                     disabled={busy === row.id}
-                    className="px-3 rounded-xl bg-white/5 border border-white/10 text-muted hover:text-white text-xs font-bold min-h-[44px] disabled:opacity-50"
+                    className="px-3 rounded-xl bg-surface-2 border border-border text-muted hover:text-foreground text-xs font-bold min-h-[44px] disabled:opacity-50"
                   >
                     Ignore
                   </button>
@@ -154,13 +154,13 @@ export default function DiscoveredAccounts({ compact = false }) {
                   onChange={(e) => setName(e.target.value)}
                   aria-label="Wallet name"
                   maxLength={60}
-                  className="min-w-0 px-3 py-2.5 bg-background border border-white/10 rounded-xl text-white text-sm min-h-[44px]"
+                  className="min-w-0 px-3 py-2.5 bg-background border border-border rounded-xl text-foreground text-sm min-h-[44px]"
                 />
                 <select
                   value={type}
                   onChange={(e) => setType(e.target.value)}
                   aria-label="Wallet type"
-                  className="px-3 py-2.5 bg-background border border-white/10 rounded-xl text-white text-sm min-h-[44px] capitalize"
+                  className="px-3 py-2.5 bg-background border border-border rounded-xl text-foreground text-sm min-h-[44px] capitalize"
                 >
                   {TYPES.map((t) => (
                     <option key={t} value={t}>
@@ -169,10 +169,10 @@ export default function DiscoveredAccounts({ compact = false }) {
                   ))}
                 </select>
                 <div className="flex gap-2">
-                  <button type="submit" disabled={busy === row.id} className="flex-1 px-3 rounded-xl bg-accent text-black text-xs font-extrabold min-h-[44px] disabled:opacity-50">
+                  <button type="submit" disabled={busy === row.id} className="flex-1 px-3 rounded-xl bg-accent text-on-accent text-xs font-extrabold min-h-[44px] disabled:opacity-50">
                     {busy === row.id ? 'Creating…' : 'Create wallet'}
                   </button>
-                  <button type="button" onClick={() => setChoosing(null)} className="px-3 rounded-xl bg-white/5 text-muted text-xs font-bold min-h-[44px]">
+                  <button type="button" onClick={() => setChoosing(null)} className="px-3 rounded-xl bg-surface-2 text-muted text-xs font-bold min-h-[44px]">
                     Back
                   </button>
                 </div>

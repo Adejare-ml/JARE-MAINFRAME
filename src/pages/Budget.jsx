@@ -190,7 +190,7 @@ export default function Budget() {
       <div className="p-4 md:p-8 max-w-2xl mx-auto space-y-6 text-center">
         <span className="text-5xl block" aria-hidden="true">👛</span>
         <div>
-          <h1 className="text-2xl font-bold text-white mb-2">No wallets yet</h1>
+          <h1 className="text-2xl font-bold text-foreground mb-2">No wallets yet</h1>
           <p className="text-muted text-sm max-w-sm mx-auto">
             Add your bank accounts, Opay and cash in Settings — each with its slug (gtbank,
             opay, stanbic), which is how the morning import files bank alerts to it.
@@ -198,7 +198,7 @@ export default function Budget() {
         </div>
         <Link
           to="/settings"
-          className="inline-block px-6 py-3 bg-accent text-black font-bold text-sm rounded-xl min-h-[48px] leading-6"
+          className="inline-block px-6 py-3 bg-accent text-on-accent font-bold text-sm rounded-xl min-h-[48px] leading-6"
         >
           Set up wallets →
         </Link>
@@ -305,7 +305,7 @@ export default function Budget() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">Budget 💰</h1>
+          <h1 className="text-3xl font-bold text-foreground tracking-tight">Budget 💰</h1>
           <p className="text-muted text-sm mt-0.5">
             <Link to="/repairs" className="text-accent hover:underline">
               Repairs & maintenance →
@@ -315,13 +315,13 @@ export default function Budget() {
         <div className="flex gap-2">
           <button
             onClick={() => openQuickLog('debit')}
-            className="bg-card hover:bg-card/80 border border-white/10 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors min-h-[48px]"
+            className="bg-card hover:bg-card/80 border border-border text-foreground px-4 py-2 rounded-xl text-sm font-medium transition-colors min-h-[48px]"
           >
             + Log Transaction
           </button>
           <button
             onClick={() => openQuickLog('transfer')}
-            className="bg-card hover:bg-card/80 border border-white/10 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors min-h-[48px]"
+            className="bg-card hover:bg-card/80 border border-border text-foreground px-4 py-2 rounded-xl text-sm font-medium transition-colors min-h-[48px]"
           >
             ⇄ Transfer
           </button>
@@ -335,12 +335,12 @@ export default function Budget() {
       </div>
 
       {/* ── Layered Net Worth Card ── */}
-      <div className="bg-card rounded-3xl p-6 md:p-8 border border-white/5 relative overflow-hidden group">
+      <div className="bg-card rounded-3xl p-6 md:p-8 border border-border relative overflow-hidden group">
         <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
           <span className="text-8xl">💰</span>
         </div>
         <p className="text-muted font-medium mb-2">TOTAL NET WORTH</p>
-        <h2 className="text-4xl md:text-5xl font-bold text-white mb-4 money">
+        <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-4 money">
           {formatNaira(totalNetWorth)}
         </h2>
 
@@ -350,17 +350,17 @@ export default function Budget() {
 
         {/* Layered breakdown */}
         {hasSavingsOrInvestments && (
-          <div className="grid grid-cols-3 gap-3 pt-4 border-t border-white/5">
-            <div className="bg-background/40 p-3 rounded-2xl border border-white/5">
-              <p className="text-[10px] text-muted uppercase tracking-wider mb-1">💳 Liquid</p>
-              <p className="text-sm font-bold text-white money">{formatNaira(liquidBalance)}</p>
+          <div className="grid grid-cols-3 gap-3 pt-4 border-t border-border">
+            <div className="bg-background/40 p-3 rounded-2xl border border-border">
+              <p className="text-xs text-muted uppercase tracking-wider mb-1">💳 Liquid</p>
+              <p className="text-sm font-bold text-foreground money">{formatNaira(liquidBalance)}</p>
             </div>
-            <div className="bg-background/40 p-3 rounded-2xl border border-white/5">
-              <p className="text-[10px] text-muted uppercase tracking-wider mb-1">🐖 Savings</p>
+            <div className="bg-background/40 p-3 rounded-2xl border border-border">
+              <p className="text-xs text-muted uppercase tracking-wider mb-1">🐖 Savings</p>
               <p className="text-sm font-bold text-blue-400 money">{formatNaira(savingsBalance)}</p>
             </div>
-            <div className="bg-background/40 p-3 rounded-2xl border border-white/5">
-              <p className="text-[10px] text-muted uppercase tracking-wider mb-1">📈 Invested</p>
+            <div className="bg-background/40 p-3 rounded-2xl border border-border">
+              <p className="text-xs text-muted uppercase tracking-wider mb-1">📈 Invested</p>
               <p className="text-sm font-bold text-purple-400 money">{formatNaira(investmentBalance)}</p>
             </div>
           </div>
@@ -385,24 +385,24 @@ export default function Budget() {
       </div>
 
       {/* This Month Summary Card */}
-      <div className="bg-card rounded-3xl p-6 border border-white/5">
+      <div className="bg-card rounded-3xl p-6 border border-border">
         <div className="flex items-center justify-between gap-3 mb-6">
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => goToMonth(-1)}
               aria-label="Previous month"
-              className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 text-muted hover:text-white flex items-center justify-center min-h-[44px] min-w-[44px]"
+              className="w-10 h-10 rounded-xl bg-surface-2 hover:bg-surface-2 text-muted hover:text-foreground flex items-center justify-center min-h-[44px] min-w-[44px]"
             >
               ‹
             </button>
-            <h3 className="text-lg font-bold text-white uppercase">{isCurrent ? 'This month' : monthLabel}</h3>
+            <h3 className="text-lg font-bold text-foreground uppercase">{isCurrent ? 'This month' : monthLabel}</h3>
             <button
               type="button"
               onClick={() => goToMonth(1)}
               disabled={isCurrent}
               aria-label="Next month"
-              className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 text-muted hover:text-white flex items-center justify-center min-h-[44px] min-w-[44px] disabled:opacity-30"
+              className="w-10 h-10 rounded-xl bg-surface-2 hover:bg-surface-2 text-muted hover:text-foreground flex items-center justify-center min-h-[44px] min-w-[44px] disabled:opacity-30"
             >
               ›
             </button>
@@ -430,12 +430,12 @@ export default function Budget() {
               strokeWidth={7}
               color={percentOfBudget >= 100 ? '#ef4444' : pace && !pace.onTrack ? '#f59e0b' : 'var(--color-accent)'}
             >
-              <span className="text-xs font-bold text-white">{percentOfBudget}%</span>
+              <span className="text-xs font-bold text-foreground">{percentOfBudget}%</span>
             </ProgressRing>
           )}
           <div>
             <p className="text-xs text-muted mb-1">Safe to spend</p>
-            <p className="text-3xl font-bold text-white money">{formatNaira(safeToSpendThisMonth)}</p>
+            <p className="text-3xl font-bold text-foreground money">{formatNaira(safeToSpendThisMonth)}</p>
             {percentOfBudget >= 100 && (
               <p className="text-xs text-red-400 font-semibold mt-1">
                 <span className="money">{formatNaira(thisMonthSpent - budgetTarget)}</span> over budget
@@ -464,14 +464,14 @@ export default function Budget() {
           </div>
           <div>
             <p className="text-xs text-muted mb-1">{isCurrent ? 'Liquid Balance' : 'Net'}</p>
-            <p className={`text-lg font-bold money ${!isCurrent && thisMonthIncome - thisMonthSpent < 0 ? 'text-red-400' : 'text-white'}`}>
+            <p className={`text-lg font-bold money ${!isCurrent && thisMonthIncome - thisMonthSpent < 0 ? 'text-red-400' : 'text-foreground'}`}>
               {formatNaira(isCurrent ? thisMonthRemaining : thisMonthIncome - thisMonthSpent)}
             </p>
           </div>
         </div>
 
         {(monthSummary.movedAside > 0 || (isCurrent && monthRunway?.daysOfRunway != null)) && (
-          <div className="flex flex-wrap gap-x-6 gap-y-1 mt-5 pt-4 border-t border-white/5">
+          <div className="flex flex-wrap gap-x-6 gap-y-1 mt-5 pt-4 border-t border-border">
             {monthSummary.movedAside > 0 && (
               <p className="text-xs text-muted">
                 Moved to savings / cash:{' '}
@@ -481,7 +481,7 @@ export default function Budget() {
             {isCurrent && monthRunway?.daysOfRunway != null && (
               <p className="text-xs text-muted">
                 At <span className="money">{formatNaira(monthRunway.dailyBurn)}</span>/day, liquid lasts{' '}
-                <span className="text-white font-semibold">
+                <span className="text-foreground font-semibold">
                   {monthRunway.capped ? '90+' : monthRunway.daysOfRunway} days
                 </span>
               </p>
@@ -503,14 +503,14 @@ export default function Budget() {
       {/* Last 5 Transactions */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-white">LAST 5 TRANSACTIONS</h3>
+          <h3 className="text-lg font-bold text-foreground">LAST 5 TRANSACTIONS</h3>
           <Link to="/transactions" className="text-sm text-accent hover:underline min-h-[48px] flex items-center">
             See all →
           </Link>
         </div>
         
         {last5Transactions.length === 0 ? (
-          <div className="bg-card rounded-2xl border border-white/5">
+          <div className="bg-card rounded-2xl border border-border">
             <EmptyState
               icon="💳"
               title="No transactions yet"
@@ -520,12 +520,12 @@ export default function Budget() {
             />
           </div>
         ) : (
-          <div className="bg-card rounded-2xl border border-white/5 overflow-hidden">
+          <div className="bg-card rounded-2xl border border-border overflow-hidden">
             {last5Transactions.map((t, idx) => (
               <div 
                 key={t.id} 
                 className={`flex items-center justify-between p-4 ${
-                  idx !== last5Transactions.length - 1 ? 'border-b border-white/5' : ''
+                  idx !== last5Transactions.length - 1 ? 'border-b border-border' : ''
                 }`}
               >
                 <div className="flex items-center gap-4">
@@ -533,11 +533,11 @@ export default function Budget() {
                     <span className="opacity-80">{getCategoryIcon(t.category)}</span>
                   </div>
                   <div>
-                    <p className="text-white font-medium">{t.description || t.category}</p>
+                    <p className="text-foreground font-medium">{t.description || t.category}</p>
                     <p className="text-xs text-muted">{formatDate(t.transaction_date)}</p>
                   </div>
                 </div>
-                <div className={`font-bold money ${t.type === 'credit' ? 'text-accent' : 'text-white'}`}>
+                <div className={`font-bold money ${t.type === 'credit' ? 'text-accent' : 'text-foreground'}`}>
                   {t.type === 'credit' ? '+' : '-'}{formatNaira(t.amount)}
                 </div>
               </div>

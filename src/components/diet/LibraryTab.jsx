@@ -37,7 +37,7 @@ export default function LibraryTab({ lib, onChanged }) {
             role="tab"
             aria-selected={section === key}
             onClick={() => setSection(key)}
-            className={`shrink-0 px-4 min-h-[44px] rounded-full text-xs font-bold border ${section === key ? 'border-accent bg-accent/10 text-accent' : 'border-white/10 text-muted'}`}
+            className={`shrink-0 px-4 min-h-[44px] rounded-full text-xs font-bold border ${section === key ? 'border-accent bg-accent/10 text-accent' : 'border-border text-muted'}`}
           >
             {label}
           </button>
@@ -51,8 +51,8 @@ export default function LibraryTab({ lib, onChanged }) {
   )
 }
 
-const card = 'bg-card rounded-3xl p-5 border border-white/5'
-const input = 'w-full px-3 py-2.5 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[44px]'
+const card = 'bg-card rounded-3xl p-5 border border-border'
+const input = 'w-full px-3 py-2.5 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[44px]'
 
 function SavedMeals({ lib, onChanged }) {
   const [adding, setAdding] = useState(false)
@@ -67,20 +67,20 @@ function SavedMeals({ lib, onChanged }) {
 
   return (
     <section className={`${card} space-y-3`} aria-label="Saved meals">
-      <p className="text-[11px] text-muted">One tap on the Today screen logs any of these.</p>
-      <ul className="divide-y divide-white/5">
+      <p className="text-xs text-muted">One tap on the Today screen logs any of these.</p>
+      <ul className="divide-y divide-border">
         {lib.saved.map((s) => {
           const items = priceItems(s.items, lib)
           const n = sumNutrition(items)
           return (
             <li key={s.id} className="py-3 flex items-center gap-3">
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold text-white truncate">{s.name}</p>
-                <p className="text-[11px] text-muted truncate">
+                <p className="text-sm font-bold text-foreground truncate">{s.name}</p>
+                <p className="text-xs text-muted truncate">
                   {items.map((i) => i.name).join(', ')} · {s.meal_slot ? SLOT_LABELS[s.meal_slot] : 'any meal'}
                 </p>
               </div>
-              <span className="text-sm text-white tabular-nums shrink-0">
+              <span className="text-sm text-foreground tabular-nums shrink-0">
                 {n.kcal} kcal · {n.protein_g} g
               </span>
               {confirm === s.id ? (
@@ -96,7 +96,7 @@ function SavedMeals({ lib, onChanged }) {
           )
         })}
       </ul>
-      <button type="button" onClick={() => setAdding(true)} className="w-full min-h-[48px] rounded-xl bg-white/5 border border-white/10 text-white text-sm font-bold">
+      <button type="button" onClick={() => setAdding(true)} className="w-full min-h-[48px] rounded-xl bg-surface-2 border border-border text-foreground text-sm font-bold">
         ＋ New saved meal
       </button>
       <AddFoodSheet isOpen={adding} onClose={() => setAdding(false)} lib={lib} mode="save" onLogged={onChanged} />
@@ -124,17 +124,17 @@ function Recipes({ lib, onChanged }) {
 
   return (
     <section className={`${card} space-y-3`} aria-label="Recipes">
-      <p className="text-[11px] text-muted">Ingredients by raw weight. Nutrition per portion is worked out from them, so changing the pot changes every portion.</p>
+      <p className="text-xs text-muted">Ingredients by raw weight. Nutrition per portion is worked out from them, so changing the pot changes every portion.</p>
       <ul className="space-y-2">
         {lib.recipes.map((r) => {
           const p = lib.portions.get(r.id)
           return (
-            <li key={r.id} className="rounded-2xl border border-white/5 bg-background/40">
+            <li key={r.id} className="rounded-2xl border border-border bg-background/40">
               <button type="button" onClick={() => setOpen(open === r.id ? null : r.id)} className="w-full flex items-center gap-3 p-3 min-h-[52px] text-left" aria-expanded={open === r.id}>
                 <span aria-hidden="true">🍲</span>
                 <span className="flex-1 min-w-0">
-                  <span className="block text-sm font-bold text-white truncate">{r.name}</span>
-                  <span className="block text-[11px] text-muted">
+                  <span className="block text-sm font-bold text-foreground truncate">{r.name}</span>
+                  <span className="block text-xs text-muted">
                     {round1(r.portions)} portions · {p ? `${p.kcal} kcal, ${p.protein_g} g protein, ${p.grams} g each` : 'no ingredients yet'}
                   </span>
                 </span>
@@ -152,7 +152,7 @@ function Recipes({ lib, onChanged }) {
           New recipe name
         </label>
         <input id="new-recipe" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="New recipe, e.g. Egusi pot" className={input} />
-        <button type="submit" className="px-4 rounded-xl bg-accent text-black text-sm font-bold min-h-[44px]">
+        <button type="submit" className="px-4 rounded-xl bg-accent text-on-accent text-sm font-bold min-h-[44px]">
           Add
         </button>
       </form>
@@ -210,7 +210,7 @@ function RecipeEditor({ recipe, lib, onChanged }) {
       <ul className="space-y-1">
         {ingredients.map((ing) => (
           <li key={ing.id} className="flex items-center gap-2 text-sm">
-            <span className="flex-1 min-w-0 truncate text-white">{lib.foodsById.get(ing.food_id)?.name ?? 'Missing food'}</span>
+            <span className="flex-1 min-w-0 truncate text-foreground">{lib.foodsById.get(ing.food_id)?.name ?? 'Missing food'}</span>
             <label className="sr-only" htmlFor={`ing-${ing.id}`}>
               Grams of {lib.foodsById.get(ing.food_id)?.name}
             </label>
@@ -220,7 +220,7 @@ function RecipeEditor({ recipe, lib, onChanged }) {
               inputMode="decimal"
               defaultValue={ing.grams}
               onBlur={(e) => setIngredient(ing, e.target.value)}
-              className="w-24 px-2 py-2 bg-background border border-white/10 rounded-lg text-right text-white min-h-[40px]"
+              className="w-24 px-2 py-2 bg-background border border-border rounded-lg text-right text-foreground min-h-[40px]"
             />
             <span className="text-xs text-muted">g</span>
             <button type="button" onClick={() => removeIngredient(ing)} className="min-w-[40px] min-h-[40px] rounded-full text-muted hover:text-red-300" aria-label="Remove ingredient">
@@ -231,7 +231,7 @@ function RecipeEditor({ recipe, lib, onChanged }) {
       </ul>
       <form onSubmit={addIngredient} className="space-y-2">
         {pick ? (
-          <p className="text-xs text-white">
+          <p className="text-xs text-foreground">
             Adding <b>{pick.name}</b>{' '}
             <button type="button" onClick={() => setPick(null)} className="text-accent">
               change
@@ -241,10 +241,10 @@ function RecipeEditor({ recipe, lib, onChanged }) {
           <>
             <input aria-label="Find an ingredient" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Add an ingredient…" className={input} />
             {matches.length > 0 && (
-              <ul className="rounded-xl border border-white/5 divide-y divide-white/5">
+              <ul className="rounded-xl border border-border divide-y divide-border">
                 {matches.map((m) => (
                   <li key={m.id}>
-                    <button type="button" onClick={() => setPick(m)} className="w-full text-left px-3 py-2 text-sm text-white min-h-[44px] hover:bg-white/5">
+                    <button type="button" onClick={() => setPick(m)} className="w-full text-left px-3 py-2 text-sm text-foreground min-h-[44px] hover:bg-surface-2">
                       {m.name}
                     </button>
                   </li>
@@ -256,23 +256,23 @@ function RecipeEditor({ recipe, lib, onChanged }) {
         {pick && (
           <div className="flex gap-2">
             <input aria-label="Grams" type="number" inputMode="decimal" value={grams} onChange={(e) => setGrams(e.target.value)} placeholder="Grams (raw)" className={input} />
-            <button type="submit" className="px-4 rounded-xl bg-accent text-black text-sm font-bold min-h-[44px]">
+            <button type="submit" className="px-4 rounded-xl bg-accent text-on-accent text-sm font-bold min-h-[44px]">
               Add
             </button>
           </div>
         )}
       </form>
       <div className="grid grid-cols-2 gap-2">
-        <label className="text-[11px] text-muted space-y-1">
+        <label className="text-xs text-muted space-y-1">
           <span className="block">Portions</span>
           <input type="number" inputMode="decimal" value={portions} onChange={(e) => setPortions(e.target.value)} className={input} />
         </label>
-        <label className="text-[11px] text-muted space-y-1">
+        <label className="text-xs text-muted space-y-1">
           <span className="block">Cooked weight (g), optional</span>
           <input type="number" inputMode="decimal" value={cooked} onChange={(e) => setCooked(e.target.value)} className={input} />
         </label>
       </div>
-      <button type="button" onClick={saveRecipe} className="w-full min-h-[44px] rounded-xl bg-white/5 border border-white/10 text-white text-sm font-bold">
+      <button type="button" onClick={saveRecipe} className="w-full min-h-[44px] rounded-xl bg-surface-2 border border-border text-foreground text-sm font-bold">
         Save portions
       </button>
     </div>
@@ -316,10 +316,10 @@ function Foods({ lib, onChanged }) {
     const set = (k) => (e) => setEditing((f) => ({ ...f, [k]: e.target.value }))
     return (
       <form onSubmit={save} className={`${card} space-y-3`} aria-label={editing.id ? 'Edit food' : 'New food'}>
-        <p className="text-sm font-bold text-white">{editing.id ? 'Edit food' : 'New food'}</p>
+        <p className="text-sm font-bold text-foreground">{editing.id ? 'Edit food' : 'New food'}</p>
         <input aria-label="Name" value={editing.name} onChange={set('name')} placeholder="Name" className={input} />
         <input aria-label="Other names" value={editing.aliases} onChange={set('aliases')} placeholder="Other names, comma-separated" className={input} />
-        <p className="text-[11px] text-muted">Per 100 g as eaten</p>
+        <p className="text-xs text-muted">Per 100 g as eaten</p>
         <div className="grid grid-cols-2 gap-2">
           <input aria-label="kcal per 100 g" type="number" inputMode="decimal" value={editing.kcal_per_100g} onChange={set('kcal_per_100g')} placeholder="kcal" className={input} />
           <input aria-label="Protein per 100 g" type="number" inputMode="decimal" value={editing.protein_g} onChange={set('protein_g')} placeholder="Protein g" className={input} />
@@ -329,10 +329,10 @@ function Foods({ lib, onChanged }) {
           <input aria-label="Portion label" value={editing.portion_label} onChange={set('portion_label')} placeholder="e.g. 1 wrap" className={input} />
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <button type="button" onClick={() => setEditing(null)} className="min-h-[48px] rounded-xl bg-white/5 text-white text-sm font-bold">
+          <button type="button" onClick={() => setEditing(null)} className="min-h-[48px] rounded-xl bg-surface-2 text-foreground text-sm font-bold">
             Cancel
           </button>
-          <button type="submit" className="min-h-[48px] rounded-xl bg-accent text-black text-sm font-extrabold">
+          <button type="submit" className="min-h-[48px] rounded-xl bg-accent text-on-accent text-sm font-extrabold">
             Save
           </button>
         </div>
@@ -344,11 +344,11 @@ function Foods({ lib, onChanged }) {
     <section className={`${card} space-y-3`} aria-label="Foods">
       <div className="flex gap-2">
         <input aria-label="Search foods" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={`Search ${lib.foods.length} foods`} className={input} />
-        <button type="button" onClick={() => setEditing({ ...EMPTY_FOOD, name: query })} className="px-4 rounded-xl bg-accent text-black text-sm font-bold min-h-[44px] shrink-0">
+        <button type="button" onClick={() => setEditing({ ...EMPTY_FOOD, name: query })} className="px-4 rounded-xl bg-accent text-on-accent text-sm font-bold min-h-[44px] shrink-0">
           ＋ New
         </button>
       </div>
-      <ul className="divide-y divide-white/5">
+      <ul className="divide-y divide-border">
         {list.map(({ row: f }) => (
           <li key={f.id}>
             <button
@@ -357,13 +357,13 @@ function Foods({ lib, onChanged }) {
               className="w-full flex items-center gap-3 py-2 min-h-[48px] text-left"
             >
               <span className="flex-1 min-w-0">
-                <span className="block text-sm text-white truncate">
+                <span className="block text-sm text-foreground truncate">
                   {f.name}
-                  {f.estimated && <span className="ml-2 text-[10px] text-orange-300 font-bold uppercase">estimated</span>}
+                  {f.estimated && <span className="ml-2 text-xs text-orange-300 font-bold uppercase">estimated</span>}
                 </span>
-                <span className="block text-[11px] text-muted truncate">{(f.aliases || []).join(', ')}</span>
+                <span className="block text-xs text-muted truncate">{(f.aliases || []).join(', ')}</span>
               </span>
-              <span className="text-[11px] text-muted tabular-nums text-right shrink-0">
+              <span className="text-xs text-muted tabular-nums text-right shrink-0">
                 {round1(f.kcal_per_100g)} kcal
                 <br />
                 {round1(f.protein_g)} g P / 100 g
@@ -415,20 +415,20 @@ function Pantry() {
 
   return (
     <section className={`${card} space-y-3`} aria-label="Pantry">
-      <p className="text-[11px] text-muted">What is at home. The coach (Phase 4) suggests meals from it; from Phase 2 you can also say "bought 2 kg beans for 3,000".</p>
+      <p className="text-xs text-muted">What is at home. The coach (Phase 4) suggests meals from it; from Phase 2 you can also say "bought 2 kg beans for 3,000".</p>
       <form onSubmit={add} className="grid grid-cols-2 gap-2">
         <input aria-label="Item" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Item, e.g. brown beans" className={`${input} col-span-2`} />
         <input aria-label="Quantity" type="number" inputMode="decimal" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} placeholder="Qty" className={input} />
         <input aria-label="Unit" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} placeholder="kg, crates…" className={input} />
         <input aria-label="Cost in naira" type="number" inputMode="numeric" value={form.cost_naira} onChange={(e) => setForm({ ...form, cost_naira: e.target.value })} placeholder="₦ cost" className={input} />
-        <button type="submit" className="rounded-xl bg-accent text-black text-sm font-bold min-h-[44px]">
+        <button type="submit" className="rounded-xl bg-accent text-on-accent text-sm font-bold min-h-[44px]">
           Add
         </button>
       </form>
-      <ul className="divide-y divide-white/5">
+      <ul className="divide-y divide-border">
         {shown.map((i) => (
           <li key={i.id} className="flex items-center gap-3 py-2">
-            <span className={`flex-1 min-w-0 text-sm truncate ${i.finished ? 'text-muted line-through' : 'text-white'}`}>
+            <span className={`flex-1 min-w-0 text-sm truncate ${i.finished ? 'text-muted line-through' : 'text-foreground'}`}>
               {i.name}
               {i.quantity != null && (
                 <span className="text-muted">
@@ -437,8 +437,8 @@ function Pantry() {
                 </span>
               )}
             </span>
-            {i.cost_naira != null && <span className="text-[11px] text-muted money">{formatNaira(i.cost_naira)}</span>}
-            <button type="button" onClick={() => toggle(i)} className="px-3 min-h-[44px] rounded-xl bg-white/5 text-xs font-bold text-white">
+            {i.cost_naira != null && <span className="text-xs text-muted money">{formatNaira(i.cost_naira)}</span>}
+            <button type="button" onClick={() => toggle(i)} className="px-3 min-h-[44px] rounded-xl bg-surface-2 text-xs font-bold text-foreground">
               {i.finished ? 'Restock' : 'Finished'}
             </button>
           </li>

@@ -128,8 +128,8 @@ export default function Reminders() {
   const thisDeviceOn = Boolean(current) && devices.some((d) => d.endpoint === current.endpoint)
 
   return (
-    <section className="bg-card rounded-3xl p-6 border border-white/10 space-y-4">
-      <div className="flex items-center justify-between border-b border-white/5 pb-3">
+    <section className="bg-card rounded-3xl p-6 border border-border space-y-4">
+      <div className="flex items-center justify-between border-b border-border pb-3">
         <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">Reminders</h2>
         {available && support.supported && (
           <button
@@ -137,7 +137,7 @@ export default function Reminders() {
             disabled={busy}
             aria-pressed={thisDeviceOn}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all min-h-[44px] disabled:opacity-50 ${
-              thisDeviceOn ? 'bg-white/10 text-white hover:bg-red-500/20 hover:text-red-300' : 'bg-accent text-black hover:bg-accent/90'
+              thisDeviceOn ? 'bg-surface-2 text-foreground hover:bg-red-500/20 hover:text-red-300' : 'bg-accent text-on-accent hover:bg-accent/90'
             }`}
           >
             {busy ? 'Working…' : thisDeviceOn ? 'Turn off on this device' : 'Turn on for this device'}
@@ -178,14 +178,14 @@ export default function Reminders() {
                 return (
                   <li
                     key={device.id}
-                    className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-background/40 border border-white/5"
+                    className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-background/40 border border-border"
                   >
                     <div className="min-w-0">
-                      <p className="text-xs text-white/90 truncate">
+                      <p className="text-xs text-foreground truncate">
                         {describeDevice(device.user_agent)}
-                        {isThis && <span className="ml-2 text-[10px] text-accent font-bold uppercase">this device</span>}
+                        {isThis && <span className="ml-2 text-xs text-accent font-bold uppercase">this device</span>}
                       </p>
-                      <p className="text-[10px] text-muted-dim mt-0.5">
+                      <p className="text-xs text-muted-dim mt-0.5">
                         {device.failed_at && (!device.last_used_at || device.failed_at > device.last_used_at)
                           ? 'Last send failed'
                           : device.last_used_at

@@ -132,9 +132,9 @@ export default function DailySheet({ day, onDayChange, onChanged }) {
   const num = (n) => (n == null ? '' : Number(n).toLocaleString('en-US', { maximumFractionDigits: 1 }))
 
   return (
-    <section className="bg-card rounded-3xl p-4 sm:p-6 border border-white/5 space-y-4" aria-label="Daily sheet">
+    <section className="bg-card rounded-3xl p-4 sm:p-6 border border-border space-y-4" aria-label="Daily sheet">
       <div className="flex items-center gap-2">
-        <button type="button" onClick={() => onDayChange(addDays(day, -1))} className="min-w-[48px] min-h-[48px] rounded-xl bg-white/5 text-white" aria-label="Previous day">
+        <button type="button" onClick={() => onDayChange(addDays(day, -1))} className="min-w-[48px] min-h-[48px] rounded-xl bg-surface-2 text-foreground" aria-label="Previous day">
           ‹
         </button>
         <label htmlFor="sheet-day" className="sr-only">
@@ -146,13 +146,13 @@ export default function DailySheet({ day, onDayChange, onChanged }) {
           value={day}
           max={today}
           onChange={(e) => e.target.value && onDayChange(e.target.value)}
-          className="flex-1 min-w-0 px-3 py-3 bg-background border border-white/10 rounded-xl text-white text-sm min-h-[48px]"
+          className="flex-1 min-w-0 px-3 py-3 bg-background border border-border rounded-xl text-foreground text-sm min-h-[48px]"
         />
         <button
           type="button"
           onClick={() => onDayChange(addDays(day, 1))}
           disabled={day >= today}
-          className="min-w-[48px] min-h-[48px] rounded-xl bg-white/5 text-white disabled:opacity-30"
+          className="min-w-[48px] min-h-[48px] rounded-xl bg-surface-2 text-foreground disabled:opacity-30"
           aria-label="Next day"
         >
           ›
@@ -178,20 +178,20 @@ export default function DailySheet({ day, onDayChange, onChanged }) {
                 columns of the spec separate. */}
             <table className="min-w-[520px] w-full text-sm tabular-nums border-separate border-spacing-0">
               <thead>
-                <tr className="text-[11px] uppercase tracking-wider text-muted">
-                  <th scope="col" className="py-2 pl-4 sm:pl-2 pr-2 font-semibold border-b border-white/10 text-left">
+                <tr className="text-xs uppercase tracking-wider text-muted">
+                  <th scope="col" className="py-2 pl-4 sm:pl-2 pr-2 font-semibold border-b border-border text-left">
                     Time
                   </th>
                   {SHEET_COLUMNS.filter((c) => c.key !== 'time' && c.key !== 'meal').map((c) => (
                     <th
                       key={c.key}
                       scope="col"
-                      className={`py-2 px-2 font-semibold border-b border-white/10 ${c.numeric ? 'text-right' : 'text-left'} ${c.key === 'item' ? 'sticky left-0 bg-card z-10' : ''}`}
+                      className={`py-2 px-2 font-semibold border-b border-border ${c.numeric ? 'text-right' : 'text-left'} ${c.key === 'item' ? 'sticky left-0 bg-card z-10' : ''}`}
                     >
                       {c.label}
                     </th>
                   ))}
-                  <th scope="col" className="border-b border-white/10">
+                  <th scope="col" className="border-b border-border">
                     <span className="sr-only">Remove</span>
                   </th>
                 </tr>
@@ -205,16 +205,16 @@ export default function DailySheet({ day, onDayChange, onChanged }) {
                   </tr>
                 )}
                 {rows.map((r) => (
-                  <tr key={r.item_id} className="text-white">
-                    <td className="py-2 pl-4 sm:pl-2 pr-2 border-b border-white/5 text-muted leading-tight">
+                  <tr key={r.item_id} className="text-foreground">
+                    <td className="py-2 pl-4 sm:pl-2 pr-2 border-b border-border text-muted leading-tight">
                       <span className="block">{r.time}</span>
-                      <span className="block text-[10px]">{r.meal}</span>
+                      <span className="block text-xs">{r.meal}</span>
                     </td>
-                    <th scope="row" className="py-2 px-2 border-b border-white/5 text-left font-normal sticky left-0 bg-card z-10 max-w-[150px] truncate">
+                    <th scope="row" className="py-2 px-2 border-b border-border text-left font-normal sticky left-0 bg-card z-10 max-w-[150px] truncate">
                       {r.item}
-                      {r.hidden && <span className="text-[10px] text-muted"> (hidden)</span>}
+                      {r.hidden && <span className="text-xs text-muted"> (hidden)</span>}
                     </th>
-                    <td className="py-1 px-2 border-b border-white/5 text-right">
+                    <td className="py-1 px-2 border-b border-border text-right">
                       {editing === r.item_id ? (
                         <input
                           type="number"
@@ -228,19 +228,19 @@ export default function DailySheet({ day, onDayChange, onChanged }) {
                             if (e.key === 'Enter') e.currentTarget.blur()
                             if (e.key === 'Escape') setEditing(null)
                           }}
-                          className="w-20 px-2 py-1 bg-background border border-accent rounded-lg text-right text-white"
+                          className="w-20 px-2 py-1 bg-background border border-accent rounded-lg text-right text-foreground"
                         />
                       ) : (
-                        <button type="button" onClick={() => setEditing(r.item_id)} className="min-h-[40px] px-2 -mx-2 rounded-lg hover:bg-white/5 underline decoration-dotted decoration-white/30" aria-label={`Edit grams of ${r.item}, now ${r.grams}`}>
+                        <button type="button" onClick={() => setEditing(r.item_id)} className="min-h-[40px] px-2 -mx-2 rounded-lg hover:bg-surface-2 underline decoration-dotted decoration-white/30" aria-label={`Edit grams of ${r.item}, now ${r.grams}`}>
                           {num(r.grams)}
                         </button>
                       )}
                     </td>
-                    <td className="py-2 px-2 border-b border-white/5 text-right font-bold">{num(r.kcal)}</td>
-                    <td className="py-2 px-2 border-b border-white/5 text-right">{num(r.protein_g)}</td>
-                    <td className="py-2 px-2 border-b border-white/5 text-right">{num(r.carbs_g)}</td>
-                    <td className="py-2 px-2 border-b border-white/5 text-right">{num(r.fat_g)}</td>
-                    <td className="py-1 px-1 border-b border-white/5 text-right">
+                    <td className="py-2 px-2 border-b border-border text-right font-bold">{num(r.kcal)}</td>
+                    <td className="py-2 px-2 border-b border-border text-right">{num(r.protein_g)}</td>
+                    <td className="py-2 px-2 border-b border-border text-right">{num(r.carbs_g)}</td>
+                    <td className="py-2 px-2 border-b border-border text-right">{num(r.fat_g)}</td>
+                    <td className="py-1 px-1 border-b border-border text-right">
                       <button type="button" onClick={() => removeItem(r)} className="min-w-[40px] min-h-[40px] rounded-full text-muted hover:text-red-300" aria-label={`Remove ${r.item}`}>
                         ✕
                       </button>
@@ -249,7 +249,7 @@ export default function DailySheet({ day, onDayChange, onChanged }) {
                 ))}
               </tbody>
               <tfoot>
-                <tr className="text-white font-extrabold">
+                <tr className="text-foreground font-extrabold">
                   <td className="py-2 px-2" />
                   <th scope="row" className="py-2 px-2 text-left sticky left-0 bg-card z-10">
                     Day total
@@ -278,10 +278,10 @@ export default function DailySheet({ day, onDayChange, onChanged }) {
           </div>
 
           <div className="grid grid-cols-2 gap-2">
-            <button type="button" onClick={exportCsv} disabled={rows.length === 0} className="min-h-[48px] rounded-xl bg-white/5 border border-white/10 text-white text-sm font-bold disabled:opacity-40">
+            <button type="button" onClick={exportCsv} disabled={rows.length === 0} className="min-h-[48px] rounded-xl bg-surface-2 border border-border text-foreground text-sm font-bold disabled:opacity-40">
               ⬇ CSV
             </button>
-            <button type="button" onClick={exportXlsx} disabled={rows.length === 0 || exporting != null} className="min-h-[48px] rounded-xl bg-white/5 border border-white/10 text-white text-sm font-bold disabled:opacity-40">
+            <button type="button" onClick={exportXlsx} disabled={rows.length === 0 || exporting != null} className="min-h-[48px] rounded-xl bg-surface-2 border border-border text-foreground text-sm font-bold disabled:opacity-40">
               {exporting === 'xlsx' ? 'Preparing…' : '⬇ XLSX'}
             </button>
           </div>

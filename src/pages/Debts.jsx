@@ -261,7 +261,7 @@ export default function Debts() {
   if (pageError) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-white">Debts 🤝</h1>
+        <h1 className="text-2xl md:text-3xl font-bold text-foreground">Debts 🤝</h1>
         <ErrorState message={pageError} onRetry={fetchDebts} />
       </div>
     )
@@ -273,12 +273,12 @@ export default function Debts() {
     <div className="space-y-6 pb-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-white">Debts 🤝</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground">Debts 🤝</h1>
           <p className="text-muted text-sm mt-0.5">Loans, ajo and esusu</p>
         </div>
         <button
           onClick={openAdd}
-          className="px-4 py-2.5 bg-accent text-black rounded-xl text-sm font-bold min-h-[48px] flex-shrink-0"
+          className="px-4 py-2.5 bg-accent text-on-accent rounded-xl text-sm font-bold min-h-[48px] flex-shrink-0"
         >
           + New
         </button>
@@ -286,16 +286,16 @@ export default function Debts() {
 
       {/* Totals */}
       <div className="grid grid-cols-3 gap-3">
-        <div className="bg-card rounded-2xl p-4 border border-white/5">
-          <p className="text-[10px] text-muted uppercase tracking-wider mb-1">I owe</p>
+        <div className="bg-card rounded-2xl p-4 border border-border">
+          <p className="text-xs text-muted uppercase tracking-wider mb-1">I owe</p>
           <p className="text-lg font-bold text-red-400 tabular-nums money">{formatNaira(totals.iOwe)}</p>
         </div>
-        <div className="bg-card rounded-2xl p-4 border border-white/5">
-          <p className="text-[10px] text-muted uppercase tracking-wider mb-1">Owed to me</p>
+        <div className="bg-card rounded-2xl p-4 border border-border">
+          <p className="text-xs text-muted uppercase tracking-wider mb-1">Owed to me</p>
           <p className="text-lg font-bold text-accent tabular-nums money">{formatNaira(totals.owedToMe)}</p>
         </div>
-        <div className="bg-card rounded-2xl p-4 border border-white/5">
-          <p className="text-[10px] text-muted uppercase tracking-wider mb-1">In cycles</p>
+        <div className="bg-card rounded-2xl p-4 border border-border">
+          <p className="text-xs text-muted uppercase tracking-wider mb-1">In cycles</p>
           <p className="text-lg font-bold text-blue-400 tabular-nums money">{formatNaira(totals.inCycles)}</p>
         </div>
       </div>
@@ -321,8 +321,8 @@ export default function Debts() {
             onClick={() => setTab(t.id)}
             className={`px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap min-h-[48px] transition-all ${
               tab === t.id
-                ? 'bg-accent text-black'
-                : 'bg-card text-muted hover:text-white border border-white/5'
+                ? 'bg-accent text-on-accent'
+                : 'bg-card text-muted hover:text-foreground border border-border'
             }`}
           >
             {t.label}
@@ -332,7 +332,7 @@ export default function Debts() {
 
       {/* List */}
       {visible.length === 0 ? (
-        <div id="debts-tabpanel" role="tabpanel" aria-labelledby={`tab-${tab}`} className="bg-card rounded-3xl border border-white/5">
+        <div id="debts-tabpanel" role="tabpanel" aria-labelledby={`tab-${tab}`} className="bg-card rounded-3xl border border-border">
           <EmptyState
             icon="🤝"
             title={tab === 'all' ? 'Nothing here yet' : 'Nothing in this tab'}
@@ -360,21 +360,21 @@ export default function Debts() {
               <div
                 key={debt.id}
                 className={`bg-card rounded-2xl p-5 border transition-all ${
-                  debt.settled ? 'border-white/5 opacity-50' : 'border-white/10'
+                  debt.settled ? 'border-border opacity-50' : 'border-border'
                 }`}
               >
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span aria-hidden="true">{kindMeta?.icon}</span>
-                      <h3 className="text-sm font-bold text-white truncate">{debt.counterparty}</h3>
+                      <h3 className="text-sm font-bold text-foreground truncate">{debt.counterparty}</h3>
                       {debt.settled && (
-                        <span className="text-[9px] bg-white/5 text-muted px-1.5 py-0.5 rounded-full uppercase font-bold">
+                        <span className="text-xs bg-surface-2 text-muted px-1.5 py-0.5 rounded-full uppercase font-bold">
                           Settled
                         </span>
                       )}
                     </div>
-                    <p className="text-[10px] text-muted mt-0.5">
+                    <p className="text-xs text-muted mt-0.5">
                       {kindMeta?.label}
                       {!isRotating(debt.kind) &&
                         ` · ${DIRECTIONS.find(d => d.value === debt.direction)?.label}`}
@@ -385,7 +385,7 @@ export default function Debts() {
                     <button
                       onClick={() => openEdit(debt)}
                       aria-label={`Edit ${debt.counterparty}`}
-                      className="w-11 h-11 flex items-center justify-center rounded-xl hover:bg-white/5 text-muted hover:text-white"
+                      className="w-11 h-11 flex items-center justify-center rounded-xl hover:bg-surface-2 text-muted hover:text-foreground"
                     >
                       ✏️
                     </button>
@@ -403,20 +403,20 @@ export default function Debts() {
                 {cycle ? (
                   <div className="space-y-2">
                     <div className="flex items-baseline justify-between">
-                      <p className="text-sm text-white font-semibold">
+                      <p className="text-sm text-foreground font-semibold">
                         Round {cycle.position} of {cycle.size}
                       </p>
                       <p className="text-xs text-muted tabular-nums">
                         <span className="money">{formatNaira(cycle.contributed)}</span> in
                       </p>
                     </div>
-                    <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                    <div className="h-2 bg-surface-2 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-blue-400 rounded-full"
                         style={{ width: `${(cycle.position / cycle.size) * 100}%` }}
                       />
                     </div>
-                    <p className="text-[11px] text-muted">
+                    <p className="text-xs text-muted">
                       {cycle.roundsLeft === 0
                         ? 'Final round'
                         : `${cycle.roundsLeft} round${cycle.roundsLeft === 1 ? '' : 's'} to go`}
@@ -437,7 +437,7 @@ export default function Debts() {
                 ) : (
                   <div className="space-y-2">
                     <div className="flex items-baseline justify-between">
-                      <p className="text-lg font-bold text-white tabular-nums money">
+                      <p className="text-lg font-bold text-foreground tabular-nums money">
                         {formatNaira(outstanding(debt, paid))}
                       </p>
                       {Number(debt.principal) > 0 && (
@@ -447,7 +447,7 @@ export default function Debts() {
                       )}
                     </div>
                     {progress != null && (
-                      <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                      <div className="h-2 bg-surface-2 rounded-full overflow-hidden">
                         <div
                           className={`h-full rounded-full ${
                             debt.direction === 'i_owe' ? 'bg-red-400' : 'bg-accent'
@@ -457,7 +457,7 @@ export default function Debts() {
                       </div>
                     )}
                     {payments.length > 0 && (
-                      <p className="text-[11px] text-muted">
+                      <p className="text-xs text-muted">
                         🤝 {payments.length} payment{payments.length === 1 ? '' : 's'} from the ledger ·{' '}
                         <span className="money">
                           {formatNaira(payments.reduce((sum, row) => sum + (Number(row.amount) || 0), 0))}
@@ -474,7 +474,7 @@ export default function Debts() {
                       const payoff = payoffProjection(debt, debt.monthly_payment, undefined, paid)
                       if (!payoff) return null
                       return (
-                        <p className="text-[11px] text-muted">
+                        <p className="text-xs text-muted">
                           {payoff.monthsRemaining === 0 ? (
                             'Paid off'
                           ) : (
@@ -492,9 +492,9 @@ export default function Debts() {
 
                 {/* Dates */}
                 {(debt.due_date || debt.payout_date) && (
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 pt-3 border-t border-white/5">
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 pt-3 border-t border-border">
                     {debt.due_date && (
-                      <p className={`text-[11px] ${dueIn < 0 ? 'text-red-400' : 'text-muted'}`}>
+                      <p className={`text-xs ${dueIn < 0 ? 'text-red-400' : 'text-muted'}`}>
                         Due {formatDate(debt.due_date)}
                         {dueIn != null && !debt.settled && (
                           <span className="ml-1">
@@ -504,7 +504,7 @@ export default function Debts() {
                       </p>
                     )}
                     {debt.payout_date && (
-                      <p className="text-[11px] text-blue-400">
+                      <p className="text-xs text-blue-400">
                         Payout {formatDate(debt.payout_date)}
                         {payoutIn != null && payoutIn >= 0 && !debt.settled && (
                           <span className="ml-1">(in {payoutIn}d)</span>
@@ -514,7 +514,7 @@ export default function Debts() {
                   </div>
                 )}
 
-                {debt.notes && <p className="text-[11px] text-muted mt-2 italic">{debt.notes}</p>}
+                {debt.notes && <p className="text-xs text-muted mt-2 italic">{debt.notes}</p>}
 
                 <div className="mt-3 flex gap-2">
                   {/* A repayment is an ordinary QuickLog entry with the
@@ -530,7 +530,7 @@ export default function Debts() {
                   )}
                   <button
                     onClick={() => toggleSettled(debt)}
-                    className="flex-1 py-2.5 text-xs font-semibold rounded-xl bg-white/5 hover:bg-white/10 text-muted hover:text-white min-h-[44px] transition-colors"
+                    className="flex-1 py-2.5 text-xs font-semibold rounded-xl bg-surface-2 hover:bg-surface-2 text-muted hover:text-foreground min-h-[44px] transition-colors"
                   >
                     {debt.settled ? 'Reopen' : 'Mark settled'}
                   </button>
@@ -542,13 +542,13 @@ export default function Debts() {
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleDelete(debt.id)}
-                        className="flex-1 py-2.5 bg-red-500 text-white text-xs font-bold rounded-lg min-h-[44px]"
+                        className="flex-1 py-2.5 bg-red-500 text-foreground text-xs font-bold rounded-lg min-h-[44px]"
                       >
                         Delete
                       </button>
                       <button
                         onClick={() => setConfirmDeleteId(null)}
-                        className="flex-1 py-2.5 bg-white/5 text-muted text-xs font-bold rounded-lg min-h-[44px]"
+                        className="flex-1 py-2.5 bg-surface-2 text-muted text-xs font-bold rounded-lg min-h-[44px]"
                       >
                         Cancel
                       </button>
@@ -573,12 +573,12 @@ export default function Debts() {
           className={`p-6 space-y-4 overflow-y-auto ${shake ? 'animate-shake' : ''}`}
         >
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-white">{editing ? 'Edit' : 'New'}</h2>
+              <h2 className="text-lg font-bold text-foreground">{editing ? 'Edit' : 'New'}</h2>
               <button
                 type="button"
                 onClick={() => setShowModal(false)}
                 aria-label="Close"
-                className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-white/10 text-muted hover:text-white"
+                className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-surface-2 text-muted hover:text-foreground"
               >
                 ✕
               </button>
@@ -602,7 +602,7 @@ export default function Debts() {
                     className={`px-3 py-3 rounded-xl border text-xs font-semibold min-h-[48px] transition-all ${
                       form.kind === k.value
                         ? 'border-accent bg-accent/10 text-accent'
-                        : 'border-white/10 bg-background text-muted'
+                        : 'border-border bg-background text-muted'
                     }`}
                   >
                     {k.icon} {k.label}
@@ -624,7 +624,7 @@ export default function Debts() {
                       className={`px-3 py-3 rounded-xl border text-xs font-semibold min-h-[48px] transition-all ${
                         form.direction === d.value
                           ? 'border-accent bg-accent/10 text-accent'
-                          : 'border-white/10 bg-background text-muted'
+                          : 'border-border bg-background text-muted'
                       }`}
                     >
                       {d.label}
@@ -643,7 +643,7 @@ export default function Debts() {
                 onChange={(e) => setForm({ ...form, counterparty: e.target.value })}
                 placeholder={rotating ? 'Office ajo' : 'Name'}
                 required
-                className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+                className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
               />
             </div>
 
@@ -656,9 +656,9 @@ export default function Debts() {
                   value={form.match_payee}
                   onChange={(e) => setForm({ ...form, match_payee: e.target.value })}
                   placeholder={rotating ? 'As the alert names the group' : 'e.g. OKash'}
-                  className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+                  className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
                 />
-                <p className="text-[11px] text-muted mt-1">
+                <p className="text-xs text-muted mt-1">
                   Every {rotating ? 'contribution' : 'repayment'} the bank reports to this payee is linked here on arrival and counts as paid.
                 </p>
               </div>
@@ -676,7 +676,7 @@ export default function Debts() {
                       value={form.cycle_size}
                       onChange={(e) => setForm({ ...form, cycle_size: e.target.value })}
                       placeholder="12"
-                      className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+                      className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
                     />
                   </div>
                   <div>
@@ -688,7 +688,7 @@ export default function Debts() {
                       value={form.cycle_position}
                       onChange={(e) => setForm({ ...form, cycle_position: e.target.value })}
                       placeholder="4"
-                      className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+                      className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
                     />
                   </div>
                 </div>
@@ -701,7 +701,7 @@ export default function Debts() {
                     value={form.contribution}
                     onChange={(e) => setForm({ ...form, contribution: e.target.value })}
                     placeholder="20000"
-                    className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+                    className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
                   />
                 </div>
 
@@ -711,7 +711,7 @@ export default function Debts() {
                     type="date"
                     value={form.payout_date}
                     onChange={(e) => setForm({ ...form, payout_date: e.target.value })}
-                    className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-accent min-h-[48px]"
+                    className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm focus:outline-none focus:border-accent min-h-[48px]"
                   />
                 </div>
               </>
@@ -725,7 +725,7 @@ export default function Debts() {
                     value={form.principal}
                     onChange={(e) => setForm({ ...form, principal: e.target.value })}
                     placeholder="50000"
-                    className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+                    className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
                   />
                 </div>
                 <div>
@@ -738,10 +738,10 @@ export default function Debts() {
                     value={form.amount_paid}
                     onChange={(e) => setForm({ ...form, amount_paid: e.target.value })}
                     placeholder="0"
-                    className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+                    className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
                   />
                   {linkLive && (
-                    <p className="text-[10px] text-muted-dim mt-1">
+                    <p className="text-xs text-muted-dim mt-1">
                       Payments logged from the card are added on top of this.
                     </p>
                   )}
@@ -762,9 +762,9 @@ export default function Debts() {
                   value={form.monthly_payment}
                   onChange={(e) => setForm({ ...form, monthly_payment: e.target.value })}
                   placeholder="10000"
-                  className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+                  className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
                 />
-                <p className="text-[10px] text-muted-dim mt-1">
+                <p className="text-xs text-muted-dim mt-1">
                   Set this to see a projected payoff date on the card below.
                 </p>
               </div>
@@ -778,7 +778,7 @@ export default function Debts() {
                 type="date"
                 value={form.due_date}
                 onChange={(e) => setForm({ ...form, due_date: e.target.value })}
-                className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-accent min-h-[48px]"
+                className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm focus:outline-none focus:border-accent min-h-[48px]"
               />
             </div>
 
@@ -788,14 +788,14 @@ export default function Debts() {
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
                 placeholder="Optional"
-                className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+                className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
               />
             </div>
 
             <button
               type="submit"
               disabled={saving || justSaved}
-              className="w-full py-3.5 bg-accent text-black font-bold text-sm rounded-xl min-h-[48px] disabled:opacity-50 flex items-center justify-center"
+              className="w-full py-3.5 bg-accent text-on-accent font-bold text-sm rounded-xl min-h-[48px] disabled:opacity-50 flex items-center justify-center"
             >
               {justSaved ? (
                 <span className="inline-block text-lg animate-check-pop" aria-hidden="true">✓</span>

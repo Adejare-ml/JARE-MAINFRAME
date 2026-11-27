@@ -57,12 +57,12 @@ export default function DietSettingsForm({ settings, onSaved }) {
     onSaved?.()
   }
 
-  const input = 'w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]'
+  const input = 'w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]'
 
   return (
     <form onSubmit={save} className="space-y-6" noValidate>
-      <section className="bg-card rounded-3xl p-6 border border-white/10 space-y-4">
-        <h2 className="text-xs font-semibold text-muted uppercase tracking-wider border-b border-white/5 pb-3">Targets</h2>
+      <section className="bg-card rounded-3xl p-6 border border-border space-y-4">
+        <h2 className="text-xs font-semibold text-muted uppercase tracking-wider border-b border-border pb-3">Targets</h2>
         <div className="grid grid-cols-2 gap-3">
           <Field id="ds-kcal" label="Daily kcal" error={errors.kcal_target}>
             <input id="ds-kcal" type="number" inputMode="numeric" step="50" value={form.kcal_target} onChange={set('kcal_target')} placeholder="e.g. 2300" className={input} />
@@ -75,21 +75,21 @@ export default function DietSettingsForm({ settings, onSaved }) {
           <legend className="text-xs text-muted">Meal split (% of the day)</legend>
           <div className="grid grid-cols-4 gap-2">
             {SLOTS.map((s) => (
-              <label key={s} className="text-[11px] text-muted space-y-1">
+              <label key={s} className="text-xs text-muted space-y-1">
                 <span className="block">{SLOT_LABELS[s]}</span>
                 <input type="number" inputMode="numeric" min="0" max="100" value={form.split[s]} onChange={setSplit(s)} className={`${input} px-2 text-center`} />
               </label>
             ))}
           </div>
-          <p className={`text-[11px] ${splitTotal === 100 ? 'text-muted' : 'text-orange-300'}`} role={splitTotal === 100 ? undefined : 'alert'}>
+          <p className={`text-xs ${splitTotal === 100 ? 'text-muted' : 'text-orange-300'}`} role={splitTotal === 100 ? undefined : 'alert'}>
             Adds up to {splitTotal}%{splitTotal === 100 ? '' : ' (needs 100%)'}
           </p>
         </fieldset>
       </section>
 
-      <section className="bg-card rounded-3xl p-6 border border-white/10 space-y-4">
-        <h2 className="text-xs font-semibold text-muted uppercase tracking-wider border-b border-white/5 pb-3">About you</h2>
-        <p className="text-[11px] text-muted leading-relaxed">
+      <section className="bg-card rounded-3xl p-6 border border-border space-y-4">
+        <h2 className="text-xs font-semibold text-muted uppercase tracking-wider border-b border-border pb-3">About you</h2>
+        <p className="text-xs text-muted leading-relaxed">
           Used to work out maintenance (Mifflin-St Jeor) for the target review every 14 days. Stored only in your database, never in the app's code.
         </p>
         <div className="grid grid-cols-2 gap-3">
@@ -112,14 +112,14 @@ export default function DietSettingsForm({ settings, onSaved }) {
           <Field id="ds-af" label="Activity factor" error={errors.activity_factor}>
             <input id="ds-af" type="number" inputMode="decimal" step="0.025" min={RANGES.activity_factor[0]} max={RANGES.activity_factor[1]} value={form.activity_factor} onChange={set('activity_factor')} className={input} />
           </Field>
-          <div className="text-[11px] text-muted self-end pb-3">{maint ? `Maintenance ≈ ${Math.round(maint).toLocaleString()} kcal` : 'Fill these in to see maintenance'}</div>
+          <div className="text-xs text-muted self-end pb-3">{maint ? `Maintenance ≈ ${Math.round(maint).toLocaleString()} kcal` : 'Fill these in to see maintenance'}</div>
         </div>
-        <p className="text-[11px] text-muted-dim">1.375 is light exercise 1 to 3 days a week. Exercise is never added back to the daily budget.</p>
+        <p className="text-xs text-muted-dim">1.375 is light exercise 1 to 3 days a week. Exercise is never added back to the daily budget.</p>
       </section>
 
-      <section className="bg-card rounded-3xl p-6 border border-white/10 space-y-4">
-        <h2 className="text-xs font-semibold text-muted uppercase tracking-wider border-b border-white/5 pb-3">For the coach</h2>
-        <p className="text-[11px] text-muted leading-relaxed">The coach and the photo reader (later phases) use these. Leave any of them blank.</p>
+      <section className="bg-card rounded-3xl p-6 border border-border space-y-4">
+        <h2 className="text-xs font-semibold text-muted uppercase tracking-wider border-b border-border pb-3">For the coach</h2>
+        <p className="text-xs text-muted leading-relaxed">The coach and the photo reader (later phases) use these. Leave any of them blank.</p>
         <div className="grid grid-cols-2 gap-3">
           <Field id="ds-name" label="Name">
             <input id="ds-name" value={form.display_name} onChange={set('display_name')} className={input} />
@@ -137,9 +137,9 @@ export default function DietSettingsForm({ settings, onSaved }) {
       </section>
 
       {/* Phase 3: the photo models and how long photos are kept. */}
-      <section className="bg-card rounded-3xl p-6 border border-white/10 space-y-4">
-        <h2 className="text-xs font-semibold text-muted uppercase tracking-wider border-b border-white/5 pb-3">Photo models</h2>
-        <p className="text-[11px] text-muted leading-relaxed">
+      <section className="bg-card rounded-3xl p-6 border border-border space-y-4">
+        <h2 className="text-xs font-semibold text-muted uppercase tracking-wider border-b border-border pb-3">Photo models</h2>
+        <p className="text-xs text-muted leading-relaxed">
           Claude and NVIDIA read each photo in the cloud; Ollama reads it later on your laptop. Leave a model blank for the default. Photos older than the retention are
           deleted every week; blank keeps them.
         </p>
@@ -154,7 +154,7 @@ export default function DietSettingsForm({ settings, onSaved }) {
         </Field>
       </section>
 
-      <button type="submit" disabled={saving} className="w-full min-h-[52px] rounded-xl bg-accent text-black font-extrabold text-sm disabled:opacity-60">
+      <button type="submit" disabled={saving} className="w-full min-h-[52px] rounded-xl bg-accent text-on-accent font-extrabold text-sm disabled:opacity-60">
         {saving ? 'Saving…' : 'Save diet settings'}
       </button>
     </form>
@@ -169,7 +169,7 @@ function Field({ id, label, error, children }) {
       </label>
       {children}
       {error && (
-        <p className="text-[11px] text-red-300" role="alert">
+        <p className="text-xs text-red-300" role="alert">
           {error}
         </p>
       )}

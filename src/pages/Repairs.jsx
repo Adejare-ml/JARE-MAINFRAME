@@ -42,7 +42,7 @@ const EMPTY_FORM = {
 const PRIORITY_STYLE = {
   urgent: 'bg-red-500/15 text-red-300',
   soon: 'bg-blue-500/15 text-blue-300',
-  someday: 'bg-white/5 text-muted',
+  someday: 'bg-surface-2 text-muted',
 }
 
 export default function Repairs() {
@@ -197,7 +197,7 @@ export default function Repairs() {
   if (!available) {
     return (
       <div className="space-y-6 pb-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-white">Repairs 🔧</h1>
+        <h1 className="text-2xl md:text-3xl font-bold text-foreground">Repairs 🔧</h1>
         <div className="rounded-2xl bg-orange-500/10 border border-orange-500/20 p-5 text-sm text-orange-300 leading-relaxed">
           Run <code className="font-mono">supabase/migrations/027_repairs.sql</code> in the Supabase SQL editor to switch this
           page on.
@@ -209,7 +209,7 @@ export default function Repairs() {
   if (pageError) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-white">Repairs 🔧</h1>
+        <h1 className="text-2xl md:text-3xl font-bold text-foreground">Repairs 🔧</h1>
         <ErrorState message={pageError} onRetry={fetchRepairs} />
       </div>
     )
@@ -219,12 +219,12 @@ export default function Repairs() {
     <div className="space-y-6 pb-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-white">Repairs 🔧</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground">Repairs 🔧</h1>
           <p className="text-muted text-sm mt-0.5">Track repairs & maintenance needs</p>
         </div>
         <button
           onClick={openAdd}
-          className="px-4 py-2.5 bg-accent text-black rounded-xl text-sm font-bold min-h-[48px] flex-shrink-0"
+          className="px-4 py-2.5 bg-accent text-on-accent rounded-xl text-sm font-bold min-h-[48px] flex-shrink-0"
         >
           + Add
         </button>
@@ -237,7 +237,7 @@ export default function Repairs() {
             key={p.value}
             onClick={() => setPriority(p.value)}
             className={`px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap min-h-[48px] transition-all ${
-              priority === p.value ? 'bg-accent text-black' : 'bg-card text-muted hover:text-white border border-white/5'
+              priority === p.value ? 'bg-accent text-on-accent' : 'bg-card text-muted hover:text-foreground border border-border'
             }`}
           >
             {p.icon ? `${p.icon} ` : ''}
@@ -253,7 +253,7 @@ export default function Repairs() {
           ['In progress', counts.inProgress, 'text-blue-400'],
           ['Done', counts.done, 'text-accent'],
         ].map(([label, value, color]) => (
-          <div key={label} className="bg-card rounded-2xl p-4 border border-white/5 text-center">
+          <div key={label} className="bg-card rounded-2xl p-4 border border-border text-center">
             <p className={`text-2xl font-bold tabular-nums ${color}`}>{value}</p>
             <p className="text-xs text-muted mt-1">{label}</p>
           </div>
@@ -262,7 +262,7 @@ export default function Repairs() {
 
       {/* Queue */}
       {visible.length === 0 ? (
-        <div className="bg-card rounded-3xl border border-white/5">
+        <div className="bg-card rounded-3xl border border-border">
           <EmptyState
             icon="🔧"
             title={priority === 'all' ? 'No repairs tracked' : 'Nothing at this priority'}
@@ -286,23 +286,23 @@ export default function Repairs() {
             return (
               <div
                 key={repair.id}
-                className={`bg-card rounded-2xl p-5 border transition-all ${done ? 'border-white/5 opacity-60' : 'border-white/10'}`}
+                className={`bg-card rounded-2xl p-5 border transition-all ${done ? 'border-border opacity-60' : 'border-border'}`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span aria-hidden="true">{priorityMeta?.icon || '🔧'}</span>
-                      <h3 className={`text-sm font-bold truncate ${done ? 'text-muted line-through' : 'text-white'}`}>{repair.item}</h3>
-                      <span className={`text-[9px] px-1.5 py-0.5 rounded-full uppercase font-bold ${PRIORITY_STYLE[repair.priority] || PRIORITY_STYLE.someday}`}>
+                      <h3 className={`text-sm font-bold truncate ${done ? 'text-muted line-through' : 'text-foreground'}`}>{repair.item}</h3>
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full uppercase font-bold ${PRIORITY_STYLE[repair.priority] || PRIORITY_STYLE.someday}`}>
                         {priorityMeta?.label || repair.priority}
                       </span>
                       {repair.classification && (
-                        <span className="text-[9px] bg-white/5 text-muted px-1.5 py-0.5 rounded-full uppercase font-bold">
+                        <span className="text-xs bg-surface-2 text-muted px-1.5 py-0.5 rounded-full uppercase font-bold">
                           {repair.classification}
                         </span>
                       )}
                     </div>
-                    <p className="text-[10px] text-muted mt-0.5">
+                    <p className="text-xs text-muted mt-0.5">
                       {statusMeta?.label}
                       {repair.due_date && (
                         <span className={overdue ? 'text-red-400' : ''}>
@@ -315,12 +315,12 @@ export default function Repairs() {
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     {Number(repair.estimated_cost) > 0 && (
-                      <p className="text-sm font-bold text-white tabular-nums money mr-2">{formatNaira(repair.estimated_cost)}</p>
+                      <p className="text-sm font-bold text-foreground tabular-nums money mr-2">{formatNaira(repair.estimated_cost)}</p>
                     )}
                     <button
                       onClick={() => openEdit(repair)}
                       aria-label={`Edit ${repair.item}`}
-                      className="w-11 h-11 flex items-center justify-center rounded-xl hover:bg-white/5 text-muted hover:text-white"
+                      className="w-11 h-11 flex items-center justify-center rounded-xl hover:bg-surface-2 text-muted hover:text-foreground"
                     >
                       ✏️
                     </button>
@@ -334,11 +334,11 @@ export default function Repairs() {
                   </div>
                 </div>
 
-                {repair.notes && <p className="text-[11px] text-muted mt-2 italic">{repair.notes}</p>}
+                {repair.notes && <p className="text-xs text-muted mt-2 italic">{repair.notes}</p>}
 
                 <button
                   onClick={() => advance(repair)}
-                  className="mt-3 w-full py-2.5 text-xs font-semibold rounded-xl bg-white/5 hover:bg-white/10 text-muted hover:text-white min-h-[44px] transition-colors"
+                  className="mt-3 w-full py-2.5 text-xs font-semibold rounded-xl bg-surface-2 hover:bg-surface-2 text-muted hover:text-foreground min-h-[44px] transition-colors"
                 >
                   {done ? 'Reopen' : repair.status === 'pending' ? 'Start' : 'Mark done'}
                 </button>
@@ -349,13 +349,13 @@ export default function Repairs() {
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleDelete(repair.id)}
-                        className="flex-1 py-2.5 bg-red-500 text-white text-xs font-bold rounded-lg min-h-[44px]"
+                        className="flex-1 py-2.5 bg-red-500 text-foreground text-xs font-bold rounded-lg min-h-[44px]"
                       >
                         Delete
                       </button>
                       <button
                         onClick={() => setConfirmDeleteId(null)}
-                        className="flex-1 py-2.5 bg-white/5 text-muted text-xs font-bold rounded-lg min-h-[44px]"
+                        className="flex-1 py-2.5 bg-surface-2 text-muted text-xs font-bold rounded-lg min-h-[44px]"
                       >
                         Cancel
                       </button>
@@ -369,11 +369,11 @@ export default function Repairs() {
       )}
 
       {/* Cost estimate */}
-      <section className="bg-card rounded-2xl p-6 border border-white/5">
+      <section className="bg-card rounded-2xl p-6 border border-border">
         <h2 className="text-sm font-semibold text-muted uppercase tracking-wider mb-4">Cost Estimate</h2>
         <div className="flex justify-between items-center">
           <span className="text-muted text-sm">Still ahead</span>
-          <span className="text-white font-bold text-xl tabular-nums money">{formatNaira(costs.openEstimate)}</span>
+          <span className="text-foreground font-bold text-xl tabular-nums money">{formatNaira(costs.openEstimate)}</span>
         </div>
         {costs.allEstimate > costs.openEstimate && (
           <div className="flex justify-between items-center mt-2">
@@ -387,12 +387,12 @@ export default function Repairs() {
       <Sheet isOpen={showModal} onClose={() => setShowModal(false)} title={editing ? 'Edit repair' : 'New repair'} desktopCenter>
         <form onSubmit={handleSave} className={`p-6 space-y-4 overflow-y-auto ${shake ? 'animate-shake' : ''}`}>
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-white">{editing ? 'Edit' : 'New'}</h2>
+            <h2 className="text-lg font-bold text-foreground">{editing ? 'Edit' : 'New'}</h2>
             <button
               type="button"
               onClick={() => setShowModal(false)}
               aria-label="Close"
-              className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-white/10 text-muted hover:text-white"
+              className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-surface-2 text-muted hover:text-foreground"
             >
               ✕
             </button>
@@ -411,7 +411,7 @@ export default function Repairs() {
               onChange={(e) => setForm({ ...form, item: e.target.value })}
               placeholder="Generator service"
               required
-              className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+              className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
             />
           </div>
 
@@ -424,7 +424,7 @@ export default function Repairs() {
                   type="button"
                   onClick={() => setForm({ ...form, priority: p.value })}
                   className={`px-3 py-3 rounded-xl border text-xs font-semibold min-h-[48px] transition-all ${
-                    form.priority === p.value ? 'border-accent bg-accent/10 text-accent' : 'border-white/10 bg-background text-muted'
+                    form.priority === p.value ? 'border-accent bg-accent/10 text-accent' : 'border-border bg-background text-muted'
                   }`}
                 >
                   {p.icon} {p.label}
@@ -443,7 +443,7 @@ export default function Repairs() {
                   onClick={() => setForm({ ...form, classification: form.classification === c.value ? '' : c.value })}
                   aria-pressed={form.classification === c.value}
                   className={`px-3 py-3 rounded-xl border text-xs font-semibold min-h-[48px] transition-all ${
-                    form.classification === c.value ? 'border-accent bg-accent/10 text-accent' : 'border-white/10 bg-background text-muted'
+                    form.classification === c.value ? 'border-accent bg-accent/10 text-accent' : 'border-border bg-background text-muted'
                   }`}
                 >
                   {c.label}
@@ -462,7 +462,7 @@ export default function Repairs() {
                 value={form.estimated_cost}
                 onChange={(e) => setForm({ ...form, estimated_cost: e.target.value })}
                 placeholder="15000"
-                className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+                className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
               />
             </div>
             <div>
@@ -471,7 +471,7 @@ export default function Repairs() {
                 type="date"
                 value={form.due_date}
                 onChange={(e) => setForm({ ...form, due_date: e.target.value })}
-                className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-accent min-h-[48px]"
+                className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm focus:outline-none focus:border-accent min-h-[48px]"
               />
             </div>
           </div>
@@ -482,14 +482,14 @@ export default function Repairs() {
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
               placeholder="Optional"
-              className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+              className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
             />
           </div>
 
           <button
             type="submit"
             disabled={saving || justSaved}
-            className="w-full py-3.5 bg-accent text-black font-bold text-sm rounded-xl min-h-[48px] disabled:opacity-50 flex items-center justify-center"
+            className="w-full py-3.5 bg-accent text-on-accent font-bold text-sm rounded-xl min-h-[48px] disabled:opacity-50 flex items-center justify-center"
           >
             {justSaved ? (
               <span className="inline-block text-lg animate-check-pop" aria-hidden="true">

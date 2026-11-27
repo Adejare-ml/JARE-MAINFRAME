@@ -35,10 +35,10 @@ export default function KnowledgeGaps({ gaps, onLog, onResolve, busy }) {
   }
 
   return (
-    <section className="bg-card rounded-3xl p-6 border border-white/5 space-y-4">
+    <section className="bg-card rounded-3xl p-6 border border-border space-y-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold text-white">Gaps</h2>
+          <h2 className="text-lg font-bold text-foreground">Gaps</h2>
           <p className="text-xs text-muted mt-1">
             Things you took on trust. The planner works from these before it works from
             the code.
@@ -48,7 +48,7 @@ export default function KnowledgeGaps({ gaps, onLog, onResolve, busy }) {
           <button
             type="button"
             onClick={() => setAdding(true)}
-            className="px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-xs font-bold text-muted hover:text-white min-h-[44px] flex-shrink-0"
+            className="px-4 py-2.5 bg-surface-2 border border-border rounded-xl text-xs font-bold text-muted hover:text-foreground min-h-[44px] flex-shrink-0"
           >
             Log one
           </button>
@@ -65,7 +65,7 @@ export default function KnowledgeGaps({ gaps, onLog, onResolve, busy }) {
             placeholder="PostgREST upsert semantics"
             aria-label="What did you not understand?"
             maxLength={120}
-            className="w-full px-4 py-3 bg-background border border-accent rounded-xl text-white text-sm placeholder-hint focus:outline-none min-h-[48px]"
+            className="w-full px-4 py-3 bg-background border border-accent rounded-xl text-foreground text-sm placeholder-hint focus:outline-none min-h-[48px]"
           />
           <input
             type="text"
@@ -74,13 +74,13 @@ export default function KnowledgeGaps({ gaps, onLog, onResolve, busy }) {
             placeholder="Took the onConflict line without knowing what it arbitrates"
             aria-label="What happened?"
             maxLength={300}
-            className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+            className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
           />
           <div className="flex gap-2">
             <button
               type="submit"
               disabled={busy || !topic.trim()}
-              className="flex-1 py-3 bg-accent text-black font-bold text-sm rounded-xl min-h-[48px] disabled:opacity-50"
+              className="flex-1 py-3 bg-accent text-on-accent font-bold text-sm rounded-xl min-h-[48px] disabled:opacity-50"
             >
               Log it
             </button>
@@ -91,7 +91,7 @@ export default function KnowledgeGaps({ gaps, onLog, onResolve, busy }) {
                 setTopic('')
                 setNote('')
               }}
-              className="px-5 py-3 bg-white/5 text-muted text-sm font-bold rounded-xl min-h-[48px]"
+              className="px-5 py-3 bg-surface-2 text-muted text-sm font-bold rounded-xl min-h-[48px]"
             >
               Cancel
             </button>
@@ -109,12 +109,12 @@ export default function KnowledgeGaps({ gaps, onLog, onResolve, busy }) {
         {open.map((gap) => (
           <li
             key={gap.id}
-            className="flex items-start gap-3 bg-background/50 border border-white/5 rounded-2xl p-4"
+            className="flex items-start gap-3 bg-background/50 border border-border rounded-2xl p-4"
           >
             <span className="min-w-0 flex-1">
-              <span className="block text-sm text-white">{gap.topic}</span>
-              {gap.note && <span className="block text-[11px] text-muted mt-0.5">{gap.note}</span>}
-              <span className="block text-[10px] text-muted-dim mt-0.5">
+              <span className="block text-sm text-foreground">{gap.topic}</span>
+              {gap.note && <span className="block text-xs text-muted mt-0.5">{gap.note}</span>}
+              <span className="block text-xs text-muted-dim mt-0.5">
                 {gap.source === 'agent' ? 'From an agent' : 'Noticed yourself'} ·{' '}
                 {formatDate(String(gap.created_at || '').slice(0, 10))}
               </span>
@@ -124,7 +124,7 @@ export default function KnowledgeGaps({ gaps, onLog, onResolve, busy }) {
               onClick={() => onResolve(gap)}
               disabled={busy}
               aria-label={`Mark "${gap.topic}" understood`}
-              className="px-3 py-2 text-[11px] font-bold text-muted hover:text-accent rounded-lg min-h-[44px] flex-shrink-0 disabled:opacity-50"
+              className="px-3 py-2 text-xs font-bold text-muted hover:text-accent rounded-lg min-h-[44px] flex-shrink-0 disabled:opacity-50"
             >
               I get it now
             </button>
@@ -133,7 +133,7 @@ export default function KnowledgeGaps({ gaps, onLog, onResolve, busy }) {
       </ul>
 
       {closed.length > 0 && (
-        <p className="text-[11px] text-muted-dim pt-1">
+        <p className="text-xs text-muted-dim pt-1">
           {closed.length} closed — {closed.slice(0, 3).map((g) => g.topic).join(', ')}
           {closed.length > 3 && ` and ${closed.length - 3} more`}
         </p>

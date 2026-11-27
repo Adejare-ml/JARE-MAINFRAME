@@ -101,8 +101,8 @@ export default function CategoryRules() {
   if (loading) return null
 
   return (
-    <section className="bg-card rounded-3xl p-6 border border-white/10 space-y-4">
-      <div className="flex items-center justify-between border-b border-white/5 pb-3">
+    <section className="bg-card rounded-3xl p-6 border border-border space-y-4">
+      <div className="flex items-center justify-between border-b border-border pb-3">
         <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">
           Category Rules
         </h2>
@@ -112,7 +112,7 @@ export default function CategoryRules() {
               setForm(EMPTY_FORM)
               setShowForm(true)
             }}
-            className="px-3 py-1.5 bg-white/10 hover:bg-accent text-white hover:text-black rounded-lg text-xs font-bold transition-all min-h-[44px]"
+            className="px-3 py-1.5 bg-surface-2 hover:bg-accent text-foreground hover:text-on-accent rounded-lg text-xs font-bold transition-all min-h-[44px]"
           >
             + New
           </button>
@@ -138,11 +138,11 @@ export default function CategoryRules() {
           {rules.map((rule) => (
             <li
               key={rule.id}
-              className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-background/40 border border-white/5"
+              className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-background/40 border border-border"
             >
-              <p className="text-xs text-white/90 min-w-0 truncate">
+              <p className="text-xs text-foreground min-w-0 truncate">
                 <span className="text-muted">{rule.trigger_field} contains</span>{' '}
-                <span className="font-mono text-white">"{rule.trigger_value}"</span>{' '}
+                <span className="font-mono text-foreground">"{rule.trigger_value}"</span>{' '}
                 <span className="text-muted">→</span>{' '}
                 <span className="font-semibold text-accent">{rule.action_category}</span>
               </p>
@@ -171,11 +171,11 @@ export default function CategoryRules() {
         {showCategoryPicker ? (
           <div className="p-6 space-y-4 overflow-y-auto">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-white">File it under</h2>
+              <h2 className="text-lg font-bold text-foreground">File it under</h2>
               <button
                 type="button"
                 onClick={() => setShowCategoryPicker(false)}
-                className="text-sm font-semibold text-muted hover:text-white min-h-[44px] px-2 flex items-center gap-1"
+                className="text-sm font-semibold text-muted hover:text-foreground min-h-[44px] px-2 flex items-center gap-1"
               >
                 ← Back
               </button>
@@ -191,12 +191,12 @@ export default function CategoryRules() {
         ) : (
         <form onSubmit={handleSave} className="p-6 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-white">New category rule</h2>
+            <h2 className="text-lg font-bold text-foreground">New category rule</h2>
             <button
               type="button"
               onClick={closeForm}
               aria-label="Close"
-              className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-white/10 text-muted hover:text-white"
+              className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-surface-2 text-muted hover:text-foreground"
             >
               ✕
             </button>
@@ -213,8 +213,8 @@ export default function CategoryRules() {
                   aria-pressed={form.trigger_field === field}
                   className={`py-3 rounded-xl text-sm font-bold capitalize min-h-[48px] transition-colors ${
                     form.trigger_field === field
-                      ? 'bg-accent text-black'
-                      : 'bg-background border border-white/10 text-muted hover:text-white'
+                      ? 'bg-accent text-on-accent'
+                      : 'bg-background border border-border text-muted hover:text-foreground'
                   }`}
                 >
                   {field}
@@ -233,7 +233,7 @@ export default function CategoryRules() {
               value={form.trigger_value}
               onChange={(e) => setForm((f) => ({ ...f, trigger_value: e.target.value }))}
               placeholder="Netflix"
-              className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+              className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
             />
           </div>
 
@@ -242,7 +242,7 @@ export default function CategoryRules() {
             <button
               type="button"
               onClick={() => setShowCategoryPicker(true)}
-              className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-accent min-h-[48px] flex items-center gap-2"
+              className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm focus:outline-none focus:border-accent min-h-[48px] flex items-center gap-2"
             >
               <span className="text-lg" aria-hidden="true">{getCategoryIcon(form.action_category)}</span>
               <span className="truncate">{form.action_category}</span>
@@ -258,14 +258,14 @@ export default function CategoryRules() {
               type="number"
               value={form.priority}
               onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))}
-              className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-accent min-h-[48px]"
+              className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm focus:outline-none focus:border-accent min-h-[48px]"
             />
           </div>
 
           <button
             type="submit"
             disabled={saving}
-            className="w-full py-3.5 bg-accent text-black font-bold text-sm rounded-xl min-h-[48px] disabled:opacity-50"
+            className="w-full py-3.5 bg-accent text-on-accent font-bold text-sm rounded-xl min-h-[48px] disabled:opacity-50"
           >
             {saving ? 'Saving…' : 'Add rule'}
           </button>

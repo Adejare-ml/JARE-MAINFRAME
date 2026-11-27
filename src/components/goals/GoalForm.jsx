@@ -198,11 +198,11 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
         {showCategoryPicker ? (
         <>
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-white">Measured on category</h2>
+          <h2 className="text-lg font-bold text-foreground">Measured on category</h2>
           <button
             type="button"
             onClick={() => setShowCategoryPicker(false)}
-            className="text-sm font-semibold text-muted hover:text-white min-h-[44px] px-2 flex items-center gap-1"
+            className="text-sm font-semibold text-muted hover:text-foreground min-h-[44px] px-2 flex items-center gap-1"
           >
             ← Back
           </button>
@@ -220,12 +220,12 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
         ) : (
         <>
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-white">{editing ? 'Edit goal' : 'New goal'}</h2>
+          <h2 className="text-lg font-bold text-foreground">{editing ? 'Edit goal' : 'New goal'}</h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-white/10 text-muted hover:text-white"
+            className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-surface-2 text-muted hover:text-foreground"
           >
             ✕
           </button>
@@ -246,7 +246,7 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
             value={form.title}
             onChange={(e) => set({ title: e.target.value })}
             placeholder="Laptop fund"
-            className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+            className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
           />
         </div>
 
@@ -262,7 +262,7 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
                 className={`w-11 h-11 flex items-center justify-center rounded-xl border text-xs transition-colors ${
                   !form.icon
                     ? 'bg-accent/10 border-accent text-accent'
-                    : 'bg-background border-white/10 text-muted hover:border-white/20'
+                    : 'bg-background border-border text-muted hover:border-border-strong'
                 }`}
               >
                 None
@@ -277,7 +277,7 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
                   className={`w-11 h-11 flex items-center justify-center rounded-xl border text-lg transition-colors ${
                     form.icon === icon
                       ? 'bg-accent/10 border-accent'
-                      : 'bg-background border-white/10 hover:border-white/20'
+                      : 'bg-background border-border hover:border-border-strong'
                   }`}
                 >
                   {icon}
@@ -295,14 +295,14 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
             className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-left transition-colors min-h-[48px] ${
               form.locked
                 ? 'bg-amber-500/10 border-amber-500/30'
-                : 'bg-background border-white/10 hover:border-white/20'
+                : 'bg-background border-border hover:border-border-strong'
             }`}
           >
             <span>
-              <span className={`block text-sm font-semibold ${form.locked ? 'text-amber-400' : 'text-white'}`}>
+              <span className={`block text-sm font-semibold ${form.locked ? 'text-amber-400' : 'text-foreground'}`}>
                 {form.locked ? '🔒 Locked' : 'Lock this goal'}
               </span>
-              <span className="block text-[11px] text-muted mt-0.5">
+              <span className="block text-xs text-muted mt-0.5">
                 Asks for confirmation before this can be deleted early. For money you do not want to talk yourself out of.
               </span>
             </span>
@@ -320,8 +320,8 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
                 aria-pressed={form.period === period}
                 className={`py-3 rounded-xl text-sm font-bold capitalize min-h-[48px] transition-colors ${
                   form.period === period
-                    ? 'bg-accent text-black'
-                    : 'bg-background border border-white/10 text-muted hover:text-white'
+                    ? 'bg-accent text-on-accent'
+                    : 'bg-background border border-border text-muted hover:text-foreground'
                 }`}
               >
                 {period}
@@ -342,17 +342,17 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
                 className={`w-full text-left px-4 py-3 rounded-xl border transition-colors min-h-[48px] ${
                   form.metric === m.id
                     ? 'bg-accent/10 border-accent'
-                    : 'bg-background border-white/10 hover:border-white/20'
+                    : 'bg-background border-border hover:border-border-strong'
                 }`}
               >
                 <span
                   className={`block text-sm font-semibold ${
-                    form.metric === m.id ? 'text-accent' : 'text-white'
+                    form.metric === m.id ? 'text-accent' : 'text-foreground'
                   }`}
                 >
                   {m.label}
                 </span>
-                <span className="block text-[11px] text-muted mt-0.5">{m.hint}</span>
+                <span className="block text-xs text-muted mt-0.5">{m.hint}</span>
               </button>
             ))}
           </div>
@@ -377,15 +377,15 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
                 value={form.target_amount}
                 onChange={(e) => set({ target_amount: e.target.value })}
                 placeholder={isRepo(form.metric) ? '40' : '150000'}
-                className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+                className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
               />
             </div>
 
             {isRepo(form.metric) && (
-              <p className="text-[11px] text-muted bg-background/60 border border-white/10 rounded-xl p-3">
+              <p className="text-xs text-muted bg-background/60 border border-border rounded-xl p-3">
                 Checked against the repository each night, and the commits it counted are
                 kept on the goal so the figure can be audited. A day with no commits is
-                recorded as <span className="text-white">checked and empty</span> — never as
+                recorded as <span className="text-foreground">checked and empty</span> — never as
                 missed, because office work leaves no trace here. You can still tick one off
                 yourself.
               </p>
@@ -401,7 +401,7 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
                   <button
                     type="button"
                     onClick={() => setShowCategoryPicker(true)}
-                    className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-accent min-h-[48px] flex items-center gap-2"
+                    className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm focus:outline-none focus:border-accent min-h-[48px] flex items-center gap-2"
                   >
                     {form.metric_category ? (
                       <>
@@ -422,7 +422,7 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
                     id="goal-wallet"
                     value={form.metric_wallet_id}
                     onChange={(e) => set({ metric_wallet_id: e.target.value })}
-                    className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-accent min-h-[48px]"
+                    className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm focus:outline-none focus:border-accent min-h-[48px]"
                   >
                     <option value="">— any wallet —</option>
                     {wallets
@@ -440,23 +440,23 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
         )}
 
         {preview && (
-          <div className="bg-background/60 border border-white/10 rounded-xl p-4 space-y-1.5">
-            <p className="text-[10px] text-muted uppercase tracking-wider">
+          <div className="bg-background/60 border border-border rounded-xl p-4 space-y-1.5">
+            <p className="text-xs text-muted uppercase tracking-wider">
               What this asks of you
             </p>
             {preview.lines.map((line) => (
-              <p key={line} className="text-sm text-white">
+              <p key={line} className="text-sm text-foreground">
                 {line}
               </p>
             ))}
-            <p className="text-[11px] text-muted pt-1">{preview.note}</p>
+            <p className="text-xs text-muted pt-1">{preview.note}</p>
           </div>
         )}
 
         <button
           type="submit"
           disabled={saving}
-          className="w-full py-3.5 bg-accent text-black font-bold text-sm rounded-xl min-h-[48px] disabled:opacity-50"
+          className="w-full py-3.5 bg-accent text-on-accent font-bold text-sm rounded-xl min-h-[48px] disabled:opacity-50"
         >
           {saving ? 'Saving…' : editing ? 'Save changes' : 'Create goal'}
         </button>

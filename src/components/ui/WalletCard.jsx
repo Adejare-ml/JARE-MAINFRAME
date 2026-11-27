@@ -21,7 +21,7 @@ export default function WalletCard({ name, type, balance, color }) {
 
   return (
     <div
-      className="bg-card rounded-2xl p-5 border border-white/5 hover:border-opacity-60 transition-all duration-300"
+      className="bg-card rounded-2xl p-5 border border-border hover:border-opacity-60 transition-all duration-300"
       style={{ borderColor: `${borderColor}30`, '--wallet-accent': borderColor }}
     >
       <div className="flex items-center justify-between mb-3">
@@ -30,13 +30,13 @@ export default function WalletCard({ name, type, balance, color }) {
           <span className="text-sm text-muted font-medium">{name}</span>
         </div>
         <span
-          className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
+          className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
           style={{ backgroundColor: `${borderColor}15`, color: borderColor }}
         >
           {typeLabels[type] || type}
         </span>
       </div>
-      <p className="text-2xl font-bold text-white money">
+      <p className="text-2xl font-bold text-foreground money">
         {formatNaira(balance)}
       </p>
     </div>

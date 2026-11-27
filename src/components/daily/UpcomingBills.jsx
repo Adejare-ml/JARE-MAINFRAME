@@ -55,7 +55,7 @@ export default function UpcomingBills() {
   if (dueSoon.length === 0) return null
 
   return (
-    <section className="bg-card rounded-3xl p-6 border border-white/5 space-y-3">
+    <section className="bg-card rounded-3xl p-6 border border-border space-y-3">
       <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">
         Upcoming Bills
       </h2>
@@ -66,16 +66,16 @@ export default function UpcomingBills() {
             className={`flex items-center justify-between p-3 rounded-2xl border text-xs ${
               c.overdue
                 ? 'bg-orange-500/10 border-orange-500/20'
-                : 'bg-background/40 border-white/5'
+                : 'bg-background/40 border-border'
             }`}
           >
             <div className="min-w-0">
-              <p className="font-bold text-white truncate">{c.label}</p>
+              <p className="font-bold text-foreground truncate">{c.label}</p>
               <p className={`mt-0.5 ${c.overdue ? 'text-orange-300' : 'text-muted'}`}>
                 {c.overdue ? 'Expected' : 'Due'} {formatDate(c.nextExpected)} · {c.interval}
               </p>
             </div>
-            <span className="flex-shrink-0 font-bold text-white tabular-nums ml-3 money">
+            <span className="flex-shrink-0 font-bold text-foreground tabular-nums ml-3 money">
               {formatNaira(c.amount)}
             </span>
           </div>

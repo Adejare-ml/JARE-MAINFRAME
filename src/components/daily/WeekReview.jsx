@@ -62,28 +62,28 @@ export default function WeekReview({
   return (
     <div className="space-y-6">
       {/* Where the week went */}
-      <section className="bg-card rounded-3xl p-6 border border-white/10 shadow-xl space-y-4">
+      <section className="bg-card rounded-3xl p-6 border border-border shadow-xl space-y-4">
         <div className="flex items-baseline justify-between gap-3">
           <div>
             <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-1">
               This week
             </p>
-            <p className="text-3xl font-extrabold text-white tabular-nums money">
+            <p className="text-3xl font-extrabold text-foreground tabular-nums money">
               {formatNaira(comparison.spent.now)}
             </p>
           </div>
           <Delta change={comparison.spent} lowerIsBetter />
         </div>
 
-        <div className="grid grid-cols-2 gap-2 pt-3 border-t border-white/5">
-          <div className="bg-background/40 p-3 rounded-2xl border border-white/5">
-            <p className="text-[10px] text-muted uppercase tracking-wider">In</p>
-            <p className="text-sm font-bold text-white tabular-nums money">
+        <div className="grid grid-cols-2 gap-2 pt-3 border-t border-border">
+          <div className="bg-background/40 p-3 rounded-2xl border border-border">
+            <p className="text-xs text-muted uppercase tracking-wider">In</p>
+            <p className="text-sm font-bold text-foreground tabular-nums money">
               {formatNaira(comparison.income.now)}
             </p>
           </div>
-          <div className="bg-background/40 p-3 rounded-2xl border border-white/5">
-            <p className="text-[10px] text-muted uppercase tracking-wider">Moved aside</p>
+          <div className="bg-background/40 p-3 rounded-2xl border border-border">
+            <p className="text-xs text-muted uppercase tracking-wider">Moved aside</p>
             <p className="text-sm font-bold text-blue-400 tabular-nums money">
               {formatNaira(comparison.movedAside.now)}
             </p>
@@ -92,7 +92,7 @@ export default function WeekReview({
       </section>
 
       {/* Rhythm — which days the money left on */}
-      <section className="bg-card rounded-3xl p-6 border border-white/5 space-y-4">
+      <section className="bg-card rounded-3xl p-6 border border-border space-y-4">
         <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">Rhythm</h2>
 
         {peak === 0 ? (
@@ -104,7 +104,7 @@ export default function WeekReview({
                 <div className="flex-1 w-full flex items-end">
                   <div
                     className={`w-full rounded-t-md transition-all ${
-                      day.isFuture ? 'bg-white/5' : day.isToday ? 'bg-accent' : 'bg-accent/50'
+                      day.isFuture ? 'bg-surface-2' : day.isToday ? 'bg-accent' : 'bg-accent/50'
                     }`}
                     // Floored at 2% so a day with a small amount is still a
                     // visible bar rather than nothing; a day with genuinely
@@ -118,7 +118,7 @@ export default function WeekReview({
                   />
                 </div>
                 <span
-                  className={`text-[9px] ${day.isToday ? 'text-accent font-bold' : 'text-muted-dim'}`}
+                  className={`text-xs ${day.isToday ? 'text-accent font-bold' : 'text-muted-dim'}`}
                 >
                   {day.label}
                 </span>
@@ -133,7 +133,7 @@ export default function WeekReview({
 
       {/* Weekly targets */}
       {weeklyGoals.length > 0 && (
-        <section className="bg-card rounded-3xl p-6 border border-white/5 space-y-3">
+        <section className="bg-card rounded-3xl p-6 border border-border space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">
               This week's targets
@@ -151,9 +151,9 @@ export default function WeekReview({
               return (
                 <li
                   key={goal.id}
-                  className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-background/50 border border-white/5"
+                  className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-background/50 border border-border"
                 >
-                  <span className={`text-sm min-w-0 truncate ${met ? 'text-muted' : 'text-white'}`}>
+                  <span className={`text-sm min-w-0 truncate ${met ? 'text-muted' : 'text-foreground'}`}>
                     {goal.title}
                   </span>
                   {progress.measured ? (
@@ -178,9 +178,9 @@ export default function WeekReview({
 
       {/* Days planned and finished */}
       {weekTasks.length > 0 && (
-        <section className="bg-card rounded-3xl p-6 border border-white/5 space-y-2">
+        <section className="bg-card rounded-3xl p-6 border border-border space-y-2">
           <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">Tasks</h2>
-          <p className="text-lg font-bold text-white tabular-nums">
+          <p className="text-lg font-bold text-foreground tabular-nums">
             {tasksDone}
             <span className="text-muted text-xs font-normal">
               /{weekTasks.length} finished this week
@@ -196,7 +196,7 @@ export default function WeekReview({
 
       {/* Carried over — named rather than quietly dropped */}
       {unfinished.length > 0 && (
-        <section className="bg-card rounded-3xl p-6 border border-white/5 space-y-3">
+        <section className="bg-card rounded-3xl p-6 border border-border space-y-3">
           <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">
             Carried over from last week
           </h2>
@@ -207,7 +207,7 @@ export default function WeekReview({
                 className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-orange-500/10 border border-orange-500/20"
               >
                 <span className="text-sm text-orange-200 min-w-0 truncate">{goal.title}</span>
-                <span className="text-[10px] text-orange-300/70 flex-shrink-0">
+                <span className="text-xs text-orange-300/70 flex-shrink-0">
                   {formatDate(goal.target_date)}
                 </span>
               </li>

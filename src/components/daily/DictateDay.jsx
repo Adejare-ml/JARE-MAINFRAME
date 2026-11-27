@@ -94,7 +94,7 @@ export default function DictateDay({ onAdd, busy, remaining }) {
           rows={2}
           placeholder="What matters today? Say or type it — one per line, or “and then”."
           aria-label="Today's plan"
-          className="flex-1 px-4 py-3 bg-background border border-white/10 rounded-2xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent resize-none"
+          className="flex-1 px-4 py-3 bg-background border border-border rounded-2xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent resize-none"
         />
 
         {/* Only where it can actually work. */}
@@ -107,7 +107,7 @@ export default function DictateDay({ onAdd, busy, remaining }) {
             className={`w-14 flex-shrink-0 rounded-2xl border text-xl transition-colors ${
               listening
                 ? 'bg-red-500/20 border-red-500 text-red-300 animate-pulse'
-                : 'bg-background border-white/10 text-muted hover:text-white hover:border-white/20'
+                : 'bg-background border-border text-muted hover:text-foreground hover:border-border-strong'
             }`}
           >
             {listening ? '■' : '🎙'}
@@ -115,29 +115,29 @@ export default function DictateDay({ onAdd, busy, remaining }) {
         )}
       </div>
 
-      {micError && <p className="text-[11px] text-yellow-400">{micError}</p>}
+      {micError && <p className="text-xs text-yellow-400">{micError}</p>}
 
       {listening && (
-        <p className="text-[11px] text-muted" role="status">
+        <p className="text-xs text-muted" role="status">
           Listening — say them however you like, then press stop.
         </p>
       )}
 
       {/* What it understood, before anything is written. */}
       {tasks.length > 0 && (
-        <div className="bg-background/60 border border-white/10 rounded-2xl p-3 space-y-1.5">
-          <p className="text-[10px] text-muted uppercase tracking-wider">
+        <div className="bg-background/60 border border-border rounded-2xl p-3 space-y-1.5">
+          <p className="text-xs text-muted uppercase tracking-wider">
             {tasks.length} task{tasks.length === 1 ? '' : 's'}
           </p>
           <ul className="space-y-0.5">
             {tasks.map((task) => (
-              <li key={task} className="text-sm text-white">
+              <li key={task} className="text-sm text-foreground">
                 • {task}
               </li>
             ))}
           </ul>
           {overflow > 0 && (
-            <p className="text-[11px] text-yellow-400">
+            <p className="text-xs text-yellow-400">
               {overflow} more won’t fit today — there is room for {remaining}.
             </p>
           )}
@@ -145,7 +145,7 @@ export default function DictateDay({ onAdd, busy, remaining }) {
             type="button"
             onClick={commit}
             disabled={busy}
-            className="w-full mt-1 py-2.5 bg-accent text-black font-bold text-xs rounded-xl min-h-[44px] disabled:opacity-50"
+            className="w-full mt-1 py-2.5 bg-accent text-on-accent font-bold text-xs rounded-xl min-h-[44px] disabled:opacity-50"
           >
             {busy ? 'Adding…' : `Add ${tasks.length === 1 ? 'it' : 'them'}`}
           </button>

@@ -31,8 +31,8 @@ export default function ProposedPlan({ drafts, onApprove, onDiscard, busy }) {
     <section className="bg-card rounded-3xl p-6 border border-accent/30 space-y-4">
       <div>
         <div className="flex items-center gap-2">
-          <h2 className="text-lg font-bold text-white">Proposed plan</h2>
-          <span className="text-[10px] uppercase tracking-wider text-black bg-accent rounded-full px-2 py-0.5 font-bold">
+          <h2 className="text-lg font-bold text-foreground">Proposed plan</h2>
+          <span className="text-xs uppercase tracking-wider text-on-accent bg-accent rounded-full px-2 py-0.5 font-bold">
             draft
           </span>
         </div>
@@ -47,11 +47,11 @@ export default function ProposedPlan({ drafts, onApprove, onDiscard, busy }) {
         {drafts.map((draft) => (
           <li
             key={draft.id}
-            className="bg-background/50 border border-white/5 rounded-2xl p-4 space-y-1.5"
+            className="bg-background/50 border border-border rounded-2xl p-4 space-y-1.5"
           >
-            <p className="text-sm text-white">{draft.focus || draft.title}</p>
+            <p className="text-sm text-foreground">{draft.focus || draft.title}</p>
 
-            <p className="text-[11px] text-muted">
+            <p className="text-xs text-muted">
               Week of {formatDate(draft.target_date)}
             </p>
 
@@ -59,7 +59,7 @@ export default function ProposedPlan({ drafts, onApprove, onDiscard, busy }) {
                 sentence that sounds right, which is the failure mode the whole
                 citation rule exists to catch. */}
             {draft.plan_evidence?.cites && (
-              <p className="text-[10px] text-muted-dim">
+              <p className="text-xs text-muted-dim">
                 <span className="text-muted">
                   {draft.plan_evidence.kind === 'gap' ? 'From a gap you logged: ' : 'From: '}
                 </span>
@@ -68,7 +68,7 @@ export default function ProposedPlan({ drafts, onApprove, onDiscard, busy }) {
             )}
 
             {draft.plan_evidence?.reason && (
-              <p className="text-[11px] text-muted italic">{draft.plan_evidence.reason}</p>
+              <p className="text-xs text-muted italic">{draft.plan_evidence.reason}</p>
             )}
           </li>
         ))}
@@ -79,7 +79,7 @@ export default function ProposedPlan({ drafts, onApprove, onDiscard, busy }) {
           type="button"
           onClick={onApprove}
           disabled={busy}
-          className="flex-1 py-3 bg-accent text-black font-bold text-sm rounded-xl min-h-[48px] disabled:opacity-50"
+          className="flex-1 py-3 bg-accent text-on-accent font-bold text-sm rounded-xl min-h-[48px] disabled:opacity-50"
         >
           {busy ? 'Saving…' : 'Approve'}
         </button>
@@ -87,13 +87,13 @@ export default function ProposedPlan({ drafts, onApprove, onDiscard, busy }) {
           type="button"
           onClick={onDiscard}
           disabled={busy}
-          className="flex-1 py-3 bg-white/5 border border-white/10 text-muted hover:text-white font-bold text-sm rounded-xl min-h-[48px] disabled:opacity-50"
+          className="flex-1 py-3 bg-surface-2 border border-border text-muted hover:text-foreground font-bold text-sm rounded-xl min-h-[48px] disabled:opacity-50"
         >
           Discard
         </button>
       </div>
 
-      <p className="text-[10px] text-muted-dim">
+      <p className="text-xs text-muted-dim">
         Approving keeps the words. The numbers stay yours — how much each week asks for
         is still worked out from the goal, not from this.
       </p>

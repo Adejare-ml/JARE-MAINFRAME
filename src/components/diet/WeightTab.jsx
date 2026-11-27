@@ -82,10 +82,10 @@ export default function WeightTab({ onChanged }) {
 
   return (
     <div className="space-y-6">
-      <section className="bg-card rounded-3xl p-6 border border-white/10 space-y-4" aria-label="Log a weigh-in">
+      <section className="bg-card rounded-3xl p-6 border border-border space-y-4" aria-label="Log a weigh-in">
         <div>
           <p className="text-xs font-semibold text-muted uppercase tracking-wider">Weigh-in</p>
-          <p className="text-[11px] text-muted mt-1">
+          <p className="text-xs text-muted mt-1">
             {latest
               ? daysSince >= 7
                 ? `Last weigh-in ${daysSince} days ago. Time for this week's.`
@@ -105,19 +105,19 @@ export default function WeightTab({ onChanged }) {
             value={kg}
             onChange={(e) => setKg(e.target.value)}
             placeholder="kg"
-            className="min-w-0 px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm min-h-[48px]"
+            className="min-w-0 px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm min-h-[48px]"
           />
           <label htmlFor="weight-day" className="sr-only">
             Date
           </label>
-          <input id="weight-day" type="date" value={day} max={today} onChange={(e) => setDay(e.target.value)} className="min-w-0 px-3 py-3 bg-background border border-white/10 rounded-xl text-white text-sm min-h-[48px]" />
-          <button type="submit" disabled={saving} className="px-5 bg-accent text-black rounded-xl font-bold text-sm min-h-[48px] disabled:opacity-50">
+          <input id="weight-day" type="date" value={day} max={today} onChange={(e) => setDay(e.target.value)} className="min-w-0 px-3 py-3 bg-background border border-border rounded-xl text-foreground text-sm min-h-[48px]" />
+          <button type="submit" disabled={saving} className="px-5 bg-accent text-on-accent rounded-xl font-bold text-sm min-h-[48px] disabled:opacity-50">
             {saving ? '…' : 'Log'}
           </button>
         </form>
       </section>
 
-      <section className="bg-card rounded-3xl p-6 border border-white/5 space-y-4" aria-label="Trend">
+      <section className="bg-card rounded-3xl p-6 border border-border space-y-4" aria-label="Trend">
         <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">Trend</h2>
         {loading ? (
           <SkeletonRows count={3} />
@@ -138,7 +138,7 @@ export default function WeightTab({ onChanged }) {
                 <circle key={c.date} cx={c.x} cy={c.y} r="2.5" fill="var(--color-accent)" />
               ))}
             </svg>
-            <div className="flex justify-between text-[10px] text-muted-dim">
+            <div className="flex justify-between text-xs text-muted-dim">
               <span>
                 {formatDate(first.logged_at)} · {round1(line.min)}–{round1(line.max)} kg
               </span>
@@ -147,12 +147,12 @@ export default function WeightTab({ onChanged }) {
           </>
         )}
         {entries.length > 0 && (
-          <ul className="divide-y divide-white/5">
+          <ul className="divide-y divide-border">
             {entries.slice(0, 12).map((e) => (
               <li key={e.id} className="flex items-center justify-between py-2 text-sm">
                 <span className="text-muted">{formatDate(e.logged_at)}</span>
                 <span className="flex items-center gap-2">
-                  <span className="text-white font-bold tabular-nums">{round1(e.weight_kg)} kg</span>
+                  <span className="text-foreground font-bold tabular-nums">{round1(e.weight_kg)} kg</span>
                   <button type="button" onClick={() => remove(e.id)} className="min-w-[44px] min-h-[44px] rounded-full text-muted hover:text-red-300" aria-label={`Delete weigh-in of ${formatDate(e.logged_at)}`}>
                     ✕
                   </button>
@@ -172,9 +172,9 @@ function signed(n) {
 
 function Stat({ label, value }) {
   return (
-    <div className="rounded-2xl bg-background/50 border border-white/5 p-3">
-      <p className="text-[10px] text-muted uppercase tracking-wider">{label}</p>
-      <p className="text-sm font-extrabold text-white tabular-nums">{value}</p>
+    <div className="rounded-2xl bg-background/50 border border-border p-3">
+      <p className="text-xs text-muted uppercase tracking-wider">{label}</p>
+      <p className="text-sm font-extrabold text-foreground tabular-nums">{value}</p>
     </div>
   )
 }

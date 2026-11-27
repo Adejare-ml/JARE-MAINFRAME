@@ -83,11 +83,11 @@ export default function TodayList({
           return (
             <li
               key={task.id}
-              className="flex items-start gap-3 p-3 rounded-2xl bg-background/50 border border-white/5 min-h-[48px]"
+              className="flex items-start gap-3 p-3 rounded-2xl bg-background/50 border border-border min-h-[48px]"
             >
               <span
                 className={`w-6 h-6 rounded-lg flex-shrink-0 flex items-center justify-center text-xs font-bold mt-0.5 ${
-                  progress.met ? 'bg-accent text-black' : 'border-2 border-white/20 text-transparent'
+                  progress.met ? 'bg-accent text-on-accent' : 'border-2 border-border text-transparent'
                 }`}
                 aria-hidden="true"
               >
@@ -95,11 +95,11 @@ export default function TodayList({
               </span>
               <span className="min-w-0 flex-1">
                 <span
-                  className={`block text-sm ${progress.met ? 'text-muted line-through' : 'text-white'}`}
+                  className={`block text-sm ${progress.met ? 'text-muted line-through' : 'text-foreground'}`}
                 >
                   {task.title}
                 </span>
-                <span className="block text-[10px] text-muted-dim mt-0.5">
+                <span className="block text-xs text-muted-dim mt-0.5">
                   {formatGoalAmount(progress.done, task.metric)} of{' '}
                   {formatGoalAmount(progress.target, task.metric)} · {progress.source}
                 </span>
@@ -123,7 +123,7 @@ export default function TodayList({
                   if (e.key === 'Escape') setEditingId(null)
                 }}
                 aria-label="Edit priority"
-                className="w-full px-4 py-3 bg-background border border-accent rounded-2xl text-white text-sm placeholder-hint focus:outline-none min-h-[48px]"
+                className="w-full px-4 py-3 bg-background border border-accent rounded-2xl text-foreground text-sm placeholder-hint focus:outline-none min-h-[48px]"
               />
             </li>
           )
@@ -149,7 +149,7 @@ export default function TodayList({
         return (
           <li
             key={task.id}
-            className="p-3 rounded-2xl bg-background/50 border border-white/5 space-y-2"
+            className="p-3 rounded-2xl bg-background/50 border border-border space-y-2"
           >
             <div className="flex items-center gap-2 min-h-[24px]">
               <button
@@ -162,7 +162,7 @@ export default function TodayList({
               >
                 <span
                   className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center text-xs font-bold transition-colors ${
-                    done ? 'bg-accent border-accent text-black' : 'border-white/20 text-transparent'
+                    done ? 'bg-accent border-accent text-on-accent' : 'border-border text-transparent'
                   }`}
                   aria-hidden="true"
                 >
@@ -172,13 +172,13 @@ export default function TodayList({
 
               {derived ? (
                 <span className="min-w-0 flex-1">
-                  <span className={`block text-sm ${done ? 'text-muted line-through' : 'text-white'}`}>
+                  <span className={`block text-sm ${done ? 'text-muted line-through' : 'text-foreground'}`}>
                     {task.title}
                   </span>
                   {/* Why this is on your list, and what it knows. A task nobody
                       typed has to account for itself, or it reads as the app
                       inventing work. */}
-                  <span className="block text-[10px] text-muted-dim mt-0.5">
+                  <span className="block text-xs text-muted-dim mt-0.5">
                     {/* A plan you approved says what this is about; otherwise
                         all a derived task can say for itself is where it came
                         from. Either way it accounts for itself, or it reads as
@@ -195,7 +195,7 @@ export default function TodayList({
                   onClick={() => startEdit(task)}
                   className="min-w-0 flex-1 text-left"
                 >
-                  <span className={`block text-sm ${done ? 'text-muted line-through' : 'text-white'}`}>
+                  <span className={`block text-sm ${done ? 'text-muted line-through' : 'text-foreground'}`}>
                     {task.title}
                   </span>
                 </button>
@@ -203,7 +203,7 @@ export default function TodayList({
             </div>
 
             {task.blocked_reason && reasonId !== task.id && (
-              <p className="text-[11px] text-muted pl-8">
+              <p className="text-xs text-muted pl-8">
                 <span className="text-muted-dim">Why not: </span>
                 {task.blocked_reason}
               </p>
@@ -222,7 +222,7 @@ export default function TodayList({
                 }}
                 placeholder="Office work overran…"
                 aria-label="What got in the way?"
-                className="w-full px-4 py-2.5 bg-background border border-accent rounded-xl text-white text-xs placeholder-hint focus:outline-none min-h-[44px]"
+                className="w-full px-4 py-2.5 bg-background border border-accent rounded-xl text-foreground text-xs placeholder-hint focus:outline-none min-h-[44px]"
               />
             )}
 
@@ -234,7 +234,7 @@ export default function TodayList({
                   setReasonDraft(task.blocked_reason || '')
                 }}
                 aria-label={task.blocked_reason ? 'Change reason for not completing' : 'Add reason for not completing'}
-                className="text-[11px] text-muted hover:text-white underline underline-offset-2 pl-8"
+                className="text-xs text-muted hover:text-foreground underline underline-offset-2 pl-8"
               >
                 {task.blocked_reason ? 'Change why' : 'Say what got in the way'}
               </button>
@@ -260,7 +260,7 @@ export default function TodayList({
             }}
             placeholder="What matters today?"
             aria-label="New priority"
-            className="w-full px-4 py-3 bg-background border border-accent rounded-2xl text-white text-sm placeholder-hint focus:outline-none min-h-[48px]"
+            className="w-full px-4 py-3 bg-background border border-accent rounded-2xl text-foreground text-sm placeholder-hint focus:outline-none min-h-[48px]"
           />
         </li>
       )}
@@ -271,7 +271,7 @@ export default function TodayList({
             type="button"
             onClick={() => setAdding(true)}
             aria-label="Add a new priority"
-            className="w-full flex items-center gap-3 p-3 rounded-2xl border border-dashed border-white/10 text-muted hover:text-white hover:border-white/20 transition-colors min-h-[48px] text-left text-sm"
+            className="w-full flex items-center gap-3 p-3 rounded-2xl border border-dashed border-border text-muted hover:text-foreground hover:border-border-strong transition-colors min-h-[48px] text-left text-sm"
           >
             <span className="w-6 h-6 flex items-center justify-center text-base" aria-hidden="true">
               ＋

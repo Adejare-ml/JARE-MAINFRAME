@@ -383,11 +383,11 @@ export default function MealCapture({ isOpen, onClose, onLogged, initialMode = '
       onDragLeave={() => setDragging(false)}
       onDrop={onDrop}
     >
-      <label className={`${bigButton} bg-accent text-black border-accent cursor-pointer hover:bg-accent/90`}>
+      <label className={`${bigButton} bg-accent text-on-accent border-accent cursor-pointer hover:bg-accent/90`}>
         <span className="text-2xl" aria-hidden="true">📷</span>
         <span>
           <span className="block font-extrabold text-sm">Take a photo</span>
-          <span className="block text-[11px] opacity-80">Opens the camera on a phone</span>
+          <span className="block text-xs opacity-80">Opens the camera on a phone</span>
         </span>
         <input
           ref={cameraInputRef}
@@ -402,11 +402,11 @@ export default function MealCapture({ isOpen, onClose, onLogged, initialMode = '
         />
       </label>
 
-      <label className={`${bigButton} bg-white/5 border-white/5 text-white cursor-pointer hover:bg-white/10`}>
+      <label className={`${bigButton} bg-surface-2 border-border text-foreground cursor-pointer hover:bg-surface-2`}>
         <span className="text-2xl" aria-hidden="true">🖼️</span>
         <span>
           <span className="block font-bold text-sm">Choose a photo</span>
-          <span className="block text-[11px] text-muted">Or drop one here, or paste it</span>
+          <span className="block text-xs text-muted">Or drop one here, or paste it</span>
         </span>
         <input
           type="file"
@@ -420,20 +420,20 @@ export default function MealCapture({ isOpen, onClose, onLogged, initialMode = '
       </label>
 
       {webcamPossible && (
-        <button type="button" onClick={startWebcam} className={`${bigButton} bg-white/5 border-white/5 text-white hover:bg-white/10`}>
+        <button type="button" onClick={startWebcam} className={`${bigButton} bg-surface-2 border-border text-foreground hover:bg-surface-2`}>
           <span className="text-2xl" aria-hidden="true">🎥</span>
           <span>
             <span className="block font-bold text-sm">Use the webcam</span>
-            <span className="block text-[11px] text-muted">Hold the plate up to it</span>
+            <span className="block text-xs text-muted">Hold the plate up to it</span>
           </span>
         </button>
       )}
 
       <div className="grid grid-cols-2 gap-2 pt-1">
-        <button type="button" onClick={() => setStep(STEPS.TEXT)} className="p-3 rounded-2xl bg-white/5 border border-white/5 text-white text-sm font-bold min-h-[48px] hover:bg-white/10">
+        <button type="button" onClick={() => setStep(STEPS.TEXT)} className="p-3 rounded-2xl bg-surface-2 border border-border text-foreground text-sm font-bold min-h-[48px] hover:bg-surface-2">
           ✍️ Describe it
         </button>
-        <button type="button" onClick={() => setStep(STEPS.PICK)} className="p-3 rounded-2xl bg-white/5 border border-white/5 text-white text-sm font-bold min-h-[48px] hover:bg-white/10">
+        <button type="button" onClick={() => setStep(STEPS.PICK)} className="p-3 rounded-2xl bg-surface-2 border border-border text-foreground text-sm font-bold min-h-[48px] hover:bg-surface-2">
           📋 Pick from list
         </button>
       </div>
@@ -449,7 +449,7 @@ export default function MealCapture({ isOpen, onClose, onLogged, initialMode = '
           onChange={(e) => setHint(e.target.value)}
           maxLength={LIMITS.hintChars}
           placeholder="e.g. the soup is ogbono, two wraps"
-          className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+          className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
         />
       </div>
     </div>
@@ -466,11 +466,11 @@ export default function MealCapture({ isOpen, onClose, onLogged, initialMode = '
             stopWebcam()
             setStep(STEPS.CHOOSE)
           }}
-          className="flex-1 bg-white/5 text-muted hover:text-white rounded-xl font-bold text-sm min-h-[48px]"
+          className="flex-1 bg-surface-2 text-muted hover:text-foreground rounded-xl font-bold text-sm min-h-[48px]"
         >
           Back
         </button>
-        <button type="button" onClick={snapWebcam} className="flex-[2] bg-accent text-black rounded-xl font-extrabold text-sm min-h-[48px]">
+        <button type="button" onClick={snapWebcam} className="flex-[2] bg-accent text-on-accent rounded-xl font-extrabold text-sm min-h-[48px]">
           📷 Take the picture
         </button>
       </div>
@@ -482,21 +482,21 @@ export default function MealCapture({ isOpen, onClose, onLogged, initialMode = '
       {photo?.previewUrl ? (
         <img src={photo.previewUrl} alt="Your plate, as it will be sent" className="w-full max-h-64 object-contain rounded-2xl bg-black" />
       ) : (
-        <div className="h-32 rounded-2xl bg-white/5 flex items-center justify-center text-4xl" aria-hidden="true">
+        <div className="h-32 rounded-2xl bg-surface-2 flex items-center justify-center text-4xl" aria-hidden="true">
           ✍️
         </div>
       )}
       {photo?.quality && (
-        <p className={`text-[11px] ${photo.quality.corrected ? 'text-orange-300' : 'text-muted-dim'}`}>
+        <p className={`text-xs ${photo.quality.corrected ? 'text-orange-300' : 'text-muted-dim'}`}>
           {photo.quality.note}
           {photo.bytes ? ` · ${Math.round(photo.bytes / 1024)} KB` : ''}
         </p>
       )}
-      <div className="flex items-center justify-center gap-2 text-sm text-white" role="status" aria-live="polite">
+      <div className="flex items-center justify-center gap-2 text-sm text-foreground" role="status" aria-live="polite">
         <span className="inline-block w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
         {workingLine(seconds, phase)}
       </div>
-      <button type="button" onClick={cancel} className="px-5 py-2.5 rounded-xl bg-white/5 text-muted hover:text-white text-sm font-bold min-h-[48px]">
+      <button type="button" onClick={cancel} className="px-5 py-2.5 rounded-xl bg-surface-2 text-muted hover:text-foreground text-sm font-bold min-h-[48px]">
         Cancel
       </button>
     </div>
@@ -511,24 +511,24 @@ export default function MealCapture({ isOpen, onClose, onLogged, initialMode = '
       </div>
       <div className="grid grid-cols-2 gap-2">
         {problem?.retake && (
-          <button type="button" onClick={() => { setPhoto(null); setStep(STEPS.CHOOSE) }} className="p-3 rounded-xl bg-accent text-black font-extrabold text-sm min-h-[48px]">
+          <button type="button" onClick={() => { setPhoto(null); setStep(STEPS.CHOOSE) }} className="p-3 rounded-xl bg-accent text-on-accent font-extrabold text-sm min-h-[48px]">
             📷 Try another photo
           </button>
         )}
         {problem?.useAnyway && photo && (
-          <button type="button" onClick={() => runAnalysis({ prepared: photo })} className="p-3 rounded-xl bg-white/5 border border-white/10 text-white font-bold text-sm min-h-[48px]">
+          <button type="button" onClick={() => runAnalysis({ prepared: photo })} className="p-3 rounded-xl bg-surface-2 border border-border text-foreground font-bold text-sm min-h-[48px]">
             Send it anyway
           </button>
         )}
         {!problem?.useAnyway && photo && problem?.retake && (
-          <button type="button" onClick={() => runAnalysis({ prepared: photo })} className="p-3 rounded-xl bg-white/5 border border-white/10 text-white font-bold text-sm min-h-[48px]">
+          <button type="button" onClick={() => runAnalysis({ prepared: photo })} className="p-3 rounded-xl bg-surface-2 border border-border text-foreground font-bold text-sm min-h-[48px]">
             Retry this photo
           </button>
         )}
-        <button type="button" onClick={() => setStep(STEPS.TEXT)} className="p-3 rounded-xl bg-white/5 border border-white/10 text-white font-bold text-sm min-h-[48px]">
+        <button type="button" onClick={() => setStep(STEPS.TEXT)} className="p-3 rounded-xl bg-surface-2 border border-border text-foreground font-bold text-sm min-h-[48px]">
           ✍️ Describe it
         </button>
-        <button type="button" onClick={() => setStep(STEPS.PICK)} className="p-3 rounded-xl bg-white/5 border border-white/10 text-white font-bold text-sm min-h-[48px]">
+        <button type="button" onClick={() => setStep(STEPS.PICK)} className="p-3 rounded-xl bg-surface-2 border border-border text-foreground font-bold text-sm min-h-[48px]">
           📋 Pick from list
         </button>
       </div>
@@ -554,13 +554,13 @@ export default function MealCapture({ isOpen, onClose, onLogged, initialMode = '
         rows={4}
         autoFocus
         placeholder="e.g. two wraps of eba with egusi, three pieces of beef, a bottle of malt"
-        className="w-full p-4 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent resize-none"
+        className="w-full p-4 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent resize-none"
       />
       <div className="flex gap-2">
-        <button type="button" onClick={() => setStep(STEPS.CHOOSE)} className="flex-1 bg-white/5 text-muted hover:text-white rounded-xl font-bold text-sm min-h-[48px]">
+        <button type="button" onClick={() => setStep(STEPS.CHOOSE)} className="flex-1 bg-surface-2 text-muted hover:text-foreground rounded-xl font-bold text-sm min-h-[48px]">
           Back
         </button>
-        <button type="submit" disabled={!text.trim()} className="flex-[2] bg-accent text-black rounded-xl font-extrabold text-sm min-h-[48px] disabled:opacity-50">
+        <button type="submit" disabled={!text.trim()} className="flex-[2] bg-accent text-on-accent rounded-xl font-extrabold text-sm min-h-[48px] disabled:opacity-50">
           Estimate calories →
         </button>
       </div>
@@ -579,19 +579,19 @@ export default function MealCapture({ isOpen, onClose, onLogged, initialMode = '
         onChange={(e) => setPickQuery(e.target.value)}
         autoFocus
         placeholder="jollof, eba, suya, Coke…"
-        className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+        className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
       />
       {items.length > 0 && (
-        <p className="text-[11px] text-muted">
+        <p className="text-xs text-muted">
           On the plate: {items.map((i) => i.name).join(', ')} · {sumCalories(items)} kcal
         </p>
       )}
       <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-[40vh] overflow-y-auto pr-1" aria-label="Dishes">
         {pickMatches.map((row) => (
           <li key={row[0]}>
-            <button type="button" onClick={() => pickDish(row)} className="w-full text-left px-3 py-2.5 rounded-xl bg-white/5 hover:bg-accent/15 border border-white/5 min-h-[48px]">
-              <span className="block text-sm font-semibold text-white">{row[0]}</span>
-              <span className="block text-[11px] text-muted">
+            <button type="button" onClick={() => pickDish(row)} className="w-full text-left px-3 py-2.5 rounded-xl bg-surface-2 hover:bg-accent/15 border border-border min-h-[48px]">
+              <span className="block text-sm font-semibold text-foreground">{row[0]}</span>
+              <span className="block text-xs text-muted">
                 {row[1]} · {row[2]} kcal
               </span>
             </button>
@@ -600,7 +600,7 @@ export default function MealCapture({ isOpen, onClose, onLogged, initialMode = '
         {pickQuery.trim() && pickMatches.length === 0 && <li className="text-xs text-muted py-2">Nothing by that name. You can add it with a calorie figure on the next step.</li>}
       </ul>
       <div className="flex gap-2">
-        <button type="button" onClick={() => setStep(STEPS.CHOOSE)} className="flex-1 bg-white/5 text-muted hover:text-white rounded-xl font-bold text-sm min-h-[48px]">
+        <button type="button" onClick={() => setStep(STEPS.CHOOSE)} className="flex-1 bg-surface-2 text-muted hover:text-foreground rounded-xl font-bold text-sm min-h-[48px]">
           Back
         </button>
         <button
@@ -610,7 +610,7 @@ export default function MealCapture({ isOpen, onClose, onLogged, initialMode = '
             goReview(items, { provider: null, model: null, quality: null, advice: null })
           }}
           disabled={items.length === 0}
-          className="flex-[2] bg-accent text-black rounded-xl font-extrabold text-sm min-h-[48px] disabled:opacity-50"
+          className="flex-[2] bg-accent text-on-accent rounded-xl font-extrabold text-sm min-h-[48px] disabled:opacity-50"
         >
           Next → {items.length > 0 ? `${sumCalories(items)} kcal` : ''}
         </button>
@@ -623,7 +623,7 @@ export default function MealCapture({ isOpen, onClose, onLogged, initialMode = '
       {photo?.thumbnail && (
         <div className="flex items-center gap-3">
           <img src={photo.thumbnail} alt="" className="w-14 h-14 rounded-xl object-cover bg-black" />
-          <p className="text-[11px] text-muted-dim">
+          <p className="text-xs text-muted-dim">
             {analysis?.provider ? `Read by ${analysis.provider}${analysis.model ? ` (${analysis.model})` : ''}.` : ''} The photo itself is not stored.
           </p>
         </div>
@@ -645,7 +645,7 @@ export default function MealCapture({ isOpen, onClose, onLogged, initialMode = '
         type="button"
         onClick={log}
         disabled={logging || justLogged || items.length === 0}
-        className="w-full bg-accent text-black rounded-xl font-extrabold text-base py-4 hover:bg-accent/90 transition-all shadow-lg shadow-accent/20 disabled:opacity-50 min-h-[48px] flex items-center justify-center gap-2"
+        className="w-full bg-accent text-on-accent rounded-xl font-extrabold text-base py-4 hover:bg-accent/90 transition-all shadow-lg shadow-accent/20 disabled:opacity-50 min-h-[48px] flex items-center justify-center gap-2"
       >
         {justLogged ? (
           <span className="inline-block text-xl animate-check-pop" aria-hidden="true">✓</span>
@@ -670,23 +670,23 @@ export default function MealCapture({ isOpen, onClose, onLogged, initialMode = '
 
   return (
     <Sheet isOpen={isOpen} onClose={onClose} title={title} desktopCenter maxWidth="max-w-xl">
-      <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-card">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-card">
         {step === STEPS.REVIEW || step === STEPS.TEXT || step === STEPS.PICK ? (
           <button
             type="button"
             onClick={() => setStep(STEPS.CHOOSE)}
-            className="text-muted hover:text-white font-bold text-sm min-h-[48px] min-w-[48px] flex items-center"
+            className="text-muted hover:text-foreground font-bold text-sm min-h-[48px] min-w-[48px] flex items-center"
           >
             ← Back
           </button>
         ) : (
           <div className="w-12" />
         )}
-        <h2 className="text-sm font-bold text-white">{title}</h2>
+        <h2 className="text-sm font-bold text-foreground">{title}</h2>
         <button
           type="button"
           onClick={onClose}
-          className="w-9 h-9 rounded-full bg-white/5 hover:bg-white/10 text-muted hover:text-white flex items-center justify-center font-bold text-sm min-h-[48px] min-w-[48px]"
+          className="w-9 h-9 rounded-full bg-surface-2 hover:bg-surface-2 text-muted hover:text-foreground flex items-center justify-center font-bold text-sm min-h-[48px] min-w-[48px]"
           aria-label="Close"
         >
           ✕

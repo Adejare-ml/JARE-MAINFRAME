@@ -75,12 +75,12 @@ export default function PayoffPlan({ debts, paidByDebt }) {
   }
 
   return (
-    <section className="bg-card rounded-3xl p-5 border border-white/5 space-y-4" aria-labelledby="payoff-plan-heading">
+    <section className="bg-card rounded-3xl p-5 border border-border space-y-4" aria-labelledby="payoff-plan-heading">
       <div className="flex items-center justify-between gap-3">
         <h2 id="payoff-plan-heading" className="text-xs font-semibold text-muted uppercase tracking-wider">
           Payoff plan
         </h2>
-        <span className="text-[11px] text-muted">
+        <span className="text-xs text-muted">
           <span className="money">{formatNaira(plan.totalOutstanding)}</span> owed
         </span>
       </div>
@@ -96,14 +96,14 @@ export default function PayoffPlan({ debts, paidByDebt }) {
             value={budget}
             onChange={(e) => setBudget(e.target.value)}
             placeholder="Monthly amount toward debts"
-            className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+            className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
           />
         </label>
         <button
           type="button"
           onClick={saveBudget}
           disabled={saving || budget === saved}
-          className="px-4 py-3 bg-white/5 text-white text-sm font-semibold rounded-xl min-h-[48px] disabled:opacity-40"
+          className="px-4 py-3 bg-surface-2 text-foreground text-sm font-semibold rounded-xl min-h-[48px] disabled:opacity-40"
         >
           {saving ? 'Saving…' : 'Save'}
         </button>
@@ -117,11 +117,11 @@ export default function PayoffPlan({ debts, paidByDebt }) {
             aria-pressed={strategy === s.value}
             onClick={() => setStrategy(s.value)}
             className={`px-3 py-2.5 rounded-xl text-xs font-semibold border min-h-[48px] transition-all ${
-              strategy === s.value ? 'bg-accent/20 border-accent text-accent' : 'bg-background border-white/5 text-muted hover:text-white'
+              strategy === s.value ? 'bg-accent/20 border-accent text-accent' : 'bg-background border-border text-muted hover:text-foreground'
             }`}
           >
             {s.label}
-            <span className="block text-[10px] font-normal opacity-80">{s.hint}</span>
+            <span className="block text-xs font-normal opacity-80">{s.hint}</span>
           </button>
         ))}
       </div>
@@ -140,7 +140,7 @@ export default function PayoffPlan({ debts, paidByDebt }) {
         <ol className="space-y-2" aria-label="Debts in payoff order">
           {plan.order.map((item, index) => (
             <li key={item.debt.id} className="flex items-center justify-between gap-3 text-sm">
-              <span className="min-w-0 truncate text-white">
+              <span className="min-w-0 truncate text-foreground">
                 <span className="text-muted tabular-nums mr-2">{index + 1}.</span>
                 {item.debt.counterparty}
                 <span className="text-muted"> · <span className="money">{formatNaira(item.outstanding)}</span></span>
@@ -150,9 +150,9 @@ export default function PayoffPlan({ debts, paidByDebt }) {
               </span>
             </li>
           ))}
-          <li className="pt-2 border-t border-white/5 text-xs text-muted">
+          <li className="pt-2 border-t border-border text-xs text-muted">
             Debt-free in {plan.months} month{plan.months === 1 ? '' : 's'} at{' '}
-            <span className="money text-white">{formatNaira(plan.budget)}</span>/mo
+            <span className="money text-foreground">{formatNaira(plan.budget)}</span>/mo
             {!ordersDiffer && plan.order.length > 1 && ' · same order either way'}
           </li>
         </ol>

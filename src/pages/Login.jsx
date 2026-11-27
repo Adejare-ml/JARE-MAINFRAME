@@ -68,7 +68,7 @@ export default function Login({ onLogin, onReset }) {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-10">
-          <h1 className="text-4xl font-bold text-white tracking-tight mb-2">
+          <h1 className="text-4xl font-bold text-foreground tracking-tight mb-2">
             <span className="text-accent">J</span>are
           </h1>
           <p className="text-sm text-muted tracking-widest uppercase">Mainframe</p>
@@ -78,12 +78,12 @@ export default function Login({ onLogin, onReset }) {
         {forgot ? (
           <form onSubmit={handleReset} className="space-y-5">
             <div>
-              <h2 className="text-lg font-bold text-white">Forgot your password?</h2>
+              <h2 className="text-lg font-bold text-foreground">Forgot your password?</h2>
               <p className="text-xs text-muted mt-1">Enter your email and a reset link will be sent to it.</p>
             </div>
 
             {sent ? (
-              <div role="status" className="bg-accent/10 border border-accent/30 rounded-xl px-4 py-3 text-sm text-white/90">
+              <div role="status" className="bg-accent/10 border border-accent/30 rounded-xl px-4 py-3 text-sm text-foreground">
                 {RESET_SENT_MESSAGE}
               </div>
             ) : (
@@ -99,7 +99,7 @@ export default function Login({ onLogin, onReset }) {
                   required
                   autoFocus
                   autoComplete="email"
-                  className="w-full px-4 py-3 bg-card border border-white/10 rounded-xl text-white placeholder-hint focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-all duration-200 min-h-[48px]"
+                  className="w-full px-4 py-3 bg-card border border-border rounded-xl text-foreground placeholder-hint focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-all duration-200 min-h-[48px]"
                   placeholder="your@email.com"
                 />
               </div>
@@ -115,13 +115,13 @@ export default function Login({ onLogin, onReset }) {
               <button
                 type="submit"
                 disabled={loading || !onReset}
-                className="w-full py-3.5 bg-accent hover:bg-accent/90 text-black font-semibold rounded-xl transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed min-h-[48px]"
+                className="w-full py-3.5 bg-accent hover:bg-accent/90 text-on-accent font-semibold rounded-xl transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed min-h-[48px]"
               >
                 {loading ? 'Sending…' : 'Send reset link'}
               </button>
             )}
 
-            <button type="button" onClick={showSignIn} className="w-full py-3 text-sm text-muted hover:text-white min-h-[44px]">
+            <button type="button" onClick={showSignIn} className="w-full py-3 text-sm text-muted hover:text-foreground min-h-[44px]">
               ← Back to sign in
             </button>
           </form>
@@ -138,7 +138,7 @@ export default function Login({ onLogin, onReset }) {
               onChange={(e) => setEmail(e.target.value)}
               required
               autoComplete="email"
-              className="w-full px-4 py-3 bg-card border border-white/10 rounded-xl text-white placeholder-hint focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-all duration-200 min-h-[48px]"
+              className="w-full px-4 py-3 bg-card border border-border rounded-xl text-foreground placeholder-hint focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-all duration-200 min-h-[48px]"
               placeholder="your@email.com"
             />
           </div>
@@ -161,7 +161,7 @@ export default function Login({ onLogin, onReset }) {
               onChange={(e) => setPassword(e.target.value)}
               required
               autoComplete="current-password"
-              className="w-full px-4 py-3 bg-card border border-white/10 rounded-xl text-white placeholder-hint focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-all duration-200 min-h-[48px]"
+              className="w-full px-4 py-3 bg-card border border-border rounded-xl text-foreground placeholder-hint focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-all duration-200 min-h-[48px]"
               placeholder="••••••••"
             />
           </div>
@@ -175,7 +175,7 @@ export default function Login({ onLogin, onReset }) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 bg-accent hover:bg-accent/90 text-black font-semibold rounded-xl transition-all duration-200 hover:shadow-lg hover:shadow-accent/25 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed min-h-[48px]"
+            className="w-full py-3.5 bg-accent hover:bg-accent/90 text-on-accent font-semibold rounded-xl transition-all duration-200 hover:shadow-lg hover:shadow-accent/25 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed min-h-[48px]"
           >
             {loading ? (
               <span className="flex items-center justify-center gap-2">

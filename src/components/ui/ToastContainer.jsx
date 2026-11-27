@@ -40,9 +40,9 @@ export default function ToastContainer() {
         // 9.2:1 and on red-600 6.5:1, both comfortably clear of the 4.5:1
         // floor. red-500, the shade this used before, measured only 3.8:1 --
         // an error message read the worst of any text in the app.
-        const bg = t.type === 'success' ? 'bg-accent/90 text-black border-emerald-400' :
-                   t.type === 'error' ? 'bg-red-600/90 text-white border-red-400' :
-                   'bg-card/90 text-white border-white/20'
+        const bg = t.type === 'success' ? 'bg-accent/90 text-on-accent border-emerald-400' :
+                   t.type === 'error' ? 'bg-red-600/90 text-foreground border-red-400' :
+                   'bg-card/90 text-foreground border-border'
 
         return (
           <div

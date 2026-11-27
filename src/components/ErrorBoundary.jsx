@@ -34,7 +34,7 @@ export default class ErrorBoundary extends React.Component {
         <div className="text-center space-y-4 max-w-sm">
           <span className="text-4xl" aria-hidden="true">💥</span>
           <div>
-            <p className="text-lg font-bold text-white mb-1">Something broke</p>
+            <p className="text-lg font-bold text-foreground mb-1">Something broke</p>
             <p className="text-xs text-muted">
               The app hit an error it couldn't recover from. Your data is safe — reloading
               usually fixes it.
@@ -42,7 +42,7 @@ export default class ErrorBoundary extends React.Component {
           </div>
           <button
             onClick={this.handleReload}
-            className="px-6 py-3 bg-accent text-black font-bold text-sm rounded-xl min-h-[48px]"
+            className="px-6 py-3 bg-accent text-on-accent font-bold text-sm rounded-xl min-h-[48px]"
           >
             Reload
           </button>

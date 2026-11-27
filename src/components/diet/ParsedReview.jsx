@@ -120,8 +120,8 @@ export default function ParsedReview({ entry, text, source, lib, todayLogs = [],
     <div className="space-y-4" aria-label="Check the entry">
       {header}
       {text && (
-        <p className="text-[11px] text-muted">
-          From {source === 'voice' ? 'what you said' : source === 'photo' ? 'your note' : 'what you typed'}: <span className="text-white">"{text}"</span>
+        <p className="text-xs text-muted">
+          From {source === 'voice' ? 'what you said' : source === 'photo' ? 'your note' : 'what you typed'}: <span className="text-foreground">"{text}"</span>
         </p>
       )}
 
@@ -135,14 +135,14 @@ export default function ParsedReview({ entry, text, source, lib, todayLogs = [],
         <section aria-label="Food" className="space-y-2">
           <ul className="space-y-2">
             {items.map((it, i) => (
-              <li key={it.key ?? i} className={`rounded-2xl border p-3 ${it.flagged && !it.edited ? 'border-orange-400/40 bg-orange-400/5' : 'border-white/10 bg-background/50'}`}>
+              <li key={it.key ?? i} className={`rounded-2xl border p-3 ${it.flagged && !it.edited ? 'border-orange-400/40 bg-orange-400/5' : 'border-border bg-background/50'}`}>
                 <div className="flex items-center gap-2">
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-bold text-white truncate">
+                    <p className="text-sm font-bold text-foreground truncate">
                       {it.name}
-                      {it.hidden && <span className="text-[10px] text-muted font-normal"> (hidden)</span>}
+                      {it.hidden && <span className="text-xs text-muted font-normal"> (hidden)</span>}
                     </p>
-                    <p className="text-[11px] text-muted tabular-nums">
+                    <p className="text-xs text-muted tabular-nums">
                       {it.kcal} kcal · {round1(it.protein_g)} g protein
                       {it.source === 'saved' ? ' · saved meal' : it.source === 'free' ? '' : ' · from your foods'}
                     </p>
@@ -152,18 +152,18 @@ export default function ParsedReview({ entry, text, source, lib, todayLogs = [],
                   </button>
                 </div>
                 <div className="flex items-center gap-2 mt-2">
-                  <button type="button" onClick={() => step(i, -1)} className="w-12 h-11 rounded-xl bg-white/5 border border-white/10 text-white text-lg" aria-label={`Less ${it.name}`}>
+                  <button type="button" onClick={() => step(i, -1)} className="w-12 h-11 rounded-xl bg-surface-2 border border-border text-foreground text-lg" aria-label={`Less ${it.name}`}>
                     −
                   </button>
-                  <span className="flex-1 text-center text-sm font-bold text-white tabular-nums" aria-live="polite">
+                  <span className="flex-1 text-center text-sm font-bold text-foreground tabular-nums" aria-live="polite">
                     {it.recipe_id && it.portions ? `${round1(it.portions)} portion${it.portions === 1 ? '' : 's'} · ` : ''}
                     {round1(it.grams)} g
                   </span>
-                  <button type="button" onClick={() => step(i, 1)} className="w-12 h-11 rounded-xl bg-white/5 border border-white/10 text-white text-lg" aria-label={`More ${it.name}`}>
+                  <button type="button" onClick={() => step(i, 1)} className="w-12 h-11 rounded-xl bg-surface-2 border border-border text-foreground text-lg" aria-label={`More ${it.name}`}>
                     +
                   </button>
                 </div>
-                {it.flagged && !it.edited && <p className="text-[11px] text-orange-300 mt-2">{it.flag_reason}</p>}
+                {it.flagged && !it.edited && <p className="text-xs text-orange-300 mt-2">{it.flag_reason}</p>}
               </li>
             ))}
           </ul>
@@ -175,27 +175,27 @@ export default function ParsedReview({ entry, text, source, lib, todayLogs = [],
                 role="radio"
                 aria-checked={slot === s}
                 onClick={() => setSlot(s)}
-                className={`min-h-[44px] rounded-xl border text-[11px] font-bold ${slot === s ? 'border-accent bg-accent/10 text-accent' : 'border-white/10 text-muted'}`}
+                className={`min-h-[44px] rounded-xl border text-xs font-bold ${slot === s ? 'border-accent bg-accent/10 text-accent' : 'border-border text-muted'}`}
               >
                 <span aria-hidden="true">{SLOT_ICONS[s]}</span> {SLOT_LABELS[s]}
               </button>
             ))}
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-sm font-bold text-white tabular-nums">
+            <span className="text-sm font-bold text-foreground tabular-nums">
               {totals.kcal.toLocaleString()} kcal · {totals.protein_g} g protein
             </span>
             <VerdictBadge verdict={preview.verdict} />
           </div>
-          {preview.reason && <p className="text-[11px] text-muted leading-relaxed">{preview.reason}</p>}
+          {preview.reason && <p className="text-xs text-muted leading-relaxed">{preview.reason}</p>}
         </section>
       )}
 
       {pantry.length > 0 && (
         <section aria-label="Pantry" className="space-y-1">
-          <p className="text-[11px] font-semibold text-muted uppercase tracking-wider">Pantry</p>
+          <p className="text-xs font-semibold text-muted uppercase tracking-wider">Pantry</p>
           {pantry.map((u, i) => (
-            <label key={i} className="flex items-center gap-3 min-h-[44px] text-sm text-white">
+            <label key={i} className="flex items-center gap-3 min-h-[44px] text-sm text-foreground">
               <input
                 type="checkbox"
                 checked={u.keep}
@@ -215,10 +215,10 @@ export default function ParsedReview({ entry, text, source, lib, todayLogs = [],
       {nothing && <p className="text-sm text-muted">Nothing to log from that note. Try again with what you ate, or pick foods by hand.</p>}
 
       <div className="grid grid-cols-[auto_1fr] gap-2">
-        <button type="button" onClick={onBack} className="px-4 min-h-[52px] rounded-xl bg-white/5 text-white text-sm font-bold">
+        <button type="button" onClick={onBack} className="px-4 min-h-[52px] rounded-xl bg-surface-2 text-foreground text-sm font-bold">
           {backLabel}
         </button>
-        <button type="button" onClick={confirm} disabled={busy || nothing} className="min-h-[52px] rounded-xl bg-accent text-black font-extrabold text-sm disabled:opacity-50">
+        <button type="button" onClick={confirm} disabled={busy || nothing} className="min-h-[52px] rounded-xl bg-accent text-on-accent font-extrabold text-sm disabled:opacity-50">
           {busy ? 'Saving…' : 'Looks right'}
         </button>
       </div>

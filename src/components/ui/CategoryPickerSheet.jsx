@@ -31,12 +31,12 @@ export default function CategoryPickerSheet({
     <Sheet isOpen={isOpen} onClose={onClose} title={title} desktopCenter>
       <div className="p-6 space-y-4 overflow-y-auto">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-white">{title}</h2>
+          <h2 className="text-lg font-bold text-foreground">{title}</h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-white/10 text-muted hover:text-white"
+            className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-surface-2 text-muted hover:text-foreground"
           >
             ✕
           </button>

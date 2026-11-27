@@ -30,8 +30,8 @@ export default function CategoryPickerList({ value, onSelect, allowNone = false,
           aria-pressed={!value}
           className={`w-full flex items-center gap-2 p-3 rounded-xl border text-left text-xs font-medium transition-all min-h-[48px] ${
             !value
-              ? 'bg-accent/20 border-accent text-white font-bold'
-              : 'bg-white/5 border-white/5 text-muted hover:text-white hover:bg-white/10'
+              ? 'bg-accent/20 border-accent text-foreground font-bold'
+              : 'bg-surface-2 border-border text-muted hover:text-foreground hover:bg-surface-2'
           }`}
         >
           <span className="text-lg" aria-hidden="true">∅</span>
@@ -41,7 +41,7 @@ export default function CategoryPickerList({ value, onSelect, allowNone = false,
 
       {Object.entries(groupedCategories()).map(([section, cats]) => (
         <div key={section} className="space-y-2">
-          <h4 className="text-[11px] font-bold text-muted-dim uppercase tracking-widest">{section}</h4>
+          <h4 className="text-xs font-bold text-muted-dim uppercase tracking-widest">{section}</h4>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {cats.map((cat) => {
               const isSelected = value === cat
@@ -53,8 +53,8 @@ export default function CategoryPickerList({ value, onSelect, allowNone = false,
                   aria-pressed={isSelected}
                   className={`flex items-center gap-2 p-3 rounded-xl border text-left text-xs font-medium transition-all min-h-[48px] ${
                     isSelected
-                      ? 'bg-accent/20 border-accent text-white font-bold'
-                      : 'bg-white/5 border-white/5 text-muted hover:text-white hover:bg-white/10'
+                      ? 'bg-accent/20 border-accent text-foreground font-bold'
+                      : 'bg-surface-2 border-border text-muted hover:text-foreground hover:bg-surface-2'
                   }`}
                 >
                   <span className="text-lg" aria-hidden="true">{getCategoryIcon(cat)}</span>

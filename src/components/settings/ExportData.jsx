@@ -72,8 +72,8 @@ export default function ExportData() {
   }
 
   return (
-    <section className="bg-card rounded-3xl p-6 border border-white/10 space-y-4">
-      <h2 className="text-xs font-semibold text-muted uppercase tracking-wider border-b border-white/5 pb-3">Export</h2>
+    <section className="bg-card rounded-3xl p-6 border border-border space-y-4">
+      <h2 className="text-xs font-semibold text-muted uppercase tracking-wider border-b border-border pb-3">Export</h2>
 
       <div className="flex flex-col sm:flex-row sm:items-end gap-3">
         <div className="flex-1">
@@ -84,7 +84,7 @@ export default function ExportData() {
             id="export-table"
             value={table}
             onChange={(e) => setTable(e.target.value)}
-            className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-accent min-h-[48px]"
+            className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm focus:outline-none focus:border-accent min-h-[48px]"
           >
             {EXPORT_TABLES.map((t) => (
               <option key={t.name} value={t.name}>
@@ -96,16 +96,16 @@ export default function ExportData() {
         <button
           onClick={exportCsv}
           disabled={busy !== null}
-          className="px-5 py-3 bg-white/5 hover:bg-white/10 text-white text-sm font-bold rounded-xl min-h-[48px] disabled:opacity-50"
+          className="px-5 py-3 bg-surface-2 hover:bg-surface-2 text-foreground text-sm font-bold rounded-xl min-h-[48px] disabled:opacity-50"
         >
           {busy === 'csv' ? 'Exporting…' : 'Download CSV'}
         </button>
       </div>
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-white/5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-border">
         <div>
-          <p className="text-sm text-white font-semibold">Everything, as one file</p>
-          <p className="text-[11px] text-muted-dim mt-0.5">
+          <p className="text-sm text-foreground font-semibold">Everything, as one file</p>
+          <p className="text-xs text-muted-dim mt-0.5">
             Every table you own, including bank email bodies and meal photos. The Gmail connection and your phones&apos; push
             subscriptions are never exported.
           </p>
@@ -113,7 +113,7 @@ export default function ExportData() {
         <button
           onClick={exportJson}
           disabled={busy !== null}
-          className="px-5 py-3 bg-accent text-black text-sm font-bold rounded-xl min-h-[48px] disabled:opacity-50 flex-shrink-0"
+          className="px-5 py-3 bg-accent text-on-accent text-sm font-bold rounded-xl min-h-[48px] disabled:opacity-50 flex-shrink-0"
         >
           {busy === 'json' ? 'Exporting…' : 'Download JSON'}
         </button>

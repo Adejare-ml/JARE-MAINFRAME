@@ -12,12 +12,12 @@ export default function EmptyState({ icon = '📭', title, message, actionLabel,
       <div className="text-5xl mb-4" aria-hidden="true">
         {icon}
       </div>
-      <p className="text-white font-bold text-base mb-1.5">{title}</p>
+      <p className="text-foreground font-bold text-base mb-1.5">{title}</p>
       {message && <p className="text-muted text-sm max-w-xs mx-auto">{message}</p>}
       {actionLabel && onAction && (
         <button
           onClick={onAction}
-          className="mt-6 px-6 py-3 bg-accent text-black font-bold text-sm rounded-xl min-h-[48px]"
+          className="mt-6 px-6 py-3 bg-accent text-on-accent font-bold text-sm rounded-xl min-h-[48px]"
         >
           {actionLabel}
         </button>

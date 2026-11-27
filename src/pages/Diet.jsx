@@ -119,7 +119,7 @@ export default function Diet() {
   return (
     <div className="space-y-6">
       <Header />
-      <div className="flex gap-1 p-1 rounded-2xl bg-card border border-white/5 overflow-x-auto scrollbar-none" role="tablist" aria-label="Diet">
+      <div className="flex gap-1 p-1 rounded-2xl bg-card border border-border overflow-x-auto scrollbar-none" role="tablist" aria-label="Diet">
         {TABS.map(([key, label]) => (
           <button
             key={key}
@@ -127,7 +127,7 @@ export default function Diet() {
             role="tab"
             aria-selected={tab === key}
             onClick={() => goTab(key)}
-            className={`flex-1 shrink-0 px-3 min-h-[44px] rounded-xl text-xs font-bold ${tab === key ? 'bg-accent text-black' : 'text-muted hover:text-white'}`}
+            className={`flex-1 shrink-0 px-3 min-h-[44px] rounded-xl text-xs font-bold ${tab === key ? 'bg-accent text-on-accent' : 'text-muted hover:text-foreground'}`}
           >
             {label}
           </button>
@@ -180,7 +180,7 @@ export default function Diet() {
 function Header() {
   return (
     <div>
-      <h1 className="text-2xl md:text-3xl font-bold text-white">Diet 🥗</h1>
+      <h1 className="text-2xl md:text-3xl font-bold text-foreground">Diet 🥗</h1>
       <p className="text-muted text-sm mt-1">What you ate today against your targets. One tap for the usual meals.</p>
     </div>
   )

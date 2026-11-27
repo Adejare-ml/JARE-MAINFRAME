@@ -300,7 +300,7 @@ export default function QuickLog() {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-20 right-4 lg:bottom-8 lg:right-8 z-40 bg-accent text-black font-extrabold w-14 h-14 rounded-full flex items-center justify-center text-3xl shadow-xl shadow-accent/25 hover:scale-110 active:scale-95 transition-all min-h-[48px] min-w-[48px]"
+        className="fixed bottom-20 right-4 lg:bottom-8 lg:right-8 z-40 bg-accent text-on-accent font-extrabold w-14 h-14 rounded-full flex items-center justify-center text-3xl shadow-xl shadow-accent/25 hover:scale-110 active:scale-95 transition-all min-h-[48px] min-w-[48px]"
         aria-label="Quick log"
       >
         +
@@ -311,23 +311,23 @@ export default function QuickLog() {
   const renderAmount = () => (
     <div className="flex flex-col h-full space-y-6">
       {linkedDebt ? (
-        <div className="flex items-center gap-3 bg-[#0f0f0f] rounded-xl px-4 py-3 border border-white/5">
+        <div className="flex items-center gap-3 bg-background rounded-xl px-4 py-3 border border-border">
           <span className="text-xl" aria-hidden="true">🤝</span>
           <div className="min-w-0">
-            <p className="text-sm font-bold text-white truncate">
+            <p className="text-sm font-bold text-foreground truncate">
               {type === 'credit' ? 'Repayment from' : 'Repayment to'} {linkedDebt.counterparty}
             </p>
-            <p className="text-[11px] text-muted">Counts toward that debt on the Debts page</p>
+            <p className="text-xs text-muted">Counts toward that debt on the Debts page</p>
           </div>
         </div>
       ) : (
-      <div role="tablist" aria-label="Transaction Type" className="flex bg-[#0f0f0f] rounded-xl p-1 border border-white/5">
+      <div role="tablist" aria-label="Transaction Type" className="flex bg-background rounded-xl p-1 border border-border">
         <button
           id="quicklog-tab-debit"
           role="tab"
           aria-controls="quicklog-amount-panel"
           aria-selected={type === 'debit'}
-          className={`flex-1 py-3 text-center rounded-lg text-xs font-bold transition-all min-h-[48px] ${type === 'debit' ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'text-muted hover:text-white'}`}
+          className={`flex-1 py-3 text-center rounded-lg text-xs font-bold transition-all min-h-[48px] ${type === 'debit' ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'text-muted hover:text-foreground'}`}
           onClick={() => setType('debit')}
         >
           💸 Debit
@@ -337,7 +337,7 @@ export default function QuickLog() {
           role="tab"
           aria-controls="quicklog-amount-panel"
           aria-selected={type === 'credit'}
-          className={`flex-1 py-3 text-center rounded-lg text-xs font-bold transition-all min-h-[48px] ${type === 'credit' ? 'bg-accent/20 text-accent border border-accent/30' : 'text-muted hover:text-white'}`}
+          className={`flex-1 py-3 text-center rounded-lg text-xs font-bold transition-all min-h-[48px] ${type === 'credit' ? 'bg-accent/20 text-accent border border-accent/30' : 'text-muted hover:text-foreground'}`}
           onClick={() => setType('credit')}
         >
           💰 Credit
@@ -347,7 +347,7 @@ export default function QuickLog() {
           role="tab"
           aria-controls="quicklog-amount-panel"
           aria-selected={type === 'transfer'}
-          className={`flex-1 py-3 text-center rounded-lg text-xs font-bold transition-all min-h-[48px] ${type === 'transfer' ? 'bg-teal-500/20 text-teal-300 border border-teal-500/30' : 'text-muted hover:text-white'}`}
+          className={`flex-1 py-3 text-center rounded-lg text-xs font-bold transition-all min-h-[48px] ${type === 'transfer' ? 'bg-teal-500/20 text-teal-300 border border-teal-500/30' : 'text-muted hover:text-foreground'}`}
           onClick={() => setType('transfer')}
         >
           ⇄ Transfer
@@ -364,7 +364,7 @@ export default function QuickLog() {
         <label className="text-xs text-muted font-semibold uppercase tracking-wider mb-2">
           {isTransfer ? 'Amount to move' : 'Enter Amount'}
         </label>
-        <div className="flex items-center text-4xl md:text-5xl font-extrabold text-white">
+        <div className="flex items-center text-4xl md:text-5xl font-extrabold text-foreground">
           <span className="text-accent mr-1">₦</span>
           <input
             type="number"
@@ -381,14 +381,14 @@ export default function QuickLog() {
       <div className="flex space-x-3 pt-4">
         <button
           onClick={() => setAmount('')}
-          className="flex-1 bg-white/5 text-muted hover:text-white rounded-xl font-bold text-sm min-h-[48px] transition-colors"
+          className="flex-1 bg-surface-2 text-muted hover:text-foreground rounded-xl font-bold text-sm min-h-[48px] transition-colors"
         >
           Clear
         </button>
         <button
           onClick={handleNext}
           disabled={!amount || parseFloat(amount) <= 0}
-          className="flex-1 bg-accent text-black rounded-xl font-bold text-sm min-h-[48px] disabled:opacity-50 hover:bg-accent/90 transition-colors"
+          className="flex-1 bg-accent text-on-accent rounded-xl font-bold text-sm min-h-[48px] disabled:opacity-50 hover:bg-accent/90 transition-colors"
         >
           Next →
         </button>
@@ -403,7 +403,7 @@ export default function QuickLog() {
       <div className="flex-1 overflow-y-auto pr-1 pb-16 space-y-4 max-h-[50vh]">
         {Object.entries(groupedCategories()).map(([section, cats]) => (
           <div key={section} className="space-y-2">
-            <h4 className="text-[11px] font-bold text-muted-dim uppercase tracking-widest">{section}</h4>
+            <h4 className="text-xs font-bold text-muted-dim uppercase tracking-widest">{section}</h4>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {cats.map(cat => {
                 const icon = getCategoryIcon(cat);
@@ -418,7 +418,7 @@ export default function QuickLog() {
                     }}
                     aria-pressed={isSelected}
                     className={`flex items-center gap-2 p-3 rounded-xl border text-left text-xs font-medium transition-all min-h-[48px] ${
-                      isSelected ? 'bg-accent/20 border-accent text-white font-bold' : 'bg-white/5 border-white/5 text-muted hover:text-white hover:bg-white/10'
+                      isSelected ? 'bg-accent/20 border-accent text-foreground font-bold' : 'bg-surface-2 border-border text-muted hover:text-foreground hover:bg-surface-2'
                     }`}
                   >
                     <span className="text-lg">{icon}</span>
@@ -435,7 +435,7 @@ export default function QuickLog() {
         <button
           onClick={handleNext}
           disabled={!category}
-          className="w-full bg-accent text-black rounded-xl font-bold text-sm min-h-[48px] disabled:opacity-50 hover:bg-accent/90 transition-colors"
+          className="w-full bg-accent text-on-accent rounded-xl font-bold text-sm min-h-[48px] disabled:opacity-50 hover:bg-accent/90 transition-colors"
         >
           Next →
         </button>
@@ -469,18 +469,18 @@ export default function QuickLog() {
                 onClick={() => onSelect(w)}
                 aria-pressed={isSelected}
                 className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-all min-h-[56px] ${
-                  isSelected ? 'bg-accent/20 border-accent text-white' : 'bg-white/5 border-white/5 text-muted hover:text-white'
+                  isSelected ? 'bg-accent/20 border-accent text-foreground' : 'bg-surface-2 border-border text-muted hover:text-foreground'
                 }`}
               >
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">{walletIcon(w)}</span>
                   <div className="text-left">
-                    <p className="font-bold text-white text-sm">{w.name}</p>
+                    <p className="font-bold text-foreground text-sm">{w.name}</p>
                     <p className="text-xs text-muted capitalize">{w.type}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="font-bold text-sm text-white">
+                  <span className="font-bold text-sm text-foreground">
                     ₦{parseFloat(w.balance || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}
                   </span>
                   {isSelected && <span className="text-accent text-lg font-bold">✓</span>}
@@ -489,7 +489,7 @@ export default function QuickLog() {
             );
           })}
           {wallets.length <= 1 && isTransfer && (
-            <p className="text-[11px] text-muted-dim">A transfer needs two wallets. Add another in Settings → Banks & Wallets.</p>
+            <p className="text-xs text-muted-dim">A transfer needs two wallets. Add another in Settings → Banks & Wallets.</p>
           )}
         </div>
       )}
@@ -498,7 +498,7 @@ export default function QuickLog() {
         <button
           onClick={handleNext}
           disabled={disabledNext}
-          className="w-full bg-accent text-black rounded-xl font-bold text-sm min-h-[48px] disabled:opacity-50 hover:bg-accent/90 transition-colors"
+          className="w-full bg-accent text-on-accent rounded-xl font-bold text-sm min-h-[48px] disabled:opacity-50 hover:bg-accent/90 transition-colors"
         >
           Next →
         </button>
@@ -518,7 +518,7 @@ export default function QuickLog() {
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder={isTransfer ? 'why the move?' : 'what was this for?'}
-            className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+            className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
           />
         </div>
 
@@ -530,10 +530,10 @@ export default function QuickLog() {
             value={txDate}
             max={today}
             onChange={(e) => setTxDate(e.target.value)}
-            className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-accent min-h-[48px]"
+            className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm focus:outline-none focus:border-accent min-h-[48px]"
           />
           {txDate !== today && (
-            <p className="text-[11px] text-muted-dim mt-1">Backdated -- it will sit in that day's totals, not today's.</p>
+            <p className="text-xs text-muted-dim mt-1">Backdated -- it will sit in that day's totals, not today's.</p>
           )}
         </div>
 
@@ -548,7 +548,7 @@ export default function QuickLog() {
                   onClick={() => setWantOrNeed(wantOrNeed === tag ? '' : tag)}
                   aria-pressed={wantOrNeed === tag}
                   className={`py-3 px-3 rounded-xl border text-xs font-bold uppercase tracking-wider transition-all min-h-[48px] ${
-                    wantOrNeed === tag ? 'bg-accent/20 border-accent text-accent' : 'bg-white/5 border-white/5 text-muted hover:text-white'
+                    wantOrNeed === tag ? 'bg-accent/20 border-accent text-accent' : 'bg-surface-2 border-border text-muted hover:text-foreground'
                   }`}
                 >
                   {tag}
@@ -563,7 +563,7 @@ export default function QuickLog() {
         <button
           onClick={handleNext}
           disabled={!isValidDate(txDate) || txDate > today}
-          className="w-full bg-accent text-black rounded-xl font-bold text-sm min-h-[48px] hover:bg-accent/90 transition-colors disabled:opacity-50"
+          className="w-full bg-accent text-on-accent rounded-xl font-bold text-sm min-h-[48px] hover:bg-accent/90 transition-colors disabled:opacity-50"
         >
           {note || wantOrNeed || txDate !== today ? 'Next → Summary' : 'Skip & Next →'}
         </button>
@@ -579,10 +579,10 @@ export default function QuickLog() {
           {isTransfer ? 'Confirm Transfer' : 'Confirm Transaction'}
         </p>
 
-        <div className="bg-background border border-white/10 rounded-2xl p-5 space-y-3">
-          <div className="flex items-center justify-between border-b border-white/5 pb-3">
+        <div className="bg-background border border-border rounded-2xl p-5 space-y-3">
+          <div className="flex items-center justify-between border-b border-border pb-3">
             <span className="text-muted text-xs">Amount</span>
-            <span className={`text-2xl font-extrabold ${type === 'credit' ? 'text-accent' : isTransfer ? 'text-teal-300' : 'text-white'}`}>
+            <span className={`text-2xl font-extrabold ${type === 'credit' ? 'text-accent' : isTransfer ? 'text-teal-300' : 'text-foreground'}`}>
               {type === 'credit' ? '+' : isTransfer ? '⇄ ' : '-'}₦{parseFloat(amount || 0).toLocaleString()}
             </span>
           </div>
@@ -590,15 +590,15 @@ export default function QuickLog() {
             <>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted">From</span>
-                <span className="text-white font-bold">{wallet?.name}</span>
+                <span className="text-foreground font-bold">{wallet?.name}</span>
               </div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted">To</span>
-                <span className="text-white font-bold">{toWallet?.name}</span>
+                <span className="text-foreground font-bold">{toWallet?.name}</span>
               </div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted">Filed as</span>
-                <span className="text-white font-medium">
+                <span className="text-foreground font-medium">
                   {getCategoryIcon(debitCategory)} {debitCategory} → {getCategoryIcon(creditCategory)} {creditCategory}
                 </span>
               </div>
@@ -607,23 +607,23 @@ export default function QuickLog() {
             <>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted">Type</span>
-                <span className="text-white font-bold capitalize">{type}</span>
+                <span className="text-foreground font-bold capitalize">{type}</span>
               </div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted">Category</span>
-                <span className="text-white font-bold flex items-center gap-1">
+                <span className="text-foreground font-bold flex items-center gap-1">
                   <span>{getCategoryIcon(category)}</span>
                   <span>{category}</span>
                 </span>
               </div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted">Wallet</span>
-                <span className="text-white font-bold">{wallet?.name}</span>
+                <span className="text-foreground font-bold">{wallet?.name}</span>
               </div>
               {linkedDebt && (
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted">Counts toward</span>
-                  <span className="text-white font-bold">🤝 {linkedDebt.counterparty}</span>
+                  <span className="text-foreground font-bold">🤝 {linkedDebt.counterparty}</span>
                 </div>
               )}
             </>
@@ -631,19 +631,19 @@ export default function QuickLog() {
           {txDate !== today && (
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted">Date</span>
-              <span className="text-white font-bold">{txDate}</span>
+              <span className="text-foreground font-bold">{txDate}</span>
             </div>
           )}
           {note && (
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted">Note</span>
-              <span className="text-white font-medium truncate max-w-[180px]">{note}</span>
+              <span className="text-foreground font-medium truncate max-w-[180px]">{note}</span>
             </div>
           )}
           {!isTransfer && wantOrNeed && (
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted">Tag</span>
-              <span className="text-accent uppercase font-bold text-[10px]">{wantOrNeed}</span>
+              <span className="text-accent uppercase font-bold text-xs">{wantOrNeed}</span>
             </div>
           )}
         </div>
@@ -652,7 +652,7 @@ export default function QuickLog() {
           <button
             onClick={handleSubmit}
             disabled={isSubmitting || justLogged}
-            className="w-full bg-accent text-black rounded-xl font-extrabold text-base py-4 hover:bg-accent/90 transition-all shadow-lg shadow-accent/20 disabled:opacity-50 min-h-[48px] flex items-center justify-center gap-2"
+            className="w-full bg-accent text-on-accent rounded-xl font-extrabold text-base py-4 hover:bg-accent/90 transition-all shadow-lg shadow-accent/20 disabled:opacity-50 min-h-[48px] flex items-center justify-center gap-2"
           >
             {justLogged ? (
               <span className="inline-block text-xl animate-check-pop" aria-hidden="true">✓</span>
@@ -687,11 +687,11 @@ export default function QuickLog() {
     <Sheet isOpen={isOpen} onClose={() => setIsOpen(false)} title={isTransfer ? 'Move money between wallets' : 'Log a transaction'}>
       <>
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-card">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-card">
             {step > STEPS.AMOUNT ? (
               <button
                 onClick={handleBack}
-                className="text-muted hover:text-white font-bold text-sm min-h-[48px] min-w-[48px] flex items-center"
+                className="text-muted hover:text-foreground font-bold text-sm min-h-[48px] min-w-[48px] flex items-center"
                 aria-label="Go back"
               >
                 ← Back
@@ -704,14 +704,14 @@ export default function QuickLog() {
               {(linkedDebt ? [1, 3, 4, 5] : [1, 2, 3, 4, 5]).map(s => (
                 <div
                   key={s}
-                  className={`h-1.5 rounded-full transition-all ${s === step ? 'w-6 bg-accent' : 'w-1.5 bg-white/20'}`}
+                  className={`h-1.5 rounded-full transition-all ${s === step ? 'w-6 bg-accent' : 'w-1.5 bg-surface-2'}`}
                 />
               ))}
             </div>
 
             <button
               onClick={() => setIsOpen(false)}
-              className="w-9 h-9 rounded-full bg-white/5 hover:bg-white/10 text-muted hover:text-white flex items-center justify-center font-bold text-sm min-h-[48px] min-w-[48px]"
+              className="w-9 h-9 rounded-full bg-surface-2 hover:bg-surface-2 text-muted hover:text-foreground flex items-center justify-center font-bold text-sm min-h-[48px] min-w-[48px]"
               aria-label="Close"
             >
               ✕

@@ -88,12 +88,12 @@ export default function TargetCard({ goal, transactions = [], liquidWalletIds = 
   return (
     <div
       className={`bg-background/50 border rounded-2xl p-4 space-y-3 ${
-        goal.locked ? 'border-amber-500/20' : 'border-white/5'
+        goal.locked ? 'border-amber-500/20' : 'border-border'
       } ${celebrate ? 'animate-milestone' : ''}`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-bold text-white truncate flex items-center gap-1.5">
+          <p className="text-sm font-bold text-foreground truncate flex items-center gap-1.5">
             {goal.icon && <span aria-hidden="true">{goal.icon}</span>}
             <span className="truncate">{goal.title}</span>
             {goal.locked && (
@@ -102,12 +102,12 @@ export default function TargetCard({ goal, transactions = [], liquidWalletIds = 
               </span>
             )}
             {goal.generated === true && (
-              <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full bg-white/10 text-muted-dim text-[9px] font-semibold uppercase tracking-wider">
+              <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full bg-surface-2 text-muted-dim text-xs font-semibold uppercase tracking-wider">
                 Derived
               </span>
             )}
           </p>
-          <p className="text-[11px] text-muted mt-0.5">
+          <p className="text-xs text-muted mt-0.5">
             {goal.period === 'monthly' ? 'This month' : 'This week'}
             {periodsLeft != null && ` · ${periodsLeft} week${periodsLeft === 1 ? '' : 's'} left`}
             {goal.metric_category && ` · ${goal.metric_category}`}
@@ -118,7 +118,7 @@ export default function TargetCard({ goal, transactions = [], liquidWalletIds = 
             type="button"
             onClick={() => onEdit(goal)}
             aria-label={`Edit ${goal.title}`}
-            className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-white/10 text-muted hover:text-white"
+            className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-surface-2 text-muted hover:text-foreground"
           >
             ✏️
           </button>
@@ -137,7 +137,7 @@ export default function TargetCard({ goal, transactions = [], liquidWalletIds = 
         <>
           <div className="flex items-center gap-4">
             <ProgressRing value={progress.share} size={64} strokeWidth={6} color={ringColor}>
-              <span className={`text-xs font-bold tabular-nums ${progress.met ? 'text-accent' : 'text-white'}`}>
+              <span className={`text-xs font-bold tabular-nums ${progress.met ? 'text-accent' : 'text-foreground'}`}>
                 {Math.round(Math.min(100, progress.share * 100))}%
               </span>
             </ProgressRing>
@@ -145,7 +145,7 @@ export default function TargetCard({ goal, transactions = [], liquidWalletIds = 
               {/* money only when the metric actually is one -- a repo goal's
                   figure is a commit count, and blurring that under zen mode
                   would hide a number that was never financial. */}
-              <p className={`text-lg font-bold text-white tabular-nums ${isRepo ? '' : 'money'}`}>
+              <p className={`text-lg font-bold text-foreground tabular-nums ${isRepo ? '' : 'money'}`}>
                 {formatGoalAmount(progress.done, goal.metric)}
                 <span className="text-muted text-xs font-normal">
                   {' '}
@@ -153,9 +153,9 @@ export default function TargetCard({ goal, transactions = [], liquidWalletIds = 
                 </span>
               </p>
               {/* Where the number came from. Without this it is just a number. */}
-              <p className="text-[10px] text-muted-dim mt-0.5">{progress.source}</p>
+              <p className="text-xs text-muted-dim mt-0.5">{progress.source}</p>
               {projectedDate && (
-                <p className="text-[10px] text-muted-dim mt-0.5">
+                <p className="text-xs text-muted-dim mt-0.5">
                   At this pace: {formatDate(projectedDate)}
                 </p>
               )}
@@ -168,13 +168,13 @@ export default function TargetCard({ goal, transactions = [], liquidWalletIds = 
           {commits.length > 0 && (
             <ul className="space-y-0.5 pt-0.5">
               {commits.slice(0, EVIDENCE_SHOWN).map((c) => (
-                <li key={c.sha} className="text-[10px] text-muted-dim truncate">
+                <li key={c.sha} className="text-xs text-muted-dim truncate">
                   <span className="font-mono text-muted">{String(c.sha).slice(0, 7)}</span>{' '}
                   {c.message}
                 </li>
               ))}
               {commits.length > EVIDENCE_SHOWN && (
-                <li className="text-[10px] text-muted-dim">
+                <li className="text-xs text-muted-dim">
                   and {commits.length - EVIDENCE_SHOWN} more
                 </li>
               )}
@@ -184,7 +184,7 @@ export default function TargetCard({ goal, transactions = [], liquidWalletIds = 
           {/* Checked and empty is not missed. Saying nothing here would leave a
               0% bar to imply a verdict the verifier never reached. */}
           {isRepo && progress.checked && progress.done === 0 && (
-            <p className="text-[11px] text-muted">
+            <p className="text-xs text-muted">
               No commits in this period. If the work happened elsewhere, tick it off.
             </p>
           )}
@@ -202,11 +202,11 @@ export default function TargetCard({ goal, transactions = [], liquidWalletIds = 
           the model wrote is still a change worth being able to check, not
           just words to take on faith. */}
       {goal.focus && (
-        <div className="text-xs text-white/80 border-t border-white/5 pt-2.5 space-y-1">
+        <div className="text-xs text-foreground border-t border-border pt-2.5 space-y-1">
           <p>{goal.focus}</p>
           {goal.plan_evidence?.cites && (
             <span
-              className="inline-flex items-center gap-1 max-w-full px-2 py-0.5 rounded-full bg-white/5 text-muted-dim text-[10px] font-mono leading-tight"
+              className="inline-flex items-center gap-1 max-w-full px-2 py-0.5 rounded-full bg-surface-2 text-muted-dim text-xs font-mono leading-tight"
               title={goal.plan_evidence.cites}
             >
               <span aria-hidden="true">💡</span>
@@ -217,7 +217,7 @@ export default function TargetCard({ goal, transactions = [], liquidWalletIds = 
       )}
 
       {next && (
-        <p className={`text-xs text-white/70 ${goal.focus ? '' : 'border-t border-white/5 pt-2.5'}`}>
+        <p className={`text-xs text-muted ${goal.focus ? '' : 'border-t border-border pt-2.5'}`}>
           <span className="text-muted">Next: </span>
           {next.title}
         </p>
@@ -243,7 +243,7 @@ export default function TargetCard({ goal, transactions = [], liquidWalletIds = 
               : 'Delete this goal? Anything it generated goes with it.'}
           </p>
           {goal.locked && (
-            <label className="flex items-center gap-2 text-[11px] text-red-300">
+            <label className="flex items-center gap-2 text-xs text-red-300">
               <input
                 type="checkbox"
                 checked={lockAcknowledged}
@@ -258,14 +258,14 @@ export default function TargetCard({ goal, transactions = [], liquidWalletIds = 
               type="button"
               onClick={() => onDelete(goal.id, true)}
               disabled={goal.locked && !lockAcknowledged}
-              className="flex-1 py-2.5 bg-red-500 text-white text-xs font-bold rounded-lg min-h-[44px] disabled:opacity-40"
+              className="flex-1 py-2.5 bg-red-500 text-foreground text-xs font-bold rounded-lg min-h-[44px] disabled:opacity-40"
             >
               Delete
             </button>
             <button
               type="button"
               onClick={() => onDelete(null)}
-              className="flex-1 py-2.5 bg-white/5 text-muted text-xs font-bold rounded-lg min-h-[44px]"
+              className="flex-1 py-2.5 bg-surface-2 text-muted text-xs font-bold rounded-lg min-h-[44px]"
             >
               Cancel
             </button>

@@ -367,7 +367,7 @@ export default function Goals() {
   if (pageError) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-white">Goals 🎯</h1>
+        <h1 className="text-2xl md:text-3xl font-bold text-foreground">Goals 🎯</h1>
         <ErrorState message={pageError} onRetry={fetchGoals} />
       </div>
     )
@@ -414,7 +414,7 @@ export default function Goals() {
     <div className="space-y-6 pb-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-white">Goals 🎯</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground">Goals 🎯</h1>
           <p className="text-muted text-sm mt-0.5">
             What you are aiming at, and today's priorities ·{' '}
             <Link to="/projects" className="text-accent hover:underline">
@@ -428,7 +428,7 @@ export default function Goals() {
               setEditing(null)
               setShowForm(true)
             }}
-            className="px-4 py-2.5 bg-accent text-black rounded-xl text-sm font-bold min-h-[48px] flex-shrink-0"
+            className="px-4 py-2.5 bg-accent text-on-accent rounded-xl text-sm font-bold min-h-[48px] flex-shrink-0"
           >
             + New
           </button>
@@ -445,9 +445,9 @@ export default function Goals() {
           <ul className="space-y-2">
             {stale.map(({ goal, endedOn, daysPast }) => (
               <li key={goal.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <span className="text-sm text-white min-w-0">
+                <span className="text-sm text-foreground min-w-0">
                   <span className="truncate">{goal.title}</span>
-                  <span className="block text-[11px] text-muted">
+                  <span className="block text-xs text-muted">
                     {goal.period} · ended {formatDate(endedOn)}, {daysPast} days ago
                   </span>
                 </span>
@@ -456,7 +456,7 @@ export default function Goals() {
                     type="button"
                     onClick={() => resolveStale(goal, 'roll')}
                     disabled={staleBusy === goal.id}
-                    className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 text-white hover:bg-white/10 min-h-[44px] disabled:opacity-50"
+                    className="px-3 py-2 rounded-xl text-xs font-semibold bg-surface-2 text-foreground hover:bg-surface-2 min-h-[44px] disabled:opacity-50"
                   >
                     Roll into this {goal.period === 'monthly' ? 'month' : goal.period === 'weekly' ? 'week' : 'day'}
                   </button>
@@ -484,7 +484,7 @@ export default function Goals() {
       />
 
       {/* Monthly and weekly targets */}
-      <section className="bg-card rounded-3xl p-6 border border-white/5 space-y-4">
+      <section className="bg-card rounded-3xl p-6 border border-border space-y-4">
         <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">
           Targets
         </h2>
@@ -550,22 +550,22 @@ export default function Goals() {
 
       {/* Stats — real counts, not the zeros that used to be hardcoded here */}
       <div className="grid grid-cols-3 gap-3">
-        <div className="bg-card rounded-2xl p-4 border border-white/5">
-          <p className="text-[10px] text-muted uppercase tracking-wider mb-1">Done today</p>
-          <p className="text-xl font-bold text-white tabular-nums">
+        <div className="bg-card rounded-2xl p-4 border border-border">
+          <p className="text-xs text-muted uppercase tracking-wider mb-1">Done today</p>
+          <p className="text-xl font-bold text-foreground tabular-nums">
             {doneToday}
             <span className="text-muted text-sm font-normal">/{todayGoals.length || 0}</span>
           </p>
         </div>
-        <div className="bg-card rounded-2xl p-4 border border-white/5">
-          <p className="text-[10px] text-muted uppercase tracking-wider mb-1">{HISTORY_DAYS}-day rate</p>
+        <div className="bg-card rounded-2xl p-4 border border-border">
+          <p className="text-xs text-muted uppercase tracking-wider mb-1">{HISTORY_DAYS}-day rate</p>
           <p className="text-xl font-bold text-accent tabular-nums">
             {completionRate == null ? '—' : `${completionRate}%`}
           </p>
         </div>
-        <div className="bg-card rounded-2xl p-4 border border-white/5">
-          <p className="text-[10px] text-muted uppercase tracking-wider mb-1">Clean sweeps</p>
-          <p className="text-xl font-bold text-white tabular-nums">{perfectDays}</p>
+        <div className="bg-card rounded-2xl p-4 border border-border">
+          <p className="text-xs text-muted uppercase tracking-wider mb-1">Clean sweeps</p>
+          <p className="text-xl font-bold text-foreground tabular-nums">{perfectDays}</p>
         </div>
       </div>
 
@@ -580,7 +580,7 @@ export default function Goals() {
       {/* Today */}
       {/* History */}
       {history.length > 0 && (
-        <section className="bg-card rounded-3xl p-6 border border-white/5">
+        <section className="bg-card rounded-3xl p-6 border border-border">
           <h2 className="text-xs font-semibold text-muted uppercase tracking-wider mb-4">
             Last {HISTORY_DAYS} days
           </h2>
@@ -591,7 +591,7 @@ export default function Goals() {
                 <div key={date}>
                   <div className="flex items-center justify-between mb-1.5">
                     <p className="text-xs text-muted">{formatDate(date)}</p>
-                    <p className="text-[10px] text-muted tabular-nums">
+                    <p className="text-xs text-muted tabular-nums">
                       {dayGoals.filter(g => g.completed).length}/{dayGoals.length}
                     </p>
                   </div>
@@ -600,7 +600,7 @@ export default function Goals() {
                       <li
                         key={goal.id}
                         className={`text-sm flex items-start gap-2 ${
-                          goal.completed ? 'text-muted' : 'text-white/70'
+                          goal.completed ? 'text-muted' : 'text-muted'
                         }`}
                       >
                         <span aria-hidden="true">{goal.completed ? '✅' : '⬜'}</span>

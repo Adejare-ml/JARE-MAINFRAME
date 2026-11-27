@@ -74,7 +74,7 @@ export default function DietToday({ lib, logs, onChanged, onAdd, onOpenSettings,
 
   return (
     <div className="space-y-6">
-      <section className="bg-card rounded-3xl p-6 border border-white/10 shadow-xl" aria-label="Today's numbers">
+      <section className="bg-card rounded-3xl p-6 border border-border shadow-xl" aria-label="Today's numbers">
         <div className="grid grid-cols-2 gap-4">
           <Ring
             label="Calories"
@@ -101,7 +101,7 @@ export default function DietToday({ lib, logs, onChanged, onAdd, onOpenSettings,
 
         {/* Phase 3: the camera is one tap from here; Add food holds the rest. */}
         <div className="mt-4 grid grid-cols-2 gap-2">
-          <label className="flex items-center justify-center gap-2 bg-accent text-black font-extrabold text-sm rounded-xl min-h-[52px] cursor-pointer hover:bg-accent/90">
+          <label className="flex items-center justify-center gap-2 bg-accent text-on-accent font-extrabold text-sm rounded-xl min-h-[52px] cursor-pointer hover:bg-accent/90">
             <span aria-hidden="true">📷</span> Snap
             <input
               type="file"
@@ -115,14 +115,14 @@ export default function DietToday({ lib, logs, onChanged, onAdd, onOpenSettings,
               }}
             />
           </label>
-          <button type="button" onClick={onAdd} className="flex items-center justify-center gap-2 bg-white/10 border border-white/10 text-white font-extrabold text-sm rounded-xl min-h-[52px] hover:bg-white/15">
+          <button type="button" onClick={onAdd} className="flex items-center justify-center gap-2 bg-surface-2 border border-border text-foreground font-extrabold text-sm rounded-xl min-h-[52px] hover:bg-surface-2">
             <span aria-hidden="true">＋</span> Add food
           </button>
         </div>
 
         {lib.saved.length > 0 && (
           <div className="mt-4">
-            <p className="text-[11px] font-semibold text-muted uppercase tracking-wider mb-2">One tap</p>
+            <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">One tap</p>
             <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1">
               {lib.saved.map((s) => {
                 const n = sumNutrition(priceItems(s.items, lib))
@@ -132,11 +132,11 @@ export default function DietToday({ lib, logs, onChanged, onAdd, onOpenSettings,
                     type="button"
                     onClick={() => logSaved(s)}
                     disabled={logging != null}
-                    className="shrink-0 text-left px-3 py-2 rounded-2xl bg-white/5 border border-white/10 hover:border-accent/50 min-h-[52px] disabled:opacity-60 max-w-[240px]"
+                    className="shrink-0 text-left px-3 py-2 rounded-2xl bg-surface-2 border border-border hover:border-accent/50 min-h-[52px] disabled:opacity-60 max-w-[240px]"
                     aria-label={`Log ${s.name}, ${n.kcal} kcal`}
                   >
-                    <span className="block text-xs font-bold text-white truncate">{logging === s.id ? 'Logging…' : s.name}</span>
-                    <span className="block text-[10px] text-muted tabular-nums">
+                    <span className="block text-xs font-bold text-foreground truncate">{logging === s.id ? 'Logging…' : s.name}</span>
+                    <span className="block text-xs text-muted tabular-nums">
                       {n.kcal} kcal · {n.protein_g} g protein
                     </span>
                   </button>
@@ -155,25 +155,25 @@ export default function DietToday({ lib, logs, onChanged, onAdd, onOpenSettings,
       )}
       {hasColumn('meal_logs.coach') && <WhatNext />}
 
-      <section className="bg-card rounded-3xl p-6 border border-white/5 space-y-4" aria-label="Today's meals">
+      <section className="bg-card rounded-3xl p-6 border border-border space-y-4" aria-label="Today's meals">
         <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">Today's meals</h2>
         {logs.length === 0 ? (
           <EmptyState icon="🍽️" title="Nothing logged today" message="Tap a saved meal above, or add what you ate." actionLabel="Add food" onAction={onAdd} />
         ) : (
           SLOTS.filter((s) => totals.bySlot[s].kcal > 0 || logs.some((l) => normaliseSlot(l.meal_slot) === s)).map((s) => (
             <div key={s} className="space-y-2">
-              <p className="text-[11px] font-semibold text-muted uppercase tracking-wider">
+              <p className="text-xs font-semibold text-muted uppercase tracking-wider">
                 <span aria-hidden="true">{SLOT_ICONS[s]}</span> {SLOT_LABELS[s]} · {totals.bySlot[s].kcal.toLocaleString()} kcal
               </p>
               <ul className="space-y-2">
                 {logs
                   .filter((l) => normaliseSlot(l.meal_slot) === s)
                   .map((m) => (
-                    <li key={m.id} className="p-3 rounded-2xl bg-background/40 border border-white/5">
+                    <li key={m.id} className="p-3 rounded-2xl bg-background/40 border border-border">
                       <div className="flex items-center gap-3">
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-bold text-white truncate">{(m.meal_items || []).map((i) => i.name).join(', ') || 'Meal'}</p>
-                          <p className="text-[11px] text-muted">
+                          <p className="text-sm font-bold text-foreground truncate">{(m.meal_items || []).map((i) => i.name).join(', ') || 'Meal'}</p>
+                          <p className="text-xs text-muted">
                             {localTime(m.eaten_at)} · {round1(m.protein_g)} g protein{m.source === 'saved' ? ' · one tap' : ''}
                           </p>
                         </div>
@@ -185,7 +185,7 @@ export default function DietToday({ lib, logs, onChanged, onAdd, onOpenSettings,
                         ) : (
                           <VerdictBadge verdict={m.verdict} />
                         )}
-                        <span className="text-sm font-bold text-white tabular-nums shrink-0">{Number(m.kcal).toLocaleString()}</span>
+                        <span className="text-sm font-bold text-foreground tabular-nums shrink-0">{Number(m.kcal).toLocaleString()}</span>
                         {/* 054: a photo reading is final, so it has no delete. */}
                         {isSealedPhotoMeal(m) ? null : confirmDelete === m.id ? (
                           <button type="button" onClick={() => remove(m.id)} className="shrink-0 px-3 rounded-xl bg-red-500/20 text-red-300 text-xs font-bold min-h-[48px]">
@@ -195,14 +195,14 @@ export default function DietToday({ lib, logs, onChanged, onAdd, onOpenSettings,
                           <button
                             type="button"
                             onClick={() => askDelete(m.id)}
-                            className="shrink-0 rounded-full bg-white/5 hover:bg-red-500/20 text-muted hover:text-red-300 text-sm min-h-[48px] min-w-[48px]"
+                            className="shrink-0 rounded-full bg-surface-2 hover:bg-red-500/20 text-muted hover:text-red-300 text-sm min-h-[48px] min-w-[48px]"
                             aria-label="Delete this meal"
                           >
                             ✕
                           </button>
                         )}
                       </div>
-                      {m.reason && <p className="text-[11px] text-muted mt-2 leading-relaxed">{m.reason}</p>}
+                      {m.reason && <p className="text-xs text-muted mt-2 leading-relaxed">{m.reason}</p>}
                     </li>
                   ))}
               </ul>
@@ -219,12 +219,12 @@ function Ring({ label, ratio, color, big, unit, sub }) {
     <div className="flex flex-col items-center text-center">
       <ProgressRing value={ratio ?? 0} size={112} strokeWidth={9} color={color}>
         <div>
-          <p className="text-xl font-extrabold text-white tabular-nums leading-none">{big}</p>
-          <p className="text-[10px] text-muted mt-1">{unit}</p>
+          <p className="text-xl font-extrabold text-foreground tabular-nums leading-none">{big}</p>
+          <p className="text-xs text-muted mt-1">{unit}</p>
         </div>
       </ProgressRing>
       <p className="text-xs font-semibold text-muted uppercase tracking-wider mt-2">{label}</p>
-      <p className="text-[11px] text-muted-dim tabular-nums">{sub}</p>
+      <p className="text-xs text-muted-dim tabular-nums">{sub}</p>
     </div>
   )
 }

@@ -23,7 +23,7 @@ const DOT = {
   [STATUS.OK]: 'bg-accent',
   [STATUS.STALE]: 'bg-orange-400',
   [STATUS.FAILING]: 'bg-red-500',
-  [STATUS.NEVER]: 'bg-white/20',
+  [STATUS.NEVER]: 'bg-surface-2',
   [STATUS.ATTENTION]: 'bg-amber-400',
 }
 
@@ -86,11 +86,11 @@ export default function SystemHealth() {
   const pending = pendingMigrations()
 
   return (
-    <section className="bg-card rounded-3xl p-6 border border-white/10 space-y-4">
-      <div className="flex items-center justify-between border-b border-white/5 pb-3">
+    <section className="bg-card rounded-3xl p-6 border border-border space-y-4">
+      <div className="flex items-center justify-between border-b border-border pb-3">
         <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">System</h2>
         {available && !loading && (
-          <span className="flex items-center gap-2 text-xs font-semibold text-white">
+          <span className="flex items-center gap-2 text-xs font-semibold text-foreground">
             <span className={`w-2 h-2 rounded-full ${DOT[overall]}`} aria-hidden="true" />
             {WORD[overall]}
           </span>
@@ -113,28 +113,28 @@ export default function SystemHealth() {
               <div className="flex items-start gap-2.5 min-w-0">
                 <span className={`mt-1.5 w-2 h-2 shrink-0 rounded-full ${DOT[job.status]}`} aria-hidden="true" />
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-white">{job.label}</p>
+                  <p className="text-sm font-semibold text-foreground">{job.label}</p>
                   {/* A report is rendered line by line, drifts red and
                       missed alerts amber, so a reconcile summary is read,
                       not skimmed. Anything else is the stored text in
                       full: the one-line truncation used to cut the gap
                       list exactly where the wallet names were. */}
-                  {job.suspect && <p className="text-[11px] text-red-300">{job.suspectReason}</p>}
+                  {job.suspect && <p className="text-xs text-red-300">{job.suspectReason}</p>}
                   {job.report ? (
                     <>
                       {job.report.drifts.map((line) => (
-                        <p key={line} className="text-[11px] text-red-300 break-words">{line}</p>
+                        <p key={line} className="text-xs text-red-300 break-words">{line}</p>
                       ))}
                       {job.report.gaps.map((line) => (
-                        <p key={line} className="text-[11px] text-amber-300 break-words">{line}</p>
+                        <p key={line} className="text-xs text-amber-300 break-words">{line}</p>
                       ))}
                       {job.report.other.map((line) => (
-                        <p key={line} className="text-[11px] text-muted-dim break-words">{line}</p>
+                        <p key={line} className="text-xs text-muted-dim break-words">{line}</p>
                       ))}
                     </>
                   ) : (
                     job.lastRun?.summary && (
-                      <p className="text-[11px] text-muted-dim break-words whitespace-pre-wrap">{job.lastRun.summary}</p>
+                      <p className="text-xs text-muted-dim break-words whitespace-pre-wrap">{job.lastRun.summary}</p>
                     )
                   )}
                 </div>
@@ -143,7 +143,7 @@ export default function SystemHealth() {
                 <p className={`text-xs font-semibold ${job.suspect ? 'text-red-400' : WORD_COLOUR[job.status] || 'text-muted'}`}>
                   {job.suspect ? 'Recorded nothing' : WORD[job.status]}
                 </p>
-                {job.lastRun && <p className="text-[11px] text-muted-dim">{timeAgo(job.lastRun.finished_at)}</p>}
+                {job.lastRun && <p className="text-xs text-muted-dim">{timeAgo(job.lastRun.finished_at)}</p>}
               </div>
             </li>
           ))}
@@ -151,9 +151,9 @@ export default function SystemHealth() {
       )}
 
       <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-        <div className="rounded-xl bg-background/60 border border-white/5 p-3">
-          <dt className="text-[11px] text-muted uppercase tracking-wider">Bank alerts last recorded</dt>
-          <dd className="text-sm text-white mt-1">
+        <div className="rounded-xl bg-background/60 border border-border p-3">
+          <dt className="text-xs text-muted uppercase tracking-wider">Bank alerts last recorded</dt>
+          <dd className="text-sm text-foreground mt-1">
             {cursor.status === STATUS.NEVER ? (
               'Never checked'
             ) : (
@@ -163,25 +163,25 @@ export default function SystemHealth() {
             )}
           </dd>
           {cursor.status === STATUS.STALE && (
-            <dd className="text-[11px] text-orange-300 mt-1">Longer than a day since the audit recorded anything -- see the job above.</dd>
+            <dd className="text-xs text-orange-300 mt-1">Longer than a day since the audit recorded anything -- see the job above.</dd>
           )}
         </div>
 
-        <div className="rounded-xl bg-background/60 border border-white/5 p-3">
-          <dt className="text-[11px] text-muted uppercase tracking-wider">Ask endpoint</dt>
-          <dd className="text-sm text-white mt-1">
+        <div className="rounded-xl bg-background/60 border border-border p-3">
+          <dt className="text-xs text-muted uppercase tracking-wider">Ask endpoint</dt>
+          <dd className="text-sm text-foreground mt-1">
             {ask === 'checking' ? 'Checking…' : ask === 'reachable' ? 'Deployed and answering' : 'Not deployed'}
           </dd>
           {ask === 'unreachable' && (
-            <dd className="text-[11px] text-muted-dim mt-1">
+            <dd className="text-xs text-muted-dim mt-1">
               <code className="font-mono">supabase functions deploy ask-question</code>, then set its OLLAMA_API_KEY secret.
             </dd>
           )}
         </div>
 
-        <div className="rounded-xl bg-background/60 border border-white/5 p-3">
-          <dt className="text-[11px] text-muted uppercase tracking-wider">Meal photo reader</dt>
-          <dd className="text-sm text-white mt-1">
+        <div className="rounded-xl bg-background/60 border border-border p-3">
+          <dt className="text-xs text-muted uppercase tracking-wider">Meal photo reader</dt>
+          <dd className="text-sm text-foreground mt-1">
             {meal === 'checking'
               ? 'Checking…'
               : meal === 'reachable'
@@ -191,20 +191,20 @@ export default function SystemHealth() {
                   : 'Not deployed'}
           </dd>
           {meal !== 'reachable' && meal !== 'checking' && (
-            <dd className="text-[11px] text-muted-dim mt-1">
+            <dd className="text-xs text-muted-dim mt-1">
               <code className="font-mono">supabase functions deploy analyze-meal</code>, then set its OLLAMA_API_KEY (and optionally
               NVIDIA_API_KEY) secret.
             </dd>
           )}
         </div>
 
-        <div className="rounded-xl bg-background/60 border border-white/5 p-3">
-          <dt className="text-[11px] text-muted uppercase tracking-wider">Database</dt>
-          <dd className="text-sm text-white mt-1">
+        <div className="rounded-xl bg-background/60 border border-border p-3">
+          <dt className="text-xs text-muted uppercase tracking-wider">Database</dt>
+          <dd className="text-sm text-foreground mt-1">
             {pending.length === 0 ? 'Up to date' : `${pending.length} migration${pending.length === 1 ? '' : 's'} to run`}
           </dd>
           {pending.length > 0 && (
-            <dd className="text-[11px] text-muted-dim mt-1 font-mono break-all">{pending.join(', ')}</dd>
+            <dd className="text-xs text-muted-dim mt-1 font-mono break-all">{pending.join(', ')}</dd>
           )}
         </div>
 

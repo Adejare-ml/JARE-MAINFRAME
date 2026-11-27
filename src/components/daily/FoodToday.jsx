@@ -45,7 +45,7 @@ export default function FoodToday() {
 
   if (!available) {
     return (
-      <section className="bg-card rounded-3xl p-6 border border-white/5">
+      <section className="bg-card rounded-3xl p-6 border border-border">
         <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-1">Food today</p>
         <p className="text-xs text-orange-300 leading-relaxed">
           Run <code className="font-mono">supabase/migrations/042_meals.sql</code> to log meals from a photo.
@@ -59,7 +59,7 @@ export default function FoodToday() {
   const last = meals[0]
 
   return (
-    <section className="bg-card rounded-3xl p-6 border border-white/5">
+    <section className="bg-card rounded-3xl p-6 border border-border">
       <div className="flex items-center gap-4">
         <ProgressRing
           value={progress.ratio ?? 0}
@@ -71,7 +71,7 @@ export default function FoodToday() {
         </ProgressRing>
         <div className="min-w-0 flex-1">
           <p className="text-xs font-semibold text-muted uppercase tracking-wider">Food today</p>
-          <p className="text-xl font-extrabold text-white tabular-nums">
+          <p className="text-xl font-extrabold text-foreground tabular-nums">
             {totals.calories.toLocaleString()} <span className="text-sm font-bold text-muted">kcal</span>
             {progress.remaining != null && (
               <span className={`text-sm font-bold ml-2 ${progress.over ? 'text-red-400' : 'text-muted'}`}>
@@ -79,13 +79,13 @@ export default function FoodToday() {
               </span>
             )}
           </p>
-          <p className="text-[11px] text-muted truncate">
+          <p className="text-xs text-muted truncate">
             {last ? `${totals.count} meal${totals.count === 1 ? '' : 's'} · last: ${summarizeItems(last.items, 48)}` : target ? `Target ${target.toLocaleString()} kcal. Nothing logged yet.` : 'Nothing logged yet.'}
           </p>
         </div>
       </div>
       <div className="grid grid-cols-[1fr_auto] gap-2 mt-4">
-        <label className="flex items-center justify-center gap-2 bg-accent text-black font-extrabold text-sm rounded-xl min-h-[48px] cursor-pointer hover:bg-accent/90">
+        <label className="flex items-center justify-center gap-2 bg-accent text-on-accent font-extrabold text-sm rounded-xl min-h-[48px] cursor-pointer hover:bg-accent/90">
           <span aria-hidden="true">📷</span> Snap a meal
           <input
             type="file"
@@ -101,7 +101,7 @@ export default function FoodToday() {
             }}
           />
         </label>
-        <Link to="/meals" className="flex items-center justify-center px-4 rounded-xl bg-white/5 border border-white/5 text-white text-sm font-bold min-h-[48px] hover:bg-white/10">
+        <Link to="/meals" className="flex items-center justify-center px-4 rounded-xl bg-surface-2 border border-border text-foreground text-sm font-bold min-h-[48px] hover:bg-surface-2">
           Meals →
         </Link>
       </div>

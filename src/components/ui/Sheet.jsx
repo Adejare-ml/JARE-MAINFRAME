@@ -119,7 +119,7 @@ export default function Sheet({
               ? { transform: `translateY(${dragY}px)`, transition: dragging ? 'none' : 'transform 0.25s ease' }
               : undefined
           }
-          className={`pointer-events-auto w-full ${maxWidth} bg-card border border-white/10 shadow-2xl overflow-hidden flex flex-col animate-slide-up max-h-[90vh] focus:outline-none ${
+          className={`pointer-events-auto w-full ${maxWidth} bg-card border border-border shadow-2xl overflow-hidden flex flex-col animate-slide-up max-h-[90vh] focus:outline-none ${
             alwaysCenter ? 'rounded-3xl' : desktopCenter ? 'rounded-t-3xl sm:rounded-3xl' : 'rounded-t-3xl'
           }`}
         >
@@ -134,7 +134,7 @@ export default function Sheet({
               }`}
               aria-hidden="true"
             >
-              <span className="w-10 h-1.5 rounded-full bg-white/20" />
+              <span className="w-10 h-1.5 rounded-full bg-surface-2" />
             </div>
           )}
           {children}

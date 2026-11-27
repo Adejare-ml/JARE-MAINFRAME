@@ -463,7 +463,7 @@ export default function DailyHQ() {
   if (pageError) {
     return (
       <div className="space-y-6 pb-6">
-        <h1 className="text-2xl md:text-3xl font-extrabold text-white">{greeting}, {ownerName} 👋</h1>
+        <h1 className="text-2xl md:text-3xl font-extrabold text-foreground">{greeting}, {ownerName} 👋</h1>
         <ErrorState message={pageError} onRetry={fetchDailyData} />
       </div>
     )
@@ -633,7 +633,7 @@ export default function DailyHQ() {
             <p className="text-xs font-semibold text-muted tracking-wider uppercase mb-1">
               {mode === 'day' ? fullDateStr : `Week of ${formatDate(weekStart)}`}
             </p>
-            <h1 className="text-2xl md:text-3xl font-extrabold text-white">
+            <h1 className="text-2xl md:text-3xl font-extrabold text-foreground">
               {mode === 'day' ? `${greeting}, {ownerName} 👋` : 'How the week went'}
             </h1>
           </div>
@@ -653,7 +653,7 @@ export default function DailyHQ() {
         <div
           role="tablist"
           aria-label="Time range"
-          className="inline-flex bg-background border border-white/10 rounded-xl p-1 gap-1"
+          className="inline-flex bg-background border border-border rounded-xl p-1 gap-1"
         >
           {[
             { id: 'day', label: 'Day' },
@@ -667,7 +667,7 @@ export default function DailyHQ() {
               aria-controls={`panel-${tab.id}`}
               onClick={() => setMode(tab.id)}
               className={`px-5 py-2 rounded-lg text-xs font-bold transition-colors min-h-[44px] ${
-                mode === tab.id ? 'bg-accent text-black' : 'text-muted hover:text-white'
+                mode === tab.id ? 'bg-accent text-on-accent' : 'text-muted hover:text-foreground'
               }`}
             >
               {tab.label}
@@ -691,7 +691,7 @@ export default function DailyHQ() {
                 ? 'bg-orange-500/10 border-orange-500/20 text-orange-300'
                 : insight.tone === 'good'
                   ? 'bg-accent/10 border-accent/20 text-accent'
-                  : 'bg-background/40 border-white/10 text-muted'
+                  : 'bg-background/40 border-border text-muted'
           }`}
         >
           <span aria-hidden="true">
@@ -715,47 +715,47 @@ export default function DailyHQ() {
         <DietCard />
 
         {/* WALLET SNAPSHOT — Dynamic */}
-        <section className="bg-card rounded-3xl p-6 border border-white/10 relative overflow-hidden shadow-xl">
+        <section className="bg-card rounded-3xl p-6 border border-border relative overflow-hidden shadow-xl">
           <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-1">
             Wallet Snapshot
           </p>
-          <p className="text-3xl sm:text-4xl font-extrabold text-white mb-4">
+          <p className="text-3xl sm:text-4xl font-extrabold text-foreground mb-4">
             Total: <span className="money">{formatNaira(totalBalance)}</span>
           </p>
 
           {/* Layered summary if savings/investment exist */}
           {hasSavingsOrInvestments && (
             <div className="grid grid-cols-3 gap-2 mb-3">
-              <div className="bg-background/40 p-2 rounded-xl border border-white/5 text-center">
-                <p className="text-[10px] text-muted">💳 Liquid</p>
-                <p className="text-xs font-bold text-white money">{formatNaira(liquidBalance)}</p>
+              <div className="bg-background/40 p-2 rounded-xl border border-border text-center">
+                <p className="text-xs text-muted">💳 Liquid</p>
+                <p className="text-xs font-bold text-foreground money">{formatNaira(liquidBalance)}</p>
               </div>
-              <div className="bg-background/40 p-2 rounded-xl border border-white/5 text-center">
-                <p className="text-[10px] text-muted">🐖 Savings</p>
+              <div className="bg-background/40 p-2 rounded-xl border border-border text-center">
+                <p className="text-xs text-muted">🐖 Savings</p>
                 <p className="text-xs font-bold text-blue-400 money">{formatNaira(savingsBalance)}</p>
               </div>
-              <div className="bg-background/40 p-2 rounded-xl border border-white/5 text-center">
-                <p className="text-[10px] text-muted">📈 Invested</p>
+              <div className="bg-background/40 p-2 rounded-xl border border-border text-center">
+                <p className="text-xs text-muted">📈 Invested</p>
                 <p className="text-xs font-bold text-purple-400 money">{formatNaira(investmentBalance)}</p>
               </div>
             </div>
           )}
 
           {/* Individual wallet tiles — dynamic */}
-          <div className={`grid gap-2 pt-3 border-t border-white/5 text-center sm:text-left ${
+          <div className={`grid gap-2 pt-3 border-t border-border text-center sm:text-left ${
             activeWallets.length <= 3 ? 'grid-cols-3' : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4'
           }`}>
             {activeWallets.map(w => (
               <div
                 key={w.id}
-                className="bg-background/40 p-3 rounded-2xl border border-white/5"
+                className="bg-background/40 p-3 rounded-2xl border border-border"
                 style={w.color ? { borderColor: `${w.color}15` } : {}}
               >
-                <p className="text-[11px] text-muted flex items-center gap-1">
+                <p className="text-xs text-muted flex items-center gap-1">
                   <span>{typeIcons[w.type] || '💰'}</span> {w.name}
                   {w.account_last4 && <span className="text-muted-dim font-mono">••{w.account_last4}</span>}
                 </p>
-                <p className="text-sm font-bold text-white mt-1 money">
+                <p className="text-sm font-bold text-foreground mt-1 money">
                   {formatNaira(w.balance)}
                 </p>
               </div>
@@ -764,7 +764,7 @@ export default function DailyHQ() {
         </section>
 
         {/* THIS MONTH PROGRESS */}
-        <section className="bg-card rounded-3xl p-6 border border-white/5 space-y-3">
+        <section className="bg-card rounded-3xl p-6 border border-border space-y-3">
           <div className="flex items-center justify-between text-xs font-semibold">
             <span className="text-muted uppercase tracking-wider">This Month</span>
             {percentSpent != null && (
@@ -775,7 +775,7 @@ export default function DailyHQ() {
           </div>
 
           {percentSpent != null && (
-            <div className="h-3 bg-background rounded-full overflow-hidden border border-white/5">
+            <div className="h-3 bg-background rounded-full overflow-hidden border border-border">
               <div
                 className={`h-full rounded-full transition-all duration-500 ${
                   percentSpent >= 100 ? 'bg-red-500' : 'bg-accent'
@@ -799,12 +799,12 @@ export default function DailyHQ() {
         </section>
 
         {/* SAFE TO SPEND */}
-        <section className="bg-card rounded-3xl p-6 border border-white/5 space-y-1.5">
+        <section className="bg-card rounded-3xl p-6 border border-border space-y-1.5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-muted uppercase tracking-wider">Safe to spend</span>
             {statusChip && (
               <span
-                className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                className={`px-2 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${
                   statusChip === 'Over'
                     ? 'bg-red-500/10 text-red-400'
                     : statusChip === 'Watch it'
@@ -816,7 +816,7 @@ export default function DailyHQ() {
               </span>
             )}
           </div>
-          <p className="text-3xl font-bold text-white money">{formatNaira(safeToSpendToday)}</p>
+          <p className="text-3xl font-bold text-foreground money">{formatNaira(safeToSpendToday)}</p>
           <p className="text-xs text-muted">
             {committedGoals > 0 ? (
               <>
@@ -830,7 +830,7 @@ export default function DailyHQ() {
         </section>
 
         {/* NEEDS ATTENTION */}
-        <section className="bg-card rounded-3xl p-6 border border-white/5 space-y-3">
+        <section className="bg-card rounded-3xl p-6 border border-border space-y-3">
           <h2 className="text-xs font-semibold text-muted uppercase tracking-wider flex items-center gap-2">
             <span>⚠️</span> Needs Attention
           </h2>
@@ -1012,11 +1012,11 @@ export default function DailyHQ() {
 
         {/* TODAY'S PRIORITIES */}
         {/* Today — the task list, typed and derived, tickable in place */}
-        <section className="bg-card rounded-3xl p-6 border border-white/5 space-y-4">
+        <section className="bg-card rounded-3xl p-6 border border-border space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">Today</h2>
             {todayTasks.length > 0 && (
-              <span className="text-[10px] text-muted tabular-nums">
+              <span className="text-xs text-muted tabular-nums">
                 {todayTasks.filter(doneOn).length}/{todayTasks.length} done
               </span>
             )}
@@ -1065,7 +1065,7 @@ export default function DailyHQ() {
         <ActivityGrid tasks={dayRows} isDone={doneOn} today={todayDate} isUnknown={isUnknownTask} />
 
         {/* Recent Transactions */}
-        <section className="bg-card rounded-3xl p-6 border border-white/5 space-y-4">
+        <section className="bg-card rounded-3xl p-6 border border-border space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">
               Recent Transactions
@@ -1085,22 +1085,22 @@ export default function DailyHQ() {
                 return (
                   <div
                     key={t.id}
-                    className="flex items-center justify-between p-3 rounded-2xl bg-background/40 border border-white/5"
+                    className="flex items-center justify-between p-3 rounded-2xl bg-background/40 border border-border"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center text-base">
+                      <div className="w-9 h-9 rounded-xl bg-surface-2 flex items-center justify-center text-base">
                         {icon}
                       </div>
                       <div>
-                        <p className="text-xs font-bold text-white leading-tight">
+                        <p className="text-xs font-bold text-foreground leading-tight">
                           {t.description || t.category}
                         </p>
-                        <p className="text-[10px] text-muted mt-0.5">
+                        <p className="text-xs text-muted mt-0.5">
                           {formatDate(t.transaction_date)}
                         </p>
                       </div>
                     </div>
-                    <span className={`text-xs font-bold money ${isCredit ? 'text-accent' : 'text-white'}`}>
+                    <span className={`text-xs font-bold money ${isCredit ? 'text-accent' : 'text-foreground'}`}>
                       {isCredit ? '+' : '-'}{formatNaira(t.amount)}
                     </span>
                   </div>

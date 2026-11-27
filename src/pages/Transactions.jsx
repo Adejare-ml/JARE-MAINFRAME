@@ -774,9 +774,9 @@ export default function Transactions() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-white flex items-center gap-3">
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground flex items-center gap-3">
             <span>Transactions</span>
-            <span className="text-xs bg-white/10 px-3 py-1 rounded-full text-muted font-normal">
+            <span className="text-xs bg-surface-2 px-3 py-1 rounded-full text-muted font-normal">
               {filteredTransactions.length}{hasMore ? '+' : ''}
             </span>
             {refreshing && (
@@ -795,8 +795,8 @@ export default function Transactions() {
           onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
           className={`px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap border transition-all min-h-[48px] ${
             selectMode
-              ? 'bg-accent text-black border-accent'
-              : 'bg-card text-muted hover:text-white border-white/5'
+              ? 'bg-accent text-on-accent border-accent'
+              : 'bg-card text-muted hover:text-foreground border-border'
           }`}
         >
           {selectMode ? 'Done' : 'Select'}
@@ -812,7 +812,7 @@ export default function Transactions() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search description, recipient, note or amount…"
-          className="w-full pl-11 pr-4 py-3 bg-card border border-white/10 rounded-2xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+          className="w-full pl-11 pr-4 py-3 bg-card border border-border rounded-2xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
         />
         <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted text-sm pointer-events-none">
           🔍
@@ -828,7 +828,7 @@ export default function Transactions() {
             type="button"
             onClick={() => setShowFilters((v) => !v)}
             aria-expanded={showFilters}
-            className="text-xs font-semibold text-muted hover:text-white min-h-[40px] px-1"
+            className="text-xs font-semibold text-muted hover:text-foreground min-h-[40px] px-1"
           >
             {showFilters ? 'Hide filters' : 'Filters'}
             {rangeSummary ? ` · ${rangeSummary}` : ''}
@@ -840,7 +840,7 @@ export default function Transactions() {
           )}
         </div>
         {showFilters && (
-          <div className="bg-card rounded-2xl border border-white/5 p-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="bg-card rounded-2xl border border-border p-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
             <label className="text-xs text-muted">
               From
               <input
@@ -848,7 +848,7 @@ export default function Transactions() {
                 value={range.from}
                 max={range.to || undefined}
                 onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))}
-                className="mt-1 w-full px-3 py-2 bg-background border border-white/10 rounded-xl text-white text-sm min-h-[44px] focus:outline-none focus:border-accent"
+                className="mt-1 w-full px-3 py-2 bg-background border border-border rounded-xl text-foreground text-sm min-h-[44px] focus:outline-none focus:border-accent"
               />
             </label>
             <label className="text-xs text-muted">
@@ -858,12 +858,12 @@ export default function Transactions() {
                 value={range.to}
                 min={range.from || undefined}
                 onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))}
-                className="mt-1 w-full px-3 py-2 bg-background border border-white/10 rounded-xl text-white text-sm min-h-[44px] focus:outline-none focus:border-accent"
+                className="mt-1 w-full px-3 py-2 bg-background border border-border rounded-xl text-foreground text-sm min-h-[44px] focus:outline-none focus:border-accent"
               />
             </label>
             <div className="text-xs text-muted">
               Direction
-              <div className="mt-1 flex bg-background rounded-xl border border-white/10 p-0.5" role="group" aria-label="Direction">
+              <div className="mt-1 flex bg-background rounded-xl border border-border p-0.5" role="group" aria-label="Direction">
                 {[
                   ['all', 'All'],
                   ['debit', 'Out'],
@@ -875,7 +875,7 @@ export default function Transactions() {
                     onClick={() => setRange((r) => ({ ...r, type: id }))}
                     aria-pressed={range.type === id}
                     className={`flex-1 py-2 rounded-lg text-xs font-semibold min-h-[40px] ${
-                      range.type === id ? 'bg-accent text-black' : 'text-muted hover:text-white'
+                      range.type === id ? 'bg-accent text-on-accent' : 'text-muted hover:text-foreground'
                     }`}
                   >
                     {label}
@@ -889,7 +889,7 @@ export default function Transactions() {
                 value={sort}
                 onChange={(e) => setSort(e.target.value)}
                 disabled={filter === 'Review'}
-                className="mt-1 w-full px-3 py-2 bg-background border border-white/10 rounded-xl text-white text-sm min-h-[44px] focus:outline-none focus:border-accent disabled:opacity-50"
+                className="mt-1 w-full px-3 py-2 bg-background border border-border rounded-xl text-foreground text-sm min-h-[44px] focus:outline-none focus:border-accent disabled:opacity-50"
               >
                 {SORT_OPTIONS.map((o) => (
                   <option key={o.id} value={o.id}>
@@ -913,13 +913,13 @@ export default function Transactions() {
               onClick={() => setFilter(opt.id)}
               className={`px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 min-h-[48px] ${
                 isActive
-                  ? 'bg-accent text-black font-bold shadow-md shadow-accent/20'
-                  : 'bg-card text-muted hover:text-white border border-white/5'
+                  ? 'bg-accent text-on-accent font-bold shadow-md shadow-accent/20'
+                  : 'bg-card text-muted hover:text-foreground border border-border'
               }`}
             >
               <span>{opt.label}</span>
               {isReview && unreviewedCount > 0 && (
-                <span className={`px-1.5 py-0.5 text-[10px] rounded-full font-extrabold ${
+                <span className={`px-1.5 py-0.5 text-xs rounded-full font-extrabold ${
                   isActive ? 'bg-black text-accent' : 'bg-orange-500 text-black'
                 }`}>
                   {unreviewedCount}
@@ -935,7 +935,7 @@ export default function Transactions() {
           lib/pendingTransactions.js. Only on the default, unfiltered view:
           a pending row is not yet a real transaction to filter or search. */}
       {filter === 'Voided' && (
-        <p className="text-[11px] text-muted-dim px-1">
+        <p className="text-xs text-muted-dim px-1">
           Left out of every list and every total. Restore one to bring it back.
         </p>
       )}
@@ -945,18 +945,18 @@ export default function Transactions() {
           {pending.map((p) => (
             <div
               key={p.id}
-              className="bg-card/60 rounded-2xl border border-dashed border-white/10 p-4 flex items-center justify-between animate-pulse"
+              className="bg-card/60 rounded-2xl border border-dashed border-border p-4 flex items-center justify-between animate-pulse"
             >
               <div className="flex items-center gap-3.5 min-w-0">
-                <div className="w-11 h-11 rounded-2xl bg-background flex items-center justify-center text-xl border border-white/5">
+                <div className="w-11 h-11 rounded-2xl bg-background flex items-center justify-center text-xl border border-border">
                   {getCategoryIcon(p.category)}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-bold text-white truncate">{p.description || p.category}</p>
+                  <p className="text-sm font-bold text-foreground truncate">{p.description || p.category}</p>
                   <p className="text-xs text-muted mt-0.5">Saving…</p>
                 </div>
               </div>
-              <span className={`text-sm font-bold flex-shrink-0 ml-3 money ${p.type === 'credit' ? 'text-accent' : 'text-white'}`}>
+              <span className={`text-sm font-bold flex-shrink-0 ml-3 money ${p.type === 'credit' ? 'text-accent' : 'text-foreground'}`}>
                 {p.type === 'credit' ? '+' : '-'}{formatNaira(p.amount)}
               </span>
             </div>
@@ -997,7 +997,7 @@ export default function Transactions() {
               onAction={() => openQuickLog('debit')}
             />
             <div className="opacity-40 pointer-events-none select-none space-y-2" aria-hidden="true">
-              <p className="text-[10px] text-muted uppercase tracking-wider text-center">
+              <p className="text-xs text-muted uppercase tracking-wider text-center">
                 Preview — what this looks like once you have some
               </p>
               {SAMPLE_TRANSACTIONS.map((t) => {
@@ -1005,13 +1005,13 @@ export default function Transactions() {
                 return (
                   <div
                     key={t.id}
-                    className="bg-card rounded-2xl border border-white/5 p-4 flex items-center justify-between"
+                    className="bg-card rounded-2xl border border-border p-4 flex items-center justify-between"
                   >
                     <div className="flex items-center gap-3.5 min-w-0">
                       <div className="relative">
                         <div
                           className={`w-11 h-11 rounded-2xl bg-background flex items-center justify-center text-xl border ${
-                            isCredit ? 'border-accent/40' : 'border-white/5'
+                            isCredit ? 'border-accent/40' : 'border-border'
                           }`}
                         >
                           {getCategoryIcon(t.category)}
@@ -1020,9 +1020,9 @@ export default function Transactions() {
                           className={`absolute -bottom-0.5 -left-0.5 w-2.5 h-2.5 rounded-full border border-card ${getCategoryColor(t.category)}`}
                         />
                       </div>
-                      <p className="text-sm font-bold text-white truncate">{t.description}</p>
+                      <p className="text-sm font-bold text-foreground truncate">{t.description}</p>
                     </div>
-                    <span className={`text-sm font-bold ${isCredit ? 'text-accent' : 'text-white'}`}>
+                    <span className={`text-sm font-bold ${isCredit ? 'text-accent' : 'text-foreground'}`}>
                       {isCredit ? '+' : '-'}{formatNaira(t.amount)}
                     </span>
                   </div>
@@ -1057,7 +1057,7 @@ export default function Transactions() {
                     ? 'border-accent bg-accent/5'
                     : isExpanded
                       ? 'border-accent bg-card/90 shadow-xl'
-                      : 'border-white/5 hover:border-white/10'
+                      : 'border-border hover:border-border-strong'
                 }`}
               >
                 {/* Sits behind the Main Row, exposed only once that row has
@@ -1078,7 +1078,7 @@ export default function Transactions() {
                     aria-hidden={!isRevealed}
                     tabIndex={isRevealed ? 0 : -1}
                     className={`absolute inset-y-0 right-0 w-20 flex items-center justify-center text-xs font-bold disabled:opacity-50 ${
-                      t.voided ? 'bg-accent/90 text-black' : 'bg-red-500/90 text-white'
+                      t.voided ? 'bg-accent/90 text-on-accent' : 'bg-red-500/90 text-foreground'
                     }`}
                   >
                     {t.voided ? 'Restore' : 'Void'}
@@ -1111,8 +1111,8 @@ export default function Transactions() {
                       <span
                         className={`w-6 h-6 shrink-0 rounded-lg border-2 flex items-center justify-center text-xs font-black transition-all ${
                           isSelected
-                            ? 'bg-accent border-accent text-black'
-                            : 'border-white/20 text-transparent'
+                            ? 'bg-accent border-accent text-on-accent'
+                            : 'border-border text-transparent'
                         }`}
                       >
                         ✓
@@ -1121,7 +1121,7 @@ export default function Transactions() {
                     <div className="relative">
                       <div
                         className={`w-11 h-11 rounded-2xl bg-background flex items-center justify-center text-xl border ${
-                          isCredit ? 'border-accent/40' : 'border-white/5'
+                          isCredit ? 'border-accent/40' : 'border-border'
                         }`}
                       >
                         {icon}
@@ -1140,11 +1140,11 @@ export default function Transactions() {
 
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="text-sm font-bold text-white truncate">
+                        <p className="text-sm font-bold text-foreground truncate">
                           {t.description || t.category}
                         </p>
                         {t.want_or_need && (
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-bold uppercase ${
                             t.want_or_need === 'need' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
                             t.want_or_need === 'want' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' :
                             'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
@@ -1154,7 +1154,7 @@ export default function Transactions() {
                         )}
                         {t.debt_id && (
                           <span
-                            className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-teal-500/15 text-teal-300 border border-teal-500/30 truncate max-w-[140px]"
+                            className="text-xs px-2 py-0.5 rounded-full font-bold bg-teal-500/15 text-teal-300 border border-teal-500/30 truncate max-w-[140px]"
                             title="Counts toward this debt"
                           >
                             🤝 {debtNames[t.debt_id] || 'Debt'}
@@ -1173,7 +1173,7 @@ export default function Transactions() {
                           even once you are not being asked to double-check it. */}
                       {t.explanation && (
                         <span
-                          className="inline-flex items-center gap-1 max-w-full mt-1 px-2 py-0.5 rounded-full bg-white/5 text-muted-dim text-[10px] leading-tight"
+                          className="inline-flex items-center gap-1 max-w-full mt-1 px-2 py-0.5 rounded-full bg-surface-2 text-muted-dim text-xs leading-tight"
                           title={t.explanation}
                         >
                           <span aria-hidden="true">💡</span>
@@ -1184,10 +1184,10 @@ export default function Transactions() {
                   </div>
 
                   <div className="text-right ml-3 shrink-0">
-                    <span className={`text-base font-extrabold tabular-nums money ${isCredit ? 'text-accent' : 'text-white'}`}>
+                    <span className={`text-base font-extrabold tabular-nums money ${isCredit ? 'text-accent' : 'text-foreground'}`}>
                       {isCredit ? '+' : '-'}{formatNaira(t.amount)}
                     </span>
-                    <p className="text-[10px] text-muted capitalize mt-0.5 flex items-center justify-end gap-1.5">
+                    <p className="text-xs text-muted capitalize mt-0.5 flex items-center justify-end gap-1.5">
                       {/* How sure the parser was. It has ridden in the column
                           list all along and been rendered nowhere, which meant
                           a LOW-confidence guess looked exactly as settled as a
@@ -1195,7 +1195,7 @@ export default function Transactions() {
                           only when it is not HIGH: a chip on every row is
                           decoration, a chip on the doubtful ones is a signal. */}
                       {t.confidence && t.confidence !== 'HIGH' && (
-                        <span className={`px-1.5 py-0.5 rounded font-bold uppercase text-[9px] tracking-wide ${
+                        <span className={`px-1.5 py-0.5 rounded font-bold uppercase text-xs tracking-wide ${
                           t.confidence === 'LOW'
                             ? 'bg-red-500/15 text-red-300'
                             : 'bg-yellow-500/15 text-yellow-300'
@@ -1210,7 +1210,7 @@ export default function Transactions() {
 
                 {/* Expanded Details & Editor */}
                 {isExpanded && (
-                  <div className="px-4 pb-5 pt-2 border-t border-white/5 space-y-4 bg-background/50 animate-fade-in">
+                  <div className="px-4 pb-5 pt-2 border-t border-border space-y-4 bg-background/50 animate-fade-in">
 
                     {/* Direction, amount and date -- what the parse can get
                         wrong about the money itself. These used to be fixable
@@ -1233,7 +1233,7 @@ export default function Transactions() {
                             className={`py-3 rounded-xl text-xs font-bold border transition-all min-h-[48px] ${
                               editType === value
                                 ? 'bg-accent/20 border-accent text-accent'
-                                : 'bg-card border-white/5 text-muted hover:text-white'
+                                : 'bg-card border-border text-muted hover:text-foreground'
                             }`}
                           >
                             {sign} {label}
@@ -1254,7 +1254,7 @@ export default function Transactions() {
                           step="0.01"
                           value={editAmount}
                           onChange={(e) => setEditAmount(e.target.value)}
-                          className="w-full px-4 py-3 bg-card border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-accent min-h-[48px]"
+                          className="w-full px-4 py-3 bg-card border border-border rounded-xl text-foreground text-sm focus:outline-none focus:border-accent min-h-[48px]"
                         />
                       </div>
                       <div>
@@ -1265,7 +1265,7 @@ export default function Transactions() {
                           type="date"
                           value={editDate}
                           onChange={(e) => setEditDate(e.target.value)}
-                          className="w-full px-4 py-3 bg-card border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-accent min-h-[48px]"
+                          className="w-full px-4 py-3 bg-card border border-border rounded-xl text-foreground text-sm focus:outline-none focus:border-accent min-h-[48px]"
                         />
                       </div>
                     </div>
@@ -1278,7 +1278,7 @@ export default function Transactions() {
                       <button
                         type="button"
                         onClick={() => setShowEditCategoryPicker(true)}
-                        className="w-full px-4 py-3 bg-card border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-accent min-h-[48px] flex items-center gap-2"
+                        className="w-full px-4 py-3 bg-card border border-border rounded-xl text-foreground text-sm focus:outline-none focus:border-accent min-h-[48px] flex items-center gap-2"
                       >
                         <span className="text-lg" aria-hidden="true">{getCategoryIcon(editCategory)}</span>
                         <span className="truncate">{editCategory}</span>
@@ -1298,8 +1298,8 @@ export default function Transactions() {
                             className="mt-0.5 w-4 h-4 accent-accent flex-shrink-0"
                           />
                           <span className="text-xs text-muted leading-relaxed">
-                            Always file <span className="text-white font-semibold">{t.recipient}</span> as{' '}
-                            <span className="text-white font-semibold">{editCategory}</span>
+                            Always file <span className="text-foreground font-semibold">{t.recipient}</span> as{' '}
+                            <span className="text-foreground font-semibold">{editCategory}</span>
                             <span className="block">
                               Saves a category rule and files every other row from this payee still waiting for review.
                             </span>
@@ -1318,7 +1318,7 @@ export default function Transactions() {
                         value={editNote}
                         onChange={(e) => setEditNote(e.target.value)}
                         placeholder="Add a note..."
-                        className="w-full px-4 py-3 bg-card border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+                        className="w-full px-4 py-3 bg-card border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
                       />
                     </div>
 
@@ -1334,7 +1334,7 @@ export default function Transactions() {
                           id={`debt-${t.id}`}
                           value={editDebtId}
                           onChange={(e) => setEditDebtId(e.target.value)}
-                          className="w-full px-4 py-3 bg-card border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-accent min-h-[48px]"
+                          className="w-full px-4 py-3 bg-card border border-border rounded-xl text-foreground text-sm focus:outline-none focus:border-accent min-h-[48px]"
                         >
                           <option value="">No debt</option>
                           {linkableDebts(debts, { type: editType }).map((d) => (
@@ -1357,10 +1357,10 @@ export default function Transactions() {
                             key={tag}
                             type="button"
                             onClick={() => setEditWantNeed(editWantNeed === tag ? null : tag)}
-                            className={`py-2 px-1 rounded-xl text-[11px] font-bold uppercase tracking-wider border transition-all min-h-[48px] ${
+                            className={`py-2 px-1 rounded-xl text-xs font-bold uppercase tracking-wider border transition-all min-h-[48px] ${
                               editWantNeed === tag
                                 ? 'bg-accent/20 border-accent text-accent'
-                                : 'bg-card border-white/5 text-muted hover:text-white'
+                                : 'bg-card border-border text-muted hover:text-foreground'
                             }`}
                           >
                             {tag}
@@ -1374,13 +1374,13 @@ export default function Transactions() {
                       <button
                         onClick={() => handleSaveChanges(t.id)}
                         disabled={updating}
-                        className="flex-1 py-3 bg-accent text-black font-bold text-sm rounded-xl hover:bg-accent/90 transition-all min-h-[48px] flex items-center justify-center gap-2"
+                        className="flex-1 py-3 bg-accent text-on-accent font-bold text-sm rounded-xl hover:bg-accent/90 transition-all min-h-[48px] flex items-center justify-center gap-2"
                       >
                         {updating ? 'Saving...' : 'Save & Mark Reviewed ✓'}
                       </button>
                       <button
                         onClick={() => setExpandedId(null)}
-                        className="px-4 py-3 bg-white/5 text-muted hover:text-white text-sm font-semibold rounded-xl min-h-[48px]"
+                        className="px-4 py-3 bg-surface-2 text-muted hover:text-foreground text-sm font-semibold rounded-xl min-h-[48px]"
                       >
                         Cancel
                       </button>
@@ -1402,7 +1402,7 @@ export default function Transactions() {
                         <button
                           onClick={() => handleUnvoid(t)}
                           disabled={updating}
-                          className="w-full py-2.5 text-xs font-semibold text-accent hover:text-white transition-colors min-h-[44px] disabled:opacity-50"
+                          className="w-full py-2.5 text-xs font-semibold text-accent hover:text-foreground transition-colors min-h-[44px] disabled:opacity-50"
                         >
                           Restore this transaction
                         </button>
@@ -1415,7 +1415,7 @@ export default function Transactions() {
                           >
                             {updating ? 'Voiding…' : 'Void this transaction'}
                           </button>
-                          <p className="text-[11px] text-muted-dim leading-relaxed">
+                          <p className="text-xs text-muted-dim leading-relaxed">
                             Hides it from every list and every total -- undo from the toast for
                             the next five seconds, or find it under the Voided filter and
                             restore it any time after.
@@ -1439,7 +1439,7 @@ export default function Transactions() {
         <button
           onClick={handleLoadMore}
           disabled={loadingMore}
-          className="w-full py-3.5 bg-card border border-white/5 text-muted hover:text-white text-sm font-semibold rounded-2xl transition-all min-h-[48px] disabled:opacity-50"
+          className="w-full py-3.5 bg-card border border-border text-muted hover:text-foreground text-sm font-semibold rounded-2xl transition-all min-h-[48px] disabled:opacity-50"
         >
           {loadingMore ? 'Loading…' : `Load ${PAGE_SIZE} more`}
         </button>
@@ -1451,12 +1451,12 @@ export default function Transactions() {
         <div className="fixed bottom-20 left-0 right-0 z-40 px-4 animate-fade-in">
           <div className="max-w-3xl mx-auto bg-card border border-accent/40 rounded-2xl shadow-2xl p-3 space-y-2.5">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-white">
+              <span className="text-xs font-bold text-foreground">
                 {selectedIds.size} selected
               </span>
               <button
                 onClick={() => setSelectedIds(new Set())}
-                className="text-xs font-semibold text-muted hover:text-white px-2 py-1"
+                className="text-xs font-semibold text-muted hover:text-foreground px-2 py-1"
               >
                 Clear
               </button>
@@ -1469,7 +1469,7 @@ export default function Transactions() {
                 type="button"
                 onClick={handleBulkMarkReviewed}
                 disabled={updating}
-                className="w-full px-3 py-3 bg-background border border-white/10 rounded-xl text-white text-sm font-semibold min-h-[48px] disabled:opacity-50 hover:border-accent/50"
+                className="w-full px-3 py-3 bg-background border border-border rounded-xl text-foreground text-sm font-semibold min-h-[48px] disabled:opacity-50 hover:border-accent/50"
               >
                 {updating ? 'Working…' : `Mark ${selectedIds.size} reviewed as ${selectedIds.size === 1 ? 'it is' : 'they are'}`}
               </button>
@@ -1478,7 +1478,7 @@ export default function Transactions() {
               <button
                 type="button"
                 onClick={() => setShowBulkCategoryPicker(true)}
-                className="flex-1 min-w-0 px-3 py-3 bg-background border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-accent min-h-[48px] flex items-center gap-2"
+                className="flex-1 min-w-0 px-3 py-3 bg-background border border-border rounded-xl text-foreground text-sm focus:outline-none focus:border-accent min-h-[48px] flex items-center gap-2"
               >
                 <span className="text-lg" aria-hidden="true">{bulkCategory ? getCategoryIcon(bulkCategory) : '🏷️'}</span>
                 <span className={`truncate ${bulkCategory ? '' : 'text-muted'}`}>{bulkCategory || 'Pick a category'}</span>
@@ -1486,7 +1486,7 @@ export default function Transactions() {
               <button
                 onClick={handleBulkCategorize}
                 disabled={updating || !bulkCategory}
-                className="px-5 py-3 bg-accent text-black font-bold text-sm rounded-xl min-h-[48px] disabled:opacity-50 whitespace-nowrap"
+                className="px-5 py-3 bg-accent text-on-accent font-bold text-sm rounded-xl min-h-[48px] disabled:opacity-50 whitespace-nowrap"
               >
                 {updating ? 'Applying…' : 'Apply'}
               </button>

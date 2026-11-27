@@ -99,8 +99,8 @@ export default function CategoryBudgets() {
   if (loading) return null
 
   return (
-    <section className="bg-card rounded-3xl p-6 border border-white/10 space-y-4">
-      <div className="flex items-center justify-between border-b border-white/5 pb-3">
+    <section className="bg-card rounded-3xl p-6 border border-border space-y-4">
+      <div className="flex items-center justify-between border-b border-border pb-3">
         <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">
           Category Budgets
         </h2>
@@ -110,7 +110,7 @@ export default function CategoryBudgets() {
               setForm(EMPTY_FORM)
               setShowForm(true)
             }}
-            className="px-3 py-1.5 bg-white/10 hover:bg-accent text-white hover:text-black rounded-lg text-xs font-bold transition-all min-h-[44px]"
+            className="px-3 py-1.5 bg-surface-2 hover:bg-accent text-foreground hover:text-on-accent rounded-lg text-xs font-bold transition-all min-h-[44px]"
           >
             + New
           </button>
@@ -135,9 +135,9 @@ export default function CategoryBudgets() {
           {budgets.map((budget) => (
             <li
               key={budget.id}
-              className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-background/40 border border-white/5"
+              className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-background/40 border border-border"
             >
-              <p className="text-xs text-white/90 min-w-0 truncate flex items-center gap-1.5">
+              <p className="text-xs text-foreground min-w-0 truncate flex items-center gap-1.5">
                 <span aria-hidden="true">{getCategoryIcon(budget.category)}</span>
                 <span className="truncate">{budget.category}</span>
                 <span className="text-muted">·</span>
@@ -169,11 +169,11 @@ export default function CategoryBudgets() {
         {showCategoryPicker ? (
           <div className="p-6 space-y-4 overflow-y-auto">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-white">Which category</h2>
+              <h2 className="text-lg font-bold text-foreground">Which category</h2>
               <button
                 type="button"
                 onClick={() => setShowCategoryPicker(false)}
-                className="text-sm font-semibold text-muted hover:text-white min-h-[44px] px-2 flex items-center gap-1"
+                className="text-sm font-semibold text-muted hover:text-foreground min-h-[44px] px-2 flex items-center gap-1"
               >
                 ← Back
               </button>
@@ -189,12 +189,12 @@ export default function CategoryBudgets() {
         ) : (
         <form onSubmit={handleSave} className="p-6 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-white">New category budget</h2>
+            <h2 className="text-lg font-bold text-foreground">New category budget</h2>
             <button
               type="button"
               onClick={closeForm}
               aria-label="Close"
-              className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-white/10 text-muted hover:text-white"
+              className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-surface-2 text-muted hover:text-foreground"
             >
               ✕
             </button>
@@ -205,7 +205,7 @@ export default function CategoryBudgets() {
             <button
               type="button"
               onClick={() => setShowCategoryPicker(true)}
-              className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-accent min-h-[48px] flex items-center gap-2"
+              className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm focus:outline-none focus:border-accent min-h-[48px] flex items-center gap-2"
             >
               <span className="text-lg" aria-hidden="true">{getCategoryIcon(form.category)}</span>
               <span className="truncate">{form.category}</span>
@@ -225,9 +225,9 @@ export default function CategoryBudgets() {
               value={form.target_amount}
               onChange={(e) => setForm((f) => ({ ...f, target_amount: e.target.value }))}
               placeholder="15000"
-              className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+              className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
             />
-            <p className="text-[11px] text-muted-dim mt-1.5">
+            <p className="text-xs text-muted-dim mt-1.5">
               Already have one for this category? Saving replaces it.
             </p>
           </div>
@@ -235,7 +235,7 @@ export default function CategoryBudgets() {
           <button
             type="submit"
             disabled={saving}
-            className="w-full py-3.5 bg-accent text-black font-bold text-sm rounded-xl min-h-[48px] disabled:opacity-50"
+            className="w-full py-3.5 bg-accent text-on-accent font-bold text-sm rounded-xl min-h-[48px] disabled:opacity-50"
           >
             {saving ? 'Saving…' : 'Save budget'}
           </button>

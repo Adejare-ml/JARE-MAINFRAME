@@ -18,33 +18,33 @@ export default function WhatNext() {
   }
 
   return (
-    <section className="bg-card rounded-3xl p-6 border border-white/5 space-y-3" aria-label="What to eat next">
-      <button type="button" onClick={ask} disabled={state.busy} className="w-full min-h-[48px] rounded-xl bg-white/5 border border-white/10 text-white text-sm font-bold disabled:opacity-60">
+    <section className="bg-card rounded-3xl p-6 border border-border space-y-3" aria-label="What to eat next">
+      <button type="button" onClick={ask} disabled={state.busy} className="w-full min-h-[48px] rounded-xl bg-surface-2 border border-border text-foreground text-sm font-bold disabled:opacity-60">
         {state.busy ? 'Asking the coach…' : '🧭 What should I eat next?'}
       </button>
       {state.error && (
-        <p className="text-[11px] text-orange-300" role="alert">
+        <p className="text-xs text-orange-300" role="alert">
           {state.error}
         </p>
       )}
       {state.result && (
         <div className="space-y-2" aria-live="polite">
-          {state.result.reason && <p className="text-sm text-white leading-relaxed">{state.result.reason}</p>}
+          {state.result.reason && <p className="text-sm text-foreground leading-relaxed">{state.result.reason}</p>}
           <ul className="space-y-2">
             {state.result.next_options.map((o, i) => (
-              <li key={i} className="rounded-2xl border border-white/10 bg-background/50 p-3">
-                <p className="text-sm font-bold text-white">
+              <li key={i} className="rounded-2xl border border-border bg-background/50 p-3">
+                <p className="text-sm font-bold text-foreground">
                   {o.meal}
-                  {o.from_pantry && <span className="ml-2 text-[10px] font-extrabold uppercase tracking-wider text-accent">at home</span>}
+                  {o.from_pantry && <span className="ml-2 text-xs font-extrabold uppercase tracking-wider text-accent">at home</span>}
                 </p>
-                <p className="text-[11px] text-muted tabular-nums">
+                <p className="text-xs text-muted tabular-nums">
                   {o.kcal.toLocaleString()} kcal · {o.protein_g} g protein{o.why ? ` · ${o.why}` : ''}
                 </p>
               </li>
             ))}
           </ul>
-          {state.result.next_options.length === 0 && <p className="text-[11px] text-muted">No suggestion passed the checks. Try again in a moment.</p>}
-          {state.result.flag && <p className="text-[11px] text-orange-300">{state.result.flag}</p>}
+          {state.result.next_options.length === 0 && <p className="text-xs text-muted">No suggestion passed the checks. Try again in a moment.</p>}
+          {state.result.flag && <p className="text-xs text-orange-300">{state.result.flag}</p>}
         </div>
       )}
     </section>

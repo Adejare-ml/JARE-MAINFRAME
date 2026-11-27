@@ -358,7 +358,7 @@ export default function Settings() {
     <div className="space-y-6 pb-8 max-w-2xl mx-auto">
       {/* Header */}
       <div>
-        <h1 className="text-2xl md:text-3xl font-extrabold text-white">Settings</h1>
+        <h1 className="text-2xl md:text-3xl font-extrabold text-foreground">Settings</h1>
         <p className="text-muted text-sm mt-0.5">Manage integrations, banks, wallets, and account</p>
       </div>
 
@@ -378,10 +378,10 @@ export default function Settings() {
                 <Link
                   key={item.path}
                   to={item.path}
-                  className="bg-card rounded-2xl p-4 border border-white/10 flex items-center gap-3 min-h-[56px] hover:border-accent/40 transition-colors"
+                  className="bg-card rounded-2xl p-4 border border-border flex items-center gap-3 min-h-[56px] hover:border-accent/40 transition-colors"
                 >
                   <span className="text-xl" aria-hidden="true">{item.icon}</span>
-                  <span className="text-sm font-bold text-white">{item.label}</span>
+                  <span className="text-sm font-bold text-foreground">{item.label}</span>
                   <span className="ml-auto text-muted" aria-hidden="true">→</span>
                 </Link>
               ))}
@@ -391,8 +391,8 @@ export default function Settings() {
           {/* ════════════════════════════════════════ */}
           {/* BANK ALERTS SECTION */}
           {/* ════════════════════════════════════════ */}
-          <section className="bg-card rounded-3xl p-6 border border-white/10 space-y-3">
-            <h2 className="text-xs font-semibold text-muted uppercase tracking-wider border-b border-white/5 pb-3">
+          <section className="bg-card rounded-3xl p-6 border border-border space-y-3">
+            <h2 className="text-xs font-semibold text-muted uppercase tracking-wider border-b border-border pb-3">
               Bank alerts
             </h2>
             {/* The Connect / Sync Now / Disconnect trio lived here until 26 Sep
@@ -400,7 +400,7 @@ export default function Settings() {
                 recorded, and Disconnect deleted the row that audit stamps, so
                 System read "never checked" for good. Nothing here to press now:
                 the reading happens outside the app, and its state is below. */}
-            <p className="text-sm text-white/90 leading-relaxed">
+            <p className="text-sm text-foreground leading-relaxed">
               Read every morning by the Claude scheduled task, which files each GTBank, OPay, Stanbic,
               PalmPay, Zenith and PiggyVest alert straight into the ledger. Anything it was unsure about waits in the
               review queue on Transactions, and so does any transfer to someone other than you:
@@ -416,8 +416,8 @@ export default function Settings() {
           {/* ════════════════════════════════════════ */}
           {/* BANKS & WALLETS SECTION */}
           {/* ════════════════════════════════════════ */}
-          <section className="bg-card rounded-3xl p-6 border border-white/10 space-y-5">
-            <div className="flex items-center justify-between border-b border-white/5 pb-3">
+          <section className="bg-card rounded-3xl p-6 border border-border space-y-5">
+            <div className="flex items-center justify-between border-b border-border pb-3">
               <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">
                 Banks & Wallets
               </h2>
@@ -447,8 +447,8 @@ export default function Settings() {
                       key={w.id}
                       className={`p-4 rounded-2xl border transition-all ${
                         isInactive
-                          ? 'bg-background/30 border-white/5 opacity-50'
-                          : 'bg-background/50 border-white/5 hover:border-white/10'
+                          ? 'bg-background/30 border-border opacity-50'
+                          : 'bg-background/50 border-border hover:border-border-strong'
                       }`}
                     >
                       <div className="flex items-center justify-between gap-3">
@@ -461,18 +461,18 @@ export default function Settings() {
                           <span className="text-lg flex-shrink-0">{typeInfo.icon}</span>
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
-                              <h3 className="text-sm font-bold text-white truncate">{w.name}</h3>
+                              <h3 className="text-sm font-bold text-foreground truncate">{w.name}</h3>
                               {w.account_last4 && (
-                                <span className="text-[10px] text-muted font-mono">••{w.account_last4}</span>
+                                <span className="text-xs text-muted font-mono">••{w.account_last4}</span>
                               )}
                               {isInactive && (
-                                <span className="text-[9px] bg-white/5 text-muted px-1.5 py-0.5 rounded-full uppercase font-bold">
+                                <span className="text-xs bg-surface-2 text-muted px-1.5 py-0.5 rounded-full uppercase font-bold">
                                   Inactive
                                 </span>
                               )}
                             </div>
                             {w.alert_sender && (
-                              <p className="text-[10px] text-muted-dim font-mono truncate">{w.alert_sender}</p>
+                              <p className="text-xs text-muted-dim font-mono truncate">{w.alert_sender}</p>
                             )}
                             {/* Whether this bank has been heard from: the one
                                 code-side sign that the audit reads this sender.
@@ -483,7 +483,7 @@ export default function Settings() {
                               if (heard.status === 'n/a') return null
                               const quiet = heard.status === 'quiet' || heard.status === 'never'
                               return (
-                                <p className={`text-[10px] ${quiet ? 'text-orange-300' : 'text-muted-dim'}`}>
+                                <p className={`text-xs ${quiet ? 'text-orange-300' : 'text-muted-dim'}`}>
                                   {heard.status === 'never' ? 'No alert recorded yet' : `Last alert ${timeAgo(heard.lastAlertAt)}`}
                                 </p>
                               )
@@ -492,13 +492,13 @@ export default function Settings() {
                         </div>
 
                         <div className="flex items-center gap-3 flex-shrink-0">
-                          <p className="text-sm font-extrabold text-white money">{formatNaira(w.balance)}</p>
+                          <p className="text-sm font-extrabold text-foreground money">{formatNaira(w.balance)}</p>
 
                           {/* Action buttons */}
                           <div className="flex gap-1">
                             <button
                               onClick={() => openEditWallet(w)}
-                              className="w-9 h-9 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 text-muted hover:text-white transition-colors text-xs"
+                              className="w-9 h-9 flex items-center justify-center rounded-lg bg-surface-2 hover:bg-surface-2 text-muted hover:text-foreground transition-colors text-xs"
                               aria-label={`Edit ${w.name}`}
                               title="Edit"
                             >
@@ -509,7 +509,7 @@ export default function Settings() {
                               className={`w-9 h-9 flex items-center justify-center rounded-lg transition-colors text-xs ${
                                 isInactive
                                   ? 'bg-accent/10 hover:bg-accent/20 text-accent'
-                                  : 'bg-white/5 hover:bg-orange-500/10 text-muted hover:text-orange-400'
+                                  : 'bg-surface-2 hover:bg-orange-500/10 text-muted hover:text-orange-400'
                               }`}
                               aria-label={isInactive ? `Reactivate ${w.name}` : `Deactivate ${w.name}`}
                               title={isInactive ? 'Reactivate' : 'Deactivate'}
@@ -518,7 +518,7 @@ export default function Settings() {
                             </button>
                             <button
                               onClick={() => setDeletingWallet(w)}
-                              className="w-9 h-9 flex items-center justify-center rounded-lg bg-white/5 hover:bg-red-500/10 text-muted hover:text-red-400 transition-colors text-xs"
+                              className="w-9 h-9 flex items-center justify-center rounded-lg bg-surface-2 hover:bg-red-500/10 text-muted hover:text-red-400 transition-colors text-xs"
                               aria-label={`Delete ${w.name}`}
                               title="Delete"
                             >
@@ -534,11 +534,11 @@ export default function Settings() {
             </div>
 
             {/* Threshold Setting */}
-            <form onSubmit={handleSaveThreshold} className="space-y-3 pt-3 border-t border-white/5">
+            <form onSubmit={handleSaveThreshold} className="space-y-3 pt-3 border-t border-border">
               <label className="block text-xs text-muted font-semibold">
                 Low Balance Warning Threshold (₦)
               </label>
-              <p className="text-[11px] text-muted-dim">
+              <p className="text-xs text-muted-dim">
                 Wallets below this amount trigger warnings on Daily HQ
               </p>
 
@@ -552,14 +552,14 @@ export default function Settings() {
                     onChange={(e) => setThreshold(e.target.value)}
                     placeholder="10000"
                     required
-                    className="w-full pl-9 pr-4 py-3 bg-background border border-white/10 rounded-xl text-white font-bold text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+                    className="w-full pl-9 pr-4 py-3 bg-background border border-border rounded-xl text-foreground font-bold text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
                   />
                 </div>
 
                 <button
                   type="submit"
                   disabled={savingThreshold}
-                  className="px-6 py-3 bg-white/10 hover:bg-accent text-white hover:text-black font-bold text-sm rounded-xl transition-all min-h-[48px] disabled:opacity-50"
+                  className="px-6 py-3 bg-surface-2 hover:bg-accent text-foreground hover:text-on-accent font-bold text-sm rounded-xl transition-all min-h-[48px] disabled:opacity-50"
                 >
                   {savingThreshold ? 'Saving...' : 'Save Threshold'}
                 </button>
@@ -567,11 +567,11 @@ export default function Settings() {
             </form>
 
             {/* Monthly Budget Target */}
-            <form onSubmit={handleSaveBudgetTarget} className="space-y-3 pt-3 border-t border-white/5">
+            <form onSubmit={handleSaveBudgetTarget} className="space-y-3 pt-3 border-t border-border">
               <label className="block text-xs text-muted font-semibold">
                 Monthly Budget Target (₦)
               </label>
-              <p className="text-[10px] text-muted-dim">
+              <p className="text-xs text-muted-dim">
                 Daily HQ's "% of budget" bar measures this month's spending against this number.
               </p>
               <div className="flex gap-2">
@@ -584,14 +584,14 @@ export default function Settings() {
                     onChange={(e) => setBudgetTarget(e.target.value)}
                     placeholder="85000"
                     required
-                    className="w-full pl-9 pr-4 py-3 bg-background border border-white/10 rounded-xl text-white font-bold text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+                    className="w-full pl-9 pr-4 py-3 bg-background border border-border rounded-xl text-foreground font-bold text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
                   />
                 </div>
 
                 <button
                   type="submit"
                   disabled={savingBudgetTarget}
-                  className="px-6 py-3 bg-white/10 hover:bg-accent text-white hover:text-black font-bold text-sm rounded-xl transition-all min-h-[48px] disabled:opacity-50"
+                  className="px-6 py-3 bg-surface-2 hover:bg-accent text-foreground hover:text-on-accent font-bold text-sm rounded-xl transition-all min-h-[48px] disabled:opacity-50"
                 >
                   {savingBudgetTarget ? 'Saving...' : 'Save Target'}
                 </button>
@@ -602,14 +602,14 @@ export default function Settings() {
           {/* ════════════════════════════════════════ */}
           {/* APPEARANCE & PLANNER VOICE */}
           {/* ════════════════════════════════════════ */}
-          <section className="bg-card rounded-3xl p-6 border border-white/10 space-y-5">
-            <h2 className="text-xs font-semibold text-muted uppercase tracking-wider border-b border-white/5 pb-3">
+          <section className="bg-card rounded-3xl p-6 border border-border space-y-5">
+            <h2 className="text-xs font-semibold text-muted uppercase tracking-wider border-b border-border pb-3">
               Appearance & Planner
             </h2>
 
             <div>
               <span className="block text-xs text-muted font-semibold mb-1">Theme</span>
-              <p className="text-[10px] text-muted-dim mb-2">
+              <p className="text-xs text-muted-dim mb-2">
                 "System" follows your device. Per device, not synced.
               </p>
               <div className="grid grid-cols-3 gap-2">
@@ -628,8 +628,8 @@ export default function Settings() {
                     aria-pressed={themeMode === m.value}
                     className={`py-3 rounded-xl text-sm font-bold text-center min-h-[48px] transition-colors ${
                       themeMode === m.value
-                        ? 'bg-accent text-black'
-                        : 'bg-background border border-white/10 text-muted hover:text-white'
+                        ? 'bg-accent text-on-accent'
+                        : 'bg-background border border-border text-muted hover:text-foreground'
                     }`}
                   >
                     {m.label}
@@ -638,10 +638,10 @@ export default function Settings() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between p-3 bg-background/50 rounded-xl border border-white/5">
+            <div className="flex items-center justify-between p-3 bg-background/50 rounded-xl border border-border">
               <div>
-                <span className="block text-sm font-semibold text-white">True black (OLED)</span>
-                <span className="block text-[11px] text-muted mt-0.5">
+                <span className="block text-sm font-semibold text-foreground">True black (OLED)</span>
+                <span className="block text-xs text-muted mt-0.5">
                   A pure black background instead of dark grey. Per device, not synced.
                 </span>
               </div>
@@ -654,7 +654,7 @@ export default function Settings() {
                 }}
                 aria-pressed={oledEnabled}
                 className={`flex-shrink-0 w-12 h-7 rounded-full transition-all relative ${
-                  oledEnabled ? 'bg-accent' : 'bg-white/10'
+                  oledEnabled ? 'bg-accent' : 'bg-surface-2'
                 }`}
               >
                 <div
@@ -667,7 +667,7 @@ export default function Settings() {
 
             <div>
               <span className="block text-xs text-muted font-semibold mb-1">Planner tone</span>
-              <p className="text-[10px] text-muted-dim mb-2">
+              <p className="text-xs text-muted-dim mb-2">
                 How Daily HQ's proactive line talks to you about your money -- same facts either
                 way, just said differently.
               </p>
@@ -684,13 +684,13 @@ export default function Settings() {
                     className={`p-3 rounded-xl border text-left transition-all min-h-[48px] ${
                       plannerTone === t.value
                         ? 'border-accent bg-accent/10'
-                        : 'border-white/10 bg-background text-muted hover:border-white/20'
+                        : 'border-border bg-background text-muted hover:border-border-strong'
                     }`}
                   >
-                    <span className={`block text-sm font-bold ${plannerTone === t.value ? 'text-accent' : 'text-white'}`}>
+                    <span className={`block text-sm font-bold ${plannerTone === t.value ? 'text-accent' : 'text-foreground'}`}>
                       {t.label}
                     </span>
-                    <span className="block text-[10px] text-muted-dim mt-0.5">{t.example}</span>
+                    <span className="block text-xs text-muted-dim mt-0.5">{t.example}</span>
                   </button>
                 ))}
               </div>
@@ -703,8 +703,8 @@ export default function Settings() {
           <DiscoveredAccountsSettings />
           {/* MEALS */}
           {/* ════════════════════════════════════════ */}
-          <section className="bg-card rounded-3xl p-6 border border-white/10 space-y-4">
-            <h2 className="text-xs font-semibold text-muted uppercase tracking-wider border-b border-white/5 pb-3">Meals</h2>
+          <section className="bg-card rounded-3xl p-6 border border-border space-y-4">
+            <h2 className="text-xs font-semibold text-muted uppercase tracking-wider border-b border-border pb-3">Meals</h2>
             <p className="text-xs text-muted leading-relaxed">
               The Meals page photographs a plate and estimates its calories (the analyze-meal edge function; see
               README). The target below is what the day's ring fills towards. Most adults land between 1,800 and
@@ -733,12 +733,12 @@ export default function Settings() {
                 value={calorieTarget}
                 onChange={(e) => setCalorieTarget(e.target.value)}
                 placeholder="e.g. 2200"
-                className="flex-1 min-w-0 px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+                className="flex-1 min-w-0 px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
               />
               <button
                 type="submit"
                 disabled={savingCalorieTarget}
-                className="px-5 bg-accent text-black rounded-xl font-bold text-sm min-h-[48px] disabled:opacity-50"
+                className="px-5 bg-accent text-on-accent rounded-xl font-bold text-sm min-h-[48px] disabled:opacity-50"
               >
                 {savingCalorieTarget ? 'Saving…' : 'Save'}
               </button>
@@ -778,15 +778,15 @@ export default function Settings() {
           {/* ════════════════════════════════════════ */}
           {/* ACCOUNT SECTION */}
           {/* ════════════════════════════════════════ */}
-          <section className="bg-card rounded-3xl p-6 border border-white/10 space-y-4">
-            <h2 className="text-xs font-semibold text-muted uppercase tracking-wider border-b border-white/5 pb-3">
+          <section className="bg-card rounded-3xl p-6 border border-border space-y-4">
+            <h2 className="text-xs font-semibold text-muted uppercase tracking-wider border-b border-border pb-3">
               Account
             </h2>
 
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <p className="text-xs text-muted mb-0.5">Logged in as</p>
-                <p className="text-sm font-bold text-white font-mono">{userEmail || 'Adejare Adelugba'}</p>
+                <p className="text-sm font-bold text-foreground font-mono">{userEmail || 'Adejare Adelugba'}</p>
               </div>
 
               <button
@@ -813,12 +813,12 @@ export default function Settings() {
         <div className="p-6 relative overflow-y-auto">
             <button
               onClick={() => setShowWalletModal(false)}
-              className="absolute top-4 right-4 text-muted hover:text-white w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10"
+              className="absolute top-4 right-4 text-muted hover:text-foreground w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-2"
             >
               ✕
             </button>
 
-            <h2 className="text-xl font-bold text-white mb-5">
+            <h2 className="text-xl font-bold text-foreground mb-5">
               {editingWallet ? 'Edit Wallet' : 'Add New Wallet'}
             </h2>
 
@@ -832,7 +832,7 @@ export default function Settings() {
                   onChange={(e) => setWalletForm({ ...walletForm, name: e.target.value })}
                   placeholder="e.g. GTBank, PiggyVest"
                   required
-                  className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+                  className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
                 />
               </div>
 
@@ -848,11 +848,11 @@ export default function Settings() {
                       className={`flex flex-col items-center gap-1 p-2.5 rounded-xl border text-xs font-medium transition-all min-h-[48px] ${
                         walletForm.type === t.value
                           ? 'bg-accent/10 border-accent/30 text-accent'
-                          : 'bg-background/50 border-white/5 text-muted hover:border-white/10'
+                          : 'bg-background/50 border-border text-muted hover:border-border-strong'
                       }`}
                     >
                       <span className="text-lg">{t.icon}</span>
-                      <span className="text-[10px]">{t.label}</span>
+                      <span className="text-xs">{t.label}</span>
                     </button>
                   ))}
                 </div>
@@ -872,7 +872,7 @@ export default function Settings() {
                     value={walletForm.balance}
                     onChange={(e) => setWalletForm({ ...walletForm, balance: e.target.value })}
                     placeholder="0.00"
-                    className="w-full pl-9 pr-4 py-3 bg-background border border-white/10 rounded-xl text-white font-bold text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+                    className="w-full pl-9 pr-4 py-3 bg-background border border-border rounded-xl text-foreground font-bold text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
                   />
                 </div>
               </div>
@@ -885,7 +885,7 @@ export default function Settings() {
               <button
                 type="button"
                 onClick={() => setShowAdvancedWalletFields((v) => !v)}
-                className="w-full flex items-center justify-between text-xs font-semibold text-muted hover:text-white py-2"
+                className="w-full flex items-center justify-between text-xs font-semibold text-muted hover:text-foreground py-2"
               >
                 <span>Advanced (sync & appearance)</span>
                 <span aria-hidden="true">{showAdvancedWalletFields ? '−' : '+'}</span>
@@ -898,7 +898,7 @@ export default function Settings() {
                     <label className="block text-xs text-muted font-semibold mb-1">
                       Alert Email Sender
                     </label>
-                    <p className="text-[10px] text-muted-dim mb-1.5">
+                    <p className="text-xs text-muted-dim mb-1.5">
                       The From address of transaction notification emails (e.g. GeNS@gtbank.com)
                     </p>
                     <input
@@ -906,7 +906,7 @@ export default function Settings() {
                       value={walletForm.alert_sender}
                       onChange={(e) => setWalletForm({ ...walletForm, alert_sender: e.target.value })}
                       placeholder="alerts@bank.com"
-                      className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm font-mono placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+                      className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm font-mono placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
                     />
                   </div>
 
@@ -919,7 +919,7 @@ export default function Settings() {
                       value={walletForm.account_last4}
                       onChange={(e) => setWalletForm({ ...walletForm, account_last4: e.target.value.replace(/\D/g, '').slice(0, 4) })}
                       placeholder="1234"
-                      className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm font-mono placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+                      className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm font-mono placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
                     />
                   </div>
 
@@ -942,13 +942,13 @@ export default function Settings() {
                   </div>
 
                   {/* Active toggle */}
-                  <div className="flex items-center justify-between p-3 bg-background/50 rounded-xl border border-white/5">
+                  <div className="flex items-center justify-between p-3 bg-background/50 rounded-xl border border-border">
                     <span className="text-xs text-muted font-semibold">Active</span>
                     <button
                       type="button"
                       onClick={() => setWalletForm({ ...walletForm, is_active: !walletForm.is_active })}
                       className={`w-12 h-7 rounded-full transition-all relative ${
-                        walletForm.is_active ? 'bg-accent' : 'bg-white/10'
+                        walletForm.is_active ? 'bg-accent' : 'bg-surface-2'
                       }`}
                     >
                       <div
@@ -965,7 +965,7 @@ export default function Settings() {
               <button
                 type="submit"
                 disabled={savingWallet}
-                className="w-full py-3.5 bg-accent hover:bg-accent/90 text-black font-bold text-sm rounded-xl transition-all shadow-md shadow-accent/20 min-h-[48px] disabled:opacity-50"
+                className="w-full py-3.5 bg-accent hover:bg-accent/90 text-on-accent font-bold text-sm rounded-xl transition-all shadow-md shadow-accent/20 min-h-[48px] disabled:opacity-50"
               >
                 {savingWallet ? 'Saving...' : editingWallet ? 'Update Wallet' : 'Add Wallet'}
               </button>
@@ -987,18 +987,18 @@ export default function Settings() {
       >
         <div className="p-6 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-white">Delete this wallet?</h2>
+            <h2 className="text-lg font-bold text-foreground">Delete this wallet?</h2>
             <button
               type="button"
               onClick={() => setDeletingWallet(null)}
               aria-label="Close"
-              className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-white/10 text-muted hover:text-white"
+              className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-surface-2 text-muted hover:text-foreground"
             >
               ✕
             </button>
           </div>
 
-          <p className="text-sm text-white/90">
+          <p className="text-sm text-foreground">
             <span className="font-bold">{deletingWallet?.name}</span> and its balance history
             will be gone permanently. Transactions already logged against it stay in the
             ledger, but nothing will point back to it.
@@ -1013,14 +1013,14 @@ export default function Settings() {
             <button
               type="button"
               onClick={() => handleDeleteWallet(deletingWallet.id)}
-              className="flex-1 py-3 bg-red-500 text-white text-sm font-bold rounded-xl min-h-[48px]"
+              className="flex-1 py-3 bg-red-500 text-foreground text-sm font-bold rounded-xl min-h-[48px]"
             >
               Delete permanently
             </button>
             <button
               type="button"
               onClick={() => setDeletingWallet(null)}
-              className="flex-1 py-3 bg-white/5 text-muted hover:text-white text-sm font-semibold rounded-xl min-h-[48px]"
+              className="flex-1 py-3 bg-surface-2 text-muted hover:text-foreground text-sm font-semibold rounded-xl min-h-[48px]"
             >
               Cancel
             </button>

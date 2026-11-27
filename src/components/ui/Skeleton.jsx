@@ -1,7 +1,7 @@
 /**
  * One shape for a loading placeholder.
  *
- * Six pages used to hand-roll the identical `<div className="bg-white/5
+ * Six pages used to hand-roll the identical `<div className="bg-surface-2
  * rounded-xl ..." />` independently, each free to drift from the others. This
  * is the one definition, sized per use exactly the way those divs already
  * were -- `className` carries the same size/shape classes the call site used
