@@ -113,7 +113,7 @@ export default function DailySheet({ day, onDayChange, onChanged }) {
     const { error: upErr } = await supabase.from('meal_items').update(patch).eq('id', item.id)
     if (!upErr) await supabase.from('meal_logs').update({ status: 'edited' }).eq('id', item.meal_id)
     if (upErr) toast.error('Not saved: ' + upErr.message)
-    else toast.success('Updated ✓')
+    else toast.success('Updated')
     await load()
     onChanged?.()
   }

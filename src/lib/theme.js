@@ -71,7 +71,7 @@ export function resolveTheme(mode = getThemeMode()) {
 
 /** Applies the given (or currently stored) mode to the document, resolving 'system' first. */
 /** What the browser chrome is painted, per theme: index.css's --color-background. */
-export const THEME_COLORS = { dark: '#0f0f0f', light: '#f5f5f5' }
+export const THEME_COLORS = { dark: '#0b0c0d', light: '#f1f2f0' }
 
 export function applyThemePreference(mode = getThemeMode()) {
   const theme = resolveTheme(mode)

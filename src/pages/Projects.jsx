@@ -203,7 +203,7 @@ export default function Projects() {
       }
 
       confirmBuzz()
-      toast.success(editing ? 'Updated ✓' : 'Added ✓')
+      toast.success(editing ? 'Updated' : 'Added')
       fetchProjects()
       setJustSaved(true)
       setTimeout(() => {
@@ -230,7 +230,7 @@ export default function Projects() {
     if (error) toast.error('Failed to update: ' + error.message)
     else {
       if (status === 'complete') confirmBuzz()
-      toast.success(status === 'complete' ? 'Marked complete ✓' : 'Reopened')
+      toast.success(status === 'complete' ? 'Marked complete' : 'Reopened')
       fetchProjects()
     }
   }

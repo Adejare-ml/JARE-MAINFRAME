@@ -354,7 +354,7 @@ export default function MealCapture({ isOpen, onClose, onLogged, initialMode = '
       }
       const kcal = data?.calories ?? sumCalories(cleaned)
       confirmBuzz()
-      toast.success(`${Number(kcal).toLocaleString()} kcal logged ✓`)
+      toast.success(`${Number(kcal).toLocaleString()} kcal logged`)
       setJustLogged(true)
       onLogged?.(data)
       setTimeout(() => onClose(), 220)

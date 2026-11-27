@@ -200,7 +200,7 @@ export default function Goals() {
         }
         throw error
       }
-      toast.success(action === 'close' ? 'Closed' : 'Rolled into this period ✓')
+      toast.success(action === 'close' ? 'Closed' : 'Rolled into this period')
       fetchGoals()
     } catch (err) {
       console.error('Error resolving stale goal:', err)
@@ -236,7 +236,7 @@ export default function Goals() {
         : await supabase.from('goals').insert(row)
       if (error) throw error
 
-      toast.success(id ? 'Updated ✓' : 'Goal set ✓')
+      toast.success(id ? 'Updated' : 'Goal set')
       setShowForm(false)
       setEditing(null)
       fetchGoals()
@@ -293,7 +293,7 @@ export default function Goals() {
       setDrafts(previous)
       toast.error('Could not save that: ' + error.message)
     } else {
-      toast.success(status === PLAN_STATUS.ACTIVE ? 'Plan approved ✓' : 'Discarded')
+      toast.success(status === PLAN_STATUS.ACTIVE ? 'Plan approved' : 'Discarded')
       fetchGoals()
     }
     setPlanBusy(false)
@@ -316,7 +316,7 @@ export default function Goals() {
 
     if (error) toast.error('Could not log that: ' + error.message)
     else {
-      toast.success('Logged ✓')
+      toast.success('Logged')
       fetchGoals()
     }
     setPlanBusy(false)
@@ -345,7 +345,7 @@ export default function Goals() {
       // cannot leave tasks in tomorrow's list with nothing to explain them.
       const { error } = await supabase.from('goals').delete().eq('id', id)
       if (error) throw error
-      toast.success('Deleted ✓')
+      toast.success('Deleted')
       setConfirmDeleteId(null)
       fetchGoals()
     } catch (err) {

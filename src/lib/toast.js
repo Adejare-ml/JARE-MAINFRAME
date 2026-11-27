@@ -14,16 +14,18 @@ class ToastManager {
   }
 
   /**
+   * Messages are plain sentences ("Logged ₦2,500 to Transport"): no tick
+   * characters, no emoji. The container adds the status dot.
+   *
    * @param {string} message
    * @param {'success'|'error'|'info'} type
    * @param {number|object} opts - a bare number is treated as `duration`
    *   (the original signature, still accepted so no existing call site
    *   breaks); an object may carry:
    *   - duration: ms, 0 for sticky
-   *   - color: a Tailwind bg-* class tinting a small dot next to the message
-   *     (e.g. the category colour of what was just logged) -- never the
-   *     toast's own background, so a category that happens to map to red
-   *     cannot read as an error.
+   *   - color: accepted for old callers and ignored. The toast's type is
+   *     carried by a leading StatusDot (green success, red error, grey
+   *     info) plus the words; a category colour is not a state.
    *   - action: {label, onClick} rendered as a button, e.g. "Undo"
    */
   show(message, type = 'success', opts = {}) {

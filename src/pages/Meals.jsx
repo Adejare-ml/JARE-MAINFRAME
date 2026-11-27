@@ -110,7 +110,7 @@ export default function Meals() {
         p_thumbnail: pick.meal.thumbnail || null,
       })
       if (rpcError) throw rpcError
-      toast.success(`${Number(data?.calories ?? pick.calories).toLocaleString()} kcal logged again ✓`, {
+      toast.success(`${Number(data?.calories ?? pick.calories).toLocaleString()} kcal logged again`, {
         action: data?.id ? { label: 'Undo', onClick: () => remove(data.id, true) } : null,
       })
       load()

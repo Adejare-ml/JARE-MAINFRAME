@@ -82,7 +82,7 @@ export default function Reminders() {
         .upsert(row, { onConflict: 'user_id,endpoint' })
       if (error) throw error
 
-      toast.success('Reminders on for this device ✓')
+      toast.success('Reminders on for this device')
       await load()
     } catch (err) {
       console.error('Could not enable reminders:', err)

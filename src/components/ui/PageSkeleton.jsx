@@ -10,7 +10,7 @@ import Skeleton, { SkeletonRows } from './Skeleton'
  */
 export default function PageSkeleton() {
   return (
-    <div className="space-y-6 animate-pulse" aria-hidden="true">
+    <div className="space-y-6" aria-hidden="true">
       <div className="space-y-2">
         <div className="h-8 bg-surface-2 rounded-xl w-48" />
         <div className="h-4 bg-surface-2 rounded-lg w-64" />
@@ -42,7 +42,7 @@ export default function PageSkeleton() {
 
 export function DailyHQSkeleton() {
   return (
-    <div className="space-y-6 animate-pulse">
+    <div className="space-y-6">
       <Skeleton className="h-10 bg-surface-2 rounded-xl w-64" />
       <Skeleton className="h-32 bg-card rounded-3xl border border-border" />
       <Skeleton className="h-28 bg-card rounded-3xl border border-border" />
@@ -53,7 +53,7 @@ export function DailyHQSkeleton() {
 
 export function BudgetSkeleton() {
   return (
-    <div className="p-4 md:p-8 animate-pulse space-y-6">
+    <div className="p-4 md:p-8 space-y-6">
       <Skeleton className="h-10 bg-surface-2 rounded w-1/3" />
       <Skeleton className="h-32 bg-surface-2 rounded-2xl" />
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -65,7 +65,7 @@ export function BudgetSkeleton() {
 
 export function GoalsSkeleton() {
   return (
-    <div className="space-y-6 animate-pulse">
+    <div className="space-y-6">
       <Skeleton className="h-10 bg-surface-2 rounded-xl w-48" />
       <Skeleton className="h-24 bg-card rounded-3xl border border-border" />
       <Skeleton className="h-44 bg-card rounded-3xl border border-border" />
@@ -75,7 +75,7 @@ export function GoalsSkeleton() {
 
 export function DebtsSkeleton() {
   return (
-    <div className="space-y-6 animate-pulse">
+    <div className="space-y-6">
       <Skeleton className="h-10 bg-surface-2 rounded-xl w-48" />
       <Skeleton className="h-24 bg-card rounded-3xl border border-border" />
       <Skeleton className="h-44 bg-card rounded-3xl border border-border" />
@@ -85,7 +85,7 @@ export function DebtsSkeleton() {
 
 export function ProjectsSkeleton() {
   return (
-    <div className="space-y-6 animate-pulse">
+    <div className="space-y-6">
       <Skeleton className="h-10 bg-surface-2 rounded-xl w-48" />
       <Skeleton className="h-20 bg-card rounded-3xl border border-border" />
       <div className="space-y-3">
@@ -97,7 +97,7 @@ export function ProjectsSkeleton() {
 
 export function RepairsSkeleton() {
   return (
-    <div className="space-y-6 animate-pulse">
+    <div className="space-y-6">
       <Skeleton className="h-10 bg-surface-2 rounded-xl w-48" />
       <Skeleton className="h-12 bg-card rounded-2xl border border-border" />
       <Skeleton className="h-20 bg-card rounded-2xl border border-border" />
@@ -110,7 +110,7 @@ export function RepairsSkeleton() {
 
 export function TransactionsSkeleton() {
   return (
-    <div className="space-y-4 animate-pulse">
+    <div className="space-y-4">
       <Skeleton className="h-8 bg-surface-2 rounded-xl w-48" />
       <Skeleton className="h-12 bg-card rounded-2xl border border-border" />
       <div className="space-y-2">
@@ -122,7 +122,7 @@ export function TransactionsSkeleton() {
 
 export function SettingsSkeleton() {
   return (
-    <div className="space-y-4 animate-pulse">
+    <div className="space-y-4">
       <Skeleton className="h-40 bg-card rounded-3xl border border-border" />
       <Skeleton className="h-40 bg-card rounded-3xl border border-border" />
       <Skeleton className="h-28 bg-card rounded-3xl border border-border" />

@@ -149,7 +149,7 @@ export default function Repairs() {
       if (error) throw error
 
       confirmBuzz()
-      toast.success(editing ? 'Updated ✓' : 'Added ✓')
+      toast.success(editing ? 'Updated' : 'Added')
       fetchRepairs()
       setJustSaved(true)
       setTimeout(() => {

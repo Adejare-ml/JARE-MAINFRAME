@@ -148,3 +148,99 @@ export function getCategoryColor(category) {
   }
   return colors[category] || 'bg-gray-500'
 }
+
+/** U+2212, the real minus sign. Negative figures use it before the ₦, never brackets. */
+export const MINUS = '−'
+
+function groupWhole(n) {
+  return Math.abs(n).toLocaleString('en-NG', { maximumFractionDigits: 0 })
+}
+
+/**
+ * Naira with an explicit sign rule, for the Money primitive.
+ *
+ * @param {number} amount
+ * @param {{kobo?: boolean, sign?: boolean}} [opts] - kobo: two decimals
+ *   (default true); sign: a leading + on positive amounts (negatives always
+ *   carry U+2212)
+ * @returns {string} e.g. "₦5,808.09", "−₦2,500.00", "+₦12,000"
+ */
+export function formatNairaSigned(amount, { kobo = true, sign = false } = {}) {
+  const n = Number(amount)
+  if (amount == null || !Number.isFinite(n)) return kobo ? '₦0.00' : '₦0'
+  // Half away from zero, so −₦499.50 and ₦499.50 round to the same size.
+  const round = (x) => Math.sign(x) * Math.round(Math.abs(x))
+  const value = kobo ? round(n * 100) / 100 : round(n)
+  const body = kobo
+    ? Math.abs(value).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : groupWhole(value)
+  const prefix = value < 0 ? MINUS : sign && value > 0 ? '+' : ''
+  return `${prefix}₦${body}`
+}
+
+/**
+ * Whole naira, kobo dropped (rounded), for hero figures.
+ * @param {number} amount
+ * @returns {string} e.g. "₦1,234,568", "−₦500"
+ */
+export function formatNairaWhole(amount) {
+  return formatNairaSigned(amount, { kobo: false })
+}
+
+/**
+ * Compact naira for figures too long to sit whole at hero size.
+ * @param {number} amount
+ * @returns {string} e.g. "₦1.23B", "₦4.5M", "₦12.3K", "₦950"
+ */
+export function formatNairaCompact(amount) {
+  const n = Number(amount)
+  if (amount == null || !Number.isFinite(n)) return '₦0'
+  const abs = Math.abs(n)
+  const prefix = n < 0 ? MINUS : ''
+  const units = [
+    [1e12, 'T'],
+    [1e9, 'B'],
+    [1e6, 'M'],
+    [1e3, 'K'],
+  ]
+  for (const [size, suffix] of units) {
+    if (abs >= size) {
+      // Two decimals, trailing zeros trimmed: ₦1.20B reads as ₦1.2B.
+      const scaled = Math.floor((abs / size) * 100) / 100
+      return `${prefix}₦${scaled.toFixed(2).replace(/\.?0+$/, '')}${suffix}`
+    }
+  }
+  return `${prefix}₦${groupWhole(Math.round(abs))}`
+}
+
+/**
+ * A run time for the status rail: "09:14" today, "Yesterday 21:40", or
+ * "2d ago". Never a ticking clock.
+ *
+ * @param {string|Date|null} timestamp
+ * @param {Date} [now]
+ * @returns {string}
+ */
+export function formatRailTime(timestamp, now = new Date()) {
+  if (!timestamp) return ''
+  const t = new Date(timestamp)
+  if (Number.isNaN(t.getTime())) return ''
+  const hhmm = `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`
+  const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  const days = Math.round((startOfDay(now) - startOfDay(t)) / 86400000)
+  if (days <= 0) return hhmm
+  if (days === 1) return `Yesterday ${hhmm}`
+  return `${days}d ago`
+}
+
+/**
+ * How long ago, in the rail's short form: "5h", "2d".
+ * @param {string|Date|null} timestamp
+ * @param {Date} [now]
+ */
+export function shortAge(timestamp, now = new Date()) {
+  if (!timestamp) return ''
+  const hours = Math.max(0, (now - new Date(timestamp)) / 3600000)
+  if (hours < 48) return `${Math.max(1, Math.floor(hours))}h`
+  return `${Math.floor(hours / 24)}d`
+}

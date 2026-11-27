@@ -26,6 +26,9 @@ const Ask = lazy(() => import('./pages/Ask'))
 // Meals page is no longer imported. Its files stay in the tree for Phase 3,
 // which reuses the capture code. Added for the Diet module, Phase 1.
 const Diet = lazy(() => import('./pages/Diet'))
+// DEV only: every primitive in every state, no sign-in (docs/design-system.md).
+// A literal null in production builds, so the module is never bundled.
+const Kit = import.meta.env.DEV ? lazy(() => import('./dev/Kit')) : null
 
 function App() {
   const { session, loading, recovering, signIn, signOut, resetPassword, updatePassword, finishRecovery } = useAuth()
@@ -35,13 +38,22 @@ function App() {
   // The user's own category names, loaded once the probe has said whether
   // the table exists and a session says whose rows to ask for.
   useCustomCategories(session?.user?.id, !checking)
+  const location = useLocation()
+
+  if (Kit && location.pathname === '/__kit') {
+    return (
+      <Suspense fallback={null}>
+        <Kit />
+      </Suspense>
+    )
+  }
 
   if (loading || checking) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <div className="inline-block w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin mb-4" />
-          <p className="text-muted text-sm">Loading Mainframe...</p>
+          <div className="inline-block w-6 h-6 border-2 border-border border-t-accent rounded-full animate-spin mb-3" />
+          <p className="type-label text-muted">Loading Mainframe</p>
         </div>
       </div>
     )

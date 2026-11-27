@@ -442,7 +442,7 @@ export default function DailyHQ() {
       toast.error('Failed to save: ' + error.message)
       return
     }
-    toast.success(`Added ${rows.length} ✓`)
+    toast.success(`Added ${rows.length}`)
     fetchDailyData()
   }
 

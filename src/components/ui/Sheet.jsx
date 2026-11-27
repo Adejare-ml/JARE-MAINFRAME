@@ -1,8 +1,10 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useDismissable } from '../../hooks/useDismissable'
 
 /** Drag the panel down this many pixels and releasing dismisses it. */
 const DISMISS_THRESHOLD = 100
+/** Matches --dur-sheet-exit in index.css: how long the exit runs before unmount. */
+const EXIT_MS = 200
 
 /**
  * A bottom sheet you can back out of.
@@ -82,7 +84,36 @@ export default function Sheet({
     setDragY(0)
   }
 
-  if (!isOpen) return null
+  // Stay mounted for the exit: translateY out (or fade, when centred), then
+  // unmount. Entry needs no state: `@starting-style` in index.css runs it.
+  const [mounted, setMounted] = useState(isOpen)
+  const [closing, setClosing] = useState(false)
+  const [prevOpen, setPrevOpen] = useState(isOpen)
+  if (isOpen !== prevOpen) {
+    // Adjusting state during render, not in an effect: React re-renders
+    // once with the new values before painting.
+    setPrevOpen(isOpen)
+    if (isOpen) {
+      setMounted(true)
+      setClosing(false)
+    } else if (mounted) {
+      const reduce = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+      if (reduce) setMounted(false)
+      else setClosing(true)
+    }
+  }
+  useEffect(() => {
+    if (!closing) return undefined
+    const t = setTimeout(() => {
+      setMounted(false)
+      setClosing(false)
+    }, EXIT_MS)
+    return () => clearTimeout(t)
+  }, [closing])
+
+  if (!mounted) return null
+  const state = closing ? 'closing' : 'open'
+  const centred = alwaysCenter
 
   // A centred dialog is not something you drag down to dismiss -- that
   // gesture belongs to a sheet anchored to an edge.
@@ -91,8 +122,9 @@ export default function Sheet({
   return (
     <>
       <div
-        className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 animate-fade-in"
-        onClick={onClose}
+        className="sheet-scrim fixed inset-0 z-50"
+        data-state={state}
+        onClick={closing ? undefined : onClose}
         // The backdrop is a convenience, not the only way out: Escape, the
         // back gesture and the sheet's own close control all work. Marked
         // hidden so it is not announced as an interactive element with no name.
@@ -100,7 +132,7 @@ export default function Sheet({
       />
 
       <div
-        className={`fixed z-50 flex justify-center pointer-events-none ${
+        className={`fixed z-50 flex justify-center pointer-events-none ${closing ? '[&_*]:pointer-events-none' : ''} ${
           alwaysCenter
             ? 'inset-0 items-center p-4'
             : desktopCenter
@@ -114,13 +146,15 @@ export default function Sheet({
           aria-modal="true"
           aria-label={title}
           tabIndex={-1}
+          data-state={state}
+          data-center={centred ? 'true' : undefined}
           style={
             dragY
-              ? { transform: `translateY(${dragY}px)`, transition: dragging ? 'none' : 'transform 0.25s ease' }
+              ? { transform: `translateY(${dragY}px)`, transition: dragging ? 'none' : 'transform var(--dur-state) var(--ease-out)' }
               : undefined
           }
-          className={`pointer-events-auto w-full ${maxWidth} bg-card border border-border shadow-2xl overflow-hidden flex flex-col animate-slide-up max-h-[90vh] focus:outline-none ${
-            alwaysCenter ? 'rounded-3xl' : desktopCenter ? 'rounded-t-3xl sm:rounded-3xl' : 'rounded-t-3xl'
+          className={`sheet-panel pointer-events-auto w-full ${maxWidth} bg-card border border-border overflow-hidden flex flex-col max-h-[90vh] focus:outline-none ${
+            alwaysCenter ? 'rounded-sheet' : desktopCenter ? 'rounded-t-sheet sm:rounded-sheet' : 'rounded-t-sheet'
           }`}
         >
           {draggable && (
@@ -134,7 +168,7 @@ export default function Sheet({
               }`}
               aria-hidden="true"
             >
-              <span className="w-10 h-1.5 rounded-full bg-surface-2" />
+              <span className="w-10 h-1 rounded-full bg-border" />
             </div>
           )}
           {children}

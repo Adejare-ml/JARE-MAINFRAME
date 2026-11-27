@@ -1,26 +1,23 @@
+import Button from './Button'
+
 /**
- * One shape for "there is nothing here yet," used instead of every page
- * writing its own. What differs between pages is the icon, the words, and
- * the one thing worth doing about it -- never the layout.
+ * One shape for "there is nothing here yet": one heading line, one body-sm
+ * line, one action. No illustration or icon (`icon` is accepted and ignored
+ * so existing callers keep working).
  *
  * The action is deliberately singular. A page with nothing to show has
- * exactly one useful next step; a list of them is the empty state hedging.
+ * exactly one useful next step.
  */
-export default function EmptyState({ icon = '📭', title, message, actionLabel, onAction }) {
+// eslint-disable-next-line no-unused-vars
+export default function EmptyState({ icon, title, message, actionLabel, onAction }) {
   return (
-    <div className="text-center py-16 px-6">
-      <div className="text-5xl mb-4" aria-hidden="true">
-        {icon}
-      </div>
-      <p className="text-foreground font-bold text-base mb-1.5">{title}</p>
-      {message && <p className="text-muted text-sm max-w-xs mx-auto">{message}</p>}
+    <div className="text-center py-10 px-4">
+      <p className="text-heading text-foreground">{title}</p>
+      {message && <p className="text-body-sm text-muted max-w-xs mx-auto mt-1">{message}</p>}
       {actionLabel && onAction && (
-        <button
-          onClick={onAction}
-          className="mt-6 px-6 py-3 bg-accent text-on-accent font-bold text-sm rounded-xl min-h-[48px]"
-        >
-          {actionLabel}
-        </button>
+        <div className="mt-5">
+          <Button onClick={onAction}>{actionLabel}</Button>
+        </div>
       )}
     </div>
   )

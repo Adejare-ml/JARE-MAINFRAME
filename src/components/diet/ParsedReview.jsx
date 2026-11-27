@@ -70,7 +70,7 @@ export default function ParsedReview({ entry, text, source, lib, todayLogs = [],
         // Phase 4: the coach's verdict, in the background.
         if (res?.id && needsCoach({ source }) && hasColumn('meal_logs.coach')) coachMeal(res.id)
         confirmBuzz()
-        toast.success(`${Number(res?.kcal ?? totals.kcal).toLocaleString()} kcal logged ✓`)
+        toast.success(`${Number(res?.kcal ?? totals.kcal).toLocaleString()} kcal logged`)
         onDone?.(res)
       } catch (err) {
         toast.error('Not saved: ' + (err.message || 'check connection'))
@@ -104,7 +104,7 @@ export default function ParsedReview({ entry, text, source, lib, todayLogs = [],
       const parts = []
       if (logged) parts.push(`${Number(logged.kcal).toLocaleString()} kcal logged`)
       if (keptPantry.length) parts.push(`pantry updated (${keptPantry.length})`)
-      toast.success(`${parts.join(', ')} ✓`)
+      toast.success(`${parts.join(', ')}`)
       onDone?.(logged)
     } catch (err) {
       toast.error((logged ? 'Meal logged, but the pantry was not updated: ' : 'Not saved: ') + (err.message || 'check connection'))

@@ -37,7 +37,7 @@ export default function ResetPassword({ onUpdate, onDone, onCancel, expired = fa
       setError(saveError.message || 'Could not save the new password')
       return
     }
-    toast.success('Password updated ✓')
+    toast.success('Password updated')
     onDone()
   }
 

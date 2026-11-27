@@ -66,7 +66,7 @@ export default function PayoffPlan({ debts, paidByDebt }) {
         : await supabase.from('user_settings').insert({ key: PAYOFF_BUDGET_KEY, value: String(num), updated_at: now })
       if (error) throw error
       setSaved(String(num))
-      toast.success('Monthly debt budget saved ✓')
+      toast.success('Monthly debt budget saved')
     } catch (err) {
       toast.error('Could not save: ' + (err.message || 'check connection'))
     } finally {

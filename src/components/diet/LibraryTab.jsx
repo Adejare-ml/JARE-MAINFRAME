@@ -175,7 +175,7 @@ function RecipeEditor({ recipe, lib, onChanged }) {
     if (!p || p <= 0 || p > 100) return toast.error('Portions between 1 and 100')
     const { error } = await supabase.from('recipes').update({ portions: p, cooked_weight_g: c }).eq('id', recipe.id)
     if (error) return toast.error(error.message)
-    toast.success('Recipe saved ✓')
+    toast.success('Recipe saved')
     onChanged()
   }
 
@@ -307,7 +307,7 @@ function Foods({ lib, onChanged }) {
       ? await supabase.from('foods').update({ ...row, estimated: false, source: 'Entered by hand' }).eq('id', f.id)
       : await supabase.from('foods').insert({ ...row, estimated: false, source: 'Entered by hand' })
     if (res.error) return toast.error(res.error.code === '23505' ? `There is already a food called "${row.name}"` : res.error.message)
-    toast.success('Food saved ✓')
+    toast.success('Food saved')
     setEditing(null)
     onChanged()
   }

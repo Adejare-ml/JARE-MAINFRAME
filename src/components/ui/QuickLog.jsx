@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { toast } from '../../lib/toast';
-import { getCategoryIcon } from '../../lib/constants';
 import { groupedCategories } from '../../lib/categories';
-import { getCategoryColor } from '../../lib/formatters';
+import { formatNairaSigned } from '../../lib/formatters';
 import { toDateOnly } from '../../lib/queries';
 import { pendingTransactions } from '../../lib/pendingTransactions';
 import { confirmBuzz } from '../../lib/haptics';
@@ -11,6 +10,15 @@ import { isMissingFunctionError } from '../../lib/corrections';
 import { isValidDate } from '../../lib/normalize';
 import { transferCategories, validateTransfer } from '../../lib/transfers';
 import Sheet from './Sheet';
+import Button from './Button';
+import IconButton from './IconButton';
+import Icon from './Icon';
+import Label from './Label';
+import Money from './Money';
+import Segmented from './Segmented';
+import CategoryMark from './CategoryMark';
+import { Spinner } from './Button';
+import { controlClasses } from './Field';
 
 // Five steps in every mode. A debit or credit goes amount -> category ->
 // wallet -> details -> confirm; a transfer has no category to pick (the pair
@@ -150,9 +158,9 @@ export default function QuickLog() {
     return { date, time };
   };
 
-  const finishLogged = (message, color) => {
+  const finishLogged = (message) => {
     confirmBuzz();
-    toast.success(message, color ? { color } : undefined);
+    toast.success(message);
     // A brief checkmark before the sheet closes, rather than it just
     // vanishing -- long enough to read as a confirmation, short enough to
     // still feel instant.
@@ -228,9 +236,8 @@ export default function QuickLog() {
       pendingTransactions.remove(submissionId);
       finishLogged(
         linkedDebt
-          ? `₦${numAmount.toLocaleString()} counted toward ${linkedDebt.counterparty} ✓`
-          : `₦${numAmount.toLocaleString()} logged ✓`,
-        getCategoryColor(category),
+          ? `Counted ${formatNairaSigned(numAmount)} toward ${linkedDebt.counterparty}`
+          : `Logged ${formatNairaSigned(numAmount)} to ${category}`,
       );
     } catch (err) {
       console.error('Error logging transaction:', err);
@@ -286,7 +293,7 @@ export default function QuickLog() {
       }
 
       pendingTransactions.remove(submissionId);
-      finishLogged(`₦${numAmount.toLocaleString()} moved to ${toWallet.name} ✓`);
+      finishLogged(`Moved ${formatNairaSigned(numAmount)} to ${toWallet.name}`);
     } catch (err) {
       console.error('Error logging transfer:', err);
       toast.error('Transfer not logged: ' + (err.message || 'check connection and retry'));
@@ -299,114 +306,87 @@ export default function QuickLog() {
   if (!isOpen) {
     return (
       <button
+        type="button"
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-20 right-4 lg:bottom-8 lg:right-8 z-40 bg-accent text-on-accent font-extrabold w-14 h-14 rounded-full flex items-center justify-center text-3xl shadow-xl shadow-accent/25 hover:scale-110 active:scale-95 transition-all min-h-[48px] min-w-[48px]"
+        className="press fixed bottom-20 right-4 lg:bottom-8 lg:right-8 z-40 bg-accent text-on-accent w-14 h-14 rounded-full flex items-center justify-center"
         aria-label="Quick log"
       >
-        +
+        <Icon name="plus" size={26} />
       </button>
     );
   }
 
+  const MODE_OPTIONS = [
+    { value: 'debit', label: 'Debit' },
+    { value: 'credit', label: 'Credit' },
+    { value: 'transfer', label: 'Transfer' },
+  ];
+
   const renderAmount = () => (
-    <div className="flex flex-col h-full space-y-6">
+    <div className="flex flex-col h-full space-y-5">
       {linkedDebt ? (
-        <div className="flex items-center gap-3 bg-background rounded-xl px-4 py-3 border border-border">
-          <span className="text-xl" aria-hidden="true">🤝</span>
+        <div className="flex items-center gap-3 bg-surface-2 rounded-control px-3 py-3 border border-border">
+          <Icon name="debt" size={20} className="text-muted" />
           <div className="min-w-0">
-            <p className="text-sm font-bold text-foreground truncate">
+            <p className="text-heading text-foreground truncate">
               {type === 'credit' ? 'Repayment from' : 'Repayment to'} {linkedDebt.counterparty}
             </p>
-            <p className="text-xs text-muted">Counts toward that debt on the Debts page</p>
+            <p className="text-body-sm text-muted">Counts toward that debt on the Debts page</p>
           </div>
         </div>
       ) : (
-      <div role="tablist" aria-label="Transaction Type" className="flex bg-background rounded-xl p-1 border border-border">
-        <button
-          id="quicklog-tab-debit"
-          role="tab"
-          aria-controls="quicklog-amount-panel"
-          aria-selected={type === 'debit'}
-          className={`flex-1 py-3 text-center rounded-lg text-xs font-bold transition-all min-h-[48px] ${type === 'debit' ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'text-muted hover:text-foreground'}`}
-          onClick={() => setType('debit')}
-        >
-          💸 Debit
-        </button>
-        <button
-          id="quicklog-tab-credit"
-          role="tab"
-          aria-controls="quicklog-amount-panel"
-          aria-selected={type === 'credit'}
-          className={`flex-1 py-3 text-center rounded-lg text-xs font-bold transition-all min-h-[48px] ${type === 'credit' ? 'bg-accent/20 text-accent border border-accent/30' : 'text-muted hover:text-foreground'}`}
-          onClick={() => setType('credit')}
-        >
-          💰 Credit
-        </button>
-        <button
-          id="quicklog-tab-transfer"
-          role="tab"
-          aria-controls="quicklog-amount-panel"
-          aria-selected={type === 'transfer'}
-          className={`flex-1 py-3 text-center rounded-lg text-xs font-bold transition-all min-h-[48px] ${type === 'transfer' ? 'bg-teal-500/20 text-teal-300 border border-teal-500/30' : 'text-muted hover:text-foreground'}`}
-          onClick={() => setType('transfer')}
-        >
-          ⇄ Transfer
-        </button>
-      </div>
+        <Segmented
+          tabs
+          full
+          idPrefix="quicklog"
+          label="Transaction type"
+          options={MODE_OPTIONS}
+          value={type}
+          onChange={setType}
+        />
       )}
 
       <div
-        id="quicklog-amount-panel"
-        role="tabpanel"
-        aria-labelledby={`quicklog-tab-${type}`}
+        id={`quicklog-panel-${type}`}
+        role={linkedDebt ? undefined : 'tabpanel'}
+        aria-labelledby={linkedDebt ? undefined : `quicklog-tab-${type}`}
         className="flex-1 flex flex-col items-center justify-center py-6"
       >
-        <label className="text-xs text-muted font-semibold uppercase tracking-wider mb-2">
-          {isTransfer ? 'Amount to move' : 'Enter Amount'}
-        </label>
-        <div className="flex items-center text-4xl md:text-5xl font-extrabold text-foreground">
-          <span className="text-accent mr-1">₦</span>
+        <Label as="label" htmlFor="quicklog-amount" className="mb-2">
+          {isTransfer ? 'Amount to move' : 'Amount'}
+        </Label>
+        <div className="flex items-center text-display text-foreground">
+          <span className="text-muted mr-1 font-semibold" aria-hidden="true">₦</span>
           <input
+            id="quicklog-amount"
             type="number"
             inputMode="decimal"
             autoFocus
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
-            className="bg-transparent border-none outline-none w-full text-center placeholder-hint focus:ring-0"
+            className="bg-transparent border-none outline-none w-full text-center placeholder:text-hint focus:ring-0 tabular-nums"
             placeholder="0"
           />
         </div>
       </div>
 
-      <div className="flex space-x-3 pt-4">
-        <button
-          onClick={() => setAmount('')}
-          className="flex-1 bg-surface-2 text-muted hover:text-foreground rounded-xl font-bold text-sm min-h-[48px] transition-colors"
-        >
-          Clear
-        </button>
-        <button
-          onClick={handleNext}
-          disabled={!amount || parseFloat(amount) <= 0}
-          className="flex-1 bg-accent text-on-accent rounded-xl font-bold text-sm min-h-[48px] disabled:opacity-50 hover:bg-accent/90 transition-colors"
-        >
-          Next →
-        </button>
+      <div className="grid grid-cols-2 gap-3">
+        <Button variant="secondary" onClick={() => setAmount('')}>Clear</Button>
+        <Button onClick={handleNext} disabled={!amount || parseFloat(amount) <= 0}>Next</Button>
       </div>
     </div>
   );
 
   const renderCategory = () => (
-    <div className="flex flex-col h-full space-y-4">
-      <p className="text-xs font-semibold text-muted uppercase tracking-wider">Select Category</p>
+    <div className="flex flex-col h-full space-y-3">
+      <Label as="p">Category</Label>
 
-      <div className="flex-1 overflow-y-auto pr-1 pb-16 space-y-4 max-h-[50vh]">
+      <div className="flex-1 overflow-y-auto pr-1 pb-4 space-y-4 max-h-[50vh]">
         {Object.entries(groupedCategories()).map(([section, cats]) => (
           <div key={section} className="space-y-2">
-            <h4 className="text-xs font-bold text-muted-dim uppercase tracking-widest">{section}</h4>
+            <Label as="h4" className="block text-muted-dim">{section}</Label>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {cats.map(cat => {
-                const icon = getCategoryIcon(cat);
                 const isSelected = category === cat;
                 return (
                   <button
@@ -417,11 +397,11 @@ export default function QuickLog() {
                       setStep(STEPS.WALLET);
                     }}
                     aria-pressed={isSelected}
-                    className={`flex items-center gap-2 p-3 rounded-xl border text-left text-xs font-medium transition-all min-h-[48px] ${
-                      isSelected ? 'bg-accent/20 border-accent text-foreground font-bold' : 'bg-surface-2 border-border text-muted hover:text-foreground hover:bg-surface-2'
+                    className={`flex items-center gap-2.5 px-2.5 min-h-12 rounded-control border text-left text-body-sm transition-colors duration-150 ${
+                      isSelected ? 'bg-surface-2 border-accent text-foreground font-semibold' : 'bg-card border-border text-foreground hover:bg-surface-2'
                     }`}
                   >
-                    <span className="text-lg">{icon}</span>
+                    <CategoryMark category={cat} />
                     <span className="truncate">{cat}</span>
                   </button>
                 );
@@ -431,19 +411,11 @@ export default function QuickLog() {
         ))}
       </div>
 
-      <div className="pt-2">
-        <button
-          onClick={handleNext}
-          disabled={!category}
-          className="w-full bg-accent text-on-accent rounded-xl font-bold text-sm min-h-[48px] disabled:opacity-50 hover:bg-accent/90 transition-colors"
-        >
-          Next →
-        </button>
-      </div>
+      <Button full onClick={handleNext} disabled={!category}>Next</Button>
     </div>
   );
 
-  const walletIcon = (w) => (w.type === 'bank' ? '🏦' : w.type === 'mobile' ? '📱' : w.type === 'savings' ? '🐖' : w.type === 'investment' ? '📈' : '💵');
+  const WALLET_GLYPH = { bank: 'bank', mobile: 'phone', savings: 'vault', investment: 'chart', cash: 'cash' };
 
   /**
    * One wallet list for three uses: the wallet a debit or credit touches,
@@ -451,12 +423,13 @@ export default function QuickLog() {
    * be the one it left).
    */
   const renderWalletPicker = ({ label, selected, onSelect, exclude, disabledNext }) => (
-    <div className="flex flex-col h-full space-y-4">
-      <p className="text-xs font-semibold text-muted uppercase tracking-wider">{label}</p>
+    <div className="flex flex-col h-full space-y-3">
+      <Label as="p">{label}</Label>
 
       {isLoadingWallets ? (
-        <div className="flex-1 flex justify-center items-center">
-          <span className="animate-spin text-2xl">⌛</span>
+        <div className="flex-1 flex justify-center items-center py-8 text-muted">
+          <Spinner size={20} />
+          <span className="sr-only">Loading wallets</span>
         </div>
       ) : (
         <div className="flex-1 space-y-2">
@@ -468,78 +441,73 @@ export default function QuickLog() {
                 type="button"
                 onClick={() => onSelect(w)}
                 aria-pressed={isSelected}
-                className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-all min-h-[56px] ${
-                  isSelected ? 'bg-accent/20 border-accent text-foreground' : 'bg-surface-2 border-border text-muted hover:text-foreground'
+                className={`w-full flex items-center justify-between gap-3 px-3 min-h-14 rounded-control border transition-colors duration-150 ${
+                  isSelected ? 'bg-surface-2 border-accent' : 'bg-card border-border hover:bg-surface-2'
                 }`}
               >
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">{walletIcon(w)}</span>
-                  <div className="text-left">
-                    <p className="font-bold text-foreground text-sm">{w.name}</p>
-                    <p className="text-xs text-muted capitalize">{w.type}</p>
+                <div className="flex items-center gap-3 min-w-0">
+                  <span aria-hidden="true" className="inline-flex items-center justify-center w-7 h-7 shrink-0 rounded-chip bg-surface-2 text-muted">
+                    <Icon name={WALLET_GLYPH[w.type] || 'budget'} size={16} />
+                  </span>
+                  <div className="text-left min-w-0">
+                    <p className="text-body text-foreground truncate">{w.name}</p>
+                    <p className="text-body-sm text-muted capitalize">{w.type}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-sm text-foreground">
-                    ₦{parseFloat(w.balance || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}
-                  </span>
-                  {isSelected && <span className="text-accent text-lg font-bold">✓</span>}
+                <div className="flex items-center gap-2 shrink-0">
+                  <Money amount={parseFloat(w.balance || 0)} />
+                  {isSelected && <Icon name="check" size={18} className="text-accent" />}
                 </div>
               </button>
             );
           })}
           {wallets.length <= 1 && isTransfer && (
-            <p className="text-xs text-muted-dim">A transfer needs two wallets. Add another in Settings → Banks & Wallets.</p>
+            <p className="text-body-sm text-muted">A transfer needs two wallets. Add another in Settings, Banks and wallets.</p>
           )}
         </div>
       )}
 
       <div className="pt-2 mt-auto">
-        <button
-          onClick={handleNext}
-          disabled={disabledNext}
-          className="w-full bg-accent text-on-accent rounded-xl font-bold text-sm min-h-[48px] disabled:opacity-50 hover:bg-accent/90 transition-colors"
-        >
-          Next →
-        </button>
+        <Button full onClick={handleNext} disabled={disabledNext}>Next</Button>
       </div>
     </div>
   );
 
   const renderDetails = () => (
     <div className="flex flex-col h-full space-y-4">
-      <p className="text-xs font-semibold text-muted uppercase tracking-wider">Details (Optional)</p>
+      <Label as="p">Details (optional)</Label>
 
       <div className="space-y-4 flex-1">
-        <div>
-          <label className="block text-xs font-medium text-muted mb-1">Note</label>
+        <div className="space-y-1.5">
+          <Label as="label" htmlFor="quicklog-note" className="block">Note</Label>
           <input
+            id="quicklog-note"
             type="text"
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder={isTransfer ? 'why the move?' : 'what was this for?'}
-            className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+            placeholder={isTransfer ? 'Why the move?' : 'What was this for?'}
+            className={controlClasses()}
           />
         </div>
 
-        <div>
-          <label htmlFor="quicklog-date" className="block text-xs font-medium text-muted mb-1">Date</label>
+        <div className="space-y-1.5">
+          <Label as="label" htmlFor="quicklog-date" className="block">Date</Label>
           <input
             id="quicklog-date"
             type="date"
             value={txDate}
             max={today}
             onChange={(e) => setTxDate(e.target.value)}
-            className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm focus:outline-none focus:border-accent min-h-[48px]"
+            className={controlClasses()}
           />
           {txDate !== today && (
-            <p className="text-xs text-muted-dim mt-1">Backdated -- it will sit in that day's totals, not today's.</p>
+            <p className="text-body-sm text-muted">Backdated: it will sit in that day's totals, not today's.</p>
           )}
         </div>
 
         {!isTransfer && (
-          <div>
-            <label className="block text-xs font-medium text-muted mb-1">Tag (Classification)</label>
+          <div className="space-y-1.5">
+            <Label as="p">Tag</Label>
             <div className="grid grid-cols-2 gap-2">
               {['need', 'want', 'obligation', 'emergency'].map(tag => (
                 <button
@@ -547,10 +515,11 @@ export default function QuickLog() {
                   type="button"
                   onClick={() => setWantOrNeed(wantOrNeed === tag ? '' : tag)}
                   aria-pressed={wantOrNeed === tag}
-                  className={`py-3 px-3 rounded-xl border text-xs font-bold uppercase tracking-wider transition-all min-h-[48px] ${
-                    wantOrNeed === tag ? 'bg-accent/20 border-accent text-accent' : 'bg-surface-2 border-border text-muted hover:text-foreground'
+                  className={`flex items-center justify-center gap-1.5 px-3 min-h-12 rounded-control border text-body-sm capitalize transition-colors duration-150 ${
+                    wantOrNeed === tag ? 'bg-surface-2 border-accent text-foreground font-semibold' : 'bg-card border-border text-muted hover:text-foreground'
                   }`}
                 >
+                  {wantOrNeed === tag && <Icon name="check" size={16} className="text-accent" />}
                   {tag}
                 </button>
               ))}
@@ -560,110 +529,70 @@ export default function QuickLog() {
       </div>
 
       <div className="pt-2 mt-auto">
-        <button
-          onClick={handleNext}
-          disabled={!isValidDate(txDate) || txDate > today}
-          className="w-full bg-accent text-on-accent rounded-xl font-bold text-sm min-h-[48px] hover:bg-accent/90 transition-colors disabled:opacity-50"
-        >
-          {note || wantOrNeed || txDate !== today ? 'Next → Summary' : 'Skip & Next →'}
-        </button>
+        <Button full onClick={handleNext} disabled={!isValidDate(txDate) || txDate > today}>
+          {note || wantOrNeed || txDate !== today ? 'Next: summary' : 'Skip'}
+        </Button>
       </div>
+    </div>
+  );
+
+  const SummaryRow = ({ label, children }) => (
+    <div className="flex items-center justify-between gap-3 min-h-10 px-3">
+      <span className="text-body-sm text-muted shrink-0">{label}</span>
+      <span className="text-body-sm text-foreground font-medium text-right min-w-0 truncate">{children}</span>
     </div>
   );
 
   const renderConfirm = () => {
     const [debitCategory, creditCategory] = isTransfer ? transferCategories(wallet, toWallet) : [];
+    const numeric = parseFloat(amount || 0);
     return (
-      <div className="flex flex-col h-full space-y-6">
-        <p className="text-xs font-semibold text-muted uppercase tracking-wider">
-          {isTransfer ? 'Confirm Transfer' : 'Confirm Transaction'}
-        </p>
+      <div className="flex flex-col h-full space-y-5">
+        <Label as="p">{isTransfer ? 'Confirm transfer' : 'Confirm transaction'}</Label>
 
-        <div className="bg-background border border-border rounded-2xl p-5 space-y-3">
-          <div className="flex items-center justify-between border-b border-border pb-3">
-            <span className="text-muted text-xs">Amount</span>
-            <span className={`text-2xl font-extrabold ${type === 'credit' ? 'text-accent' : isTransfer ? 'text-teal-300' : 'text-foreground'}`}>
-              {type === 'credit' ? '+' : isTransfer ? '⇄ ' : '-'}₦{parseFloat(amount || 0).toLocaleString()}
-            </span>
+        <div className="bg-card border border-border rounded-panel divide-y divide-border">
+          <div className="flex items-center justify-between gap-3 px-3 py-3">
+            <span className="text-body-sm text-muted">Amount</span>
+            <Money
+              amount={type === 'debit' && !isTransfer ? -numeric : numeric}
+              sign={type === 'credit'}
+              tone={type === 'credit' ? 'positive' : 'default'}
+              className="text-figure"
+            />
           </div>
           {isTransfer ? (
             <>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted">From</span>
-                <span className="text-foreground font-bold">{wallet?.name}</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted">To</span>
-                <span className="text-foreground font-bold">{toWallet?.name}</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted">Filed as</span>
-                <span className="text-foreground font-medium">
-                  {getCategoryIcon(debitCategory)} {debitCategory} → {getCategoryIcon(creditCategory)} {creditCategory}
-                </span>
-              </div>
+              <SummaryRow label="From">{wallet?.name}</SummaryRow>
+              <SummaryRow label="To">{toWallet?.name}</SummaryRow>
+              <SummaryRow label="Filed as">{debitCategory} to {creditCategory}</SummaryRow>
             </>
           ) : (
             <>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted">Type</span>
-                <span className="text-foreground font-bold capitalize">{type}</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted">Category</span>
-                <span className="text-foreground font-bold flex items-center gap-1">
-                  <span>{getCategoryIcon(category)}</span>
-                  <span>{category}</span>
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted">Wallet</span>
-                <span className="text-foreground font-bold">{wallet?.name}</span>
-              </div>
-              {linkedDebt && (
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted">Counts toward</span>
-                  <span className="text-foreground font-bold">🤝 {linkedDebt.counterparty}</span>
-                </div>
-              )}
+              <SummaryRow label="Type"><span className="capitalize">{type}</span></SummaryRow>
+              <SummaryRow label="Category">
+                <span className="inline-flex items-center gap-2"><CategoryMark category={category} size="sm" />{category}</span>
+              </SummaryRow>
+              <SummaryRow label="Wallet">{wallet?.name}</SummaryRow>
+              {linkedDebt && <SummaryRow label="Counts toward">{linkedDebt.counterparty}</SummaryRow>}
             </>
           )}
-          {txDate !== today && (
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted">Date</span>
-              <span className="text-foreground font-bold">{txDate}</span>
-            </div>
-          )}
-          {note && (
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted">Note</span>
-              <span className="text-foreground font-medium truncate max-w-[180px]">{note}</span>
-            </div>
-          )}
-          {!isTransfer && wantOrNeed && (
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted">Tag</span>
-              <span className="text-accent uppercase font-bold text-xs">{wantOrNeed}</span>
-            </div>
-          )}
+          {txDate !== today && <SummaryRow label="Date">{txDate}</SummaryRow>}
+          {note && <SummaryRow label="Note">{note}</SummaryRow>}
+          {!isTransfer && wantOrNeed && <SummaryRow label="Tag"><span className="capitalize">{wantOrNeed}</span></SummaryRow>}
         </div>
 
         <div className="pt-2 mt-auto">
-          <button
-            onClick={handleSubmit}
-            disabled={isSubmitting || justLogged}
-            className="w-full bg-accent text-on-accent rounded-xl font-extrabold text-base py-4 hover:bg-accent/90 transition-all shadow-lg shadow-accent/20 disabled:opacity-50 min-h-[48px] flex items-center justify-center gap-2"
-          >
+          <Button full onClick={handleSubmit} loading={isSubmitting} disabled={justLogged}>
             {justLogged ? (
-              <span className="inline-block text-xl animate-check-pop" aria-hidden="true">✓</span>
-            ) : isSubmitting ? (
-              <span className="inline-block w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+              <span className="inline-flex animate-check-pop">
+                <Icon name="check" size={20} title="Logged" />
+              </span>
             ) : isTransfer ? (
-              'Move It ✓'
+              'Move it'
             ) : (
-              'Log It ✓'
+              'Log it'
             )}
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -680,46 +609,29 @@ export default function QuickLog() {
     }
     return step === STEPS.CATEGORY
       ? renderCategory()
-      : renderWalletPicker({ label: 'Select Wallet', selected: wallet, onSelect: setWallet, disabledNext: !wallet });
+      : renderWalletPicker({ label: 'Wallet', selected: wallet, onSelect: setWallet, disabledNext: !wallet });
   };
+
+  const steps = linkedDebt ? [1, 3, 4, 5] : [1, 2, 3, 4, 5];
 
   return (
     <Sheet isOpen={isOpen} onClose={() => setIsOpen(false)} title={isTransfer ? 'Move money between wallets' : 'Log a transaction'}>
       <>
-          {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-card">
+          <div className="flex items-center justify-between gap-2 px-2 h-12 border-b border-border">
             {step > STEPS.AMOUNT ? (
-              <button
-                onClick={handleBack}
-                className="text-muted hover:text-foreground font-bold text-sm min-h-[48px] min-w-[48px] flex items-center"
-                aria-label="Go back"
-              >
-                ← Back
-              </button>
+              <IconButton name="chevL" label="Go back" onClick={handleBack} />
             ) : (
               <div className="w-12" />
             )}
 
-            <div className="flex space-x-1.5">
-              {(linkedDebt ? [1, 3, 4, 5] : [1, 2, 3, 4, 5]).map(s => (
-                <div
-                  key={s}
-                  className={`h-1.5 rounded-full transition-all ${s === step ? 'w-6 bg-accent' : 'w-1.5 bg-surface-2'}`}
-                />
-              ))}
-            </div>
+            <span className="type-data text-muted">
+              Step {Math.max(1, steps.indexOf(step) + 1)} of {steps.length}
+            </span>
 
-            <button
-              onClick={() => setIsOpen(false)}
-              className="w-9 h-9 rounded-full bg-surface-2 hover:bg-surface-2 text-muted hover:text-foreground flex items-center justify-center font-bold text-sm min-h-[48px] min-w-[48px]"
-              aria-label="Close"
-            >
-              ✕
-            </button>
+            <IconButton name="close" label="Close" onClick={() => setIsOpen(false)} />
           </div>
 
-          {/* Body */}
-          <div className="p-6 flex-1 overflow-y-auto">
+          <div className="p-4 flex-1 overflow-y-auto">
             {renderStep()}
           </div>
       </>

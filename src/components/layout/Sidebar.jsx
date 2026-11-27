@@ -1,50 +1,56 @@
 import { NavLink } from 'react-router-dom'
 import { sidebarItems } from '../../lib/nav'
 import ZenModeToggle from '../ui/ZenModeToggle'
+import Icon from '../ui/Icon'
+import { StatusJobList } from '../ui/StatusRail'
 
 const navItems = sidebarItems()
 
 export default function Sidebar({ onSignOut }) {
   return (
     <aside className="hidden lg:flex flex-col w-60 h-screen bg-card border-r border-border fixed left-0 top-0 z-40">
-      {/* Logo / Brand */}
-      <div className="p-6 border-b border-border flex items-center justify-between">
-        <h1 className="text-xl font-bold text-foreground tracking-tight">
-          <span className="text-accent">J</span>are
-          <span className="text-muted ml-1 text-sm font-normal">Mainframe</span>
-        </h1>
-        <ZenModeToggle className="w-9 h-9 rounded-lg bg-surface-2 hover:bg-surface-2 flex items-center justify-center text-sm transition-colors flex-shrink-0" />
+      <div className="h-14 px-4 border-b border-border flex items-center justify-between">
+        <span className="type-label text-foreground">Jare Mainframe</span>
+        <ZenModeToggle />
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-1">
+      <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5" aria-label="Main">
         {navItems.map((item) => (
           <NavLink
             key={item.path}
             to={item.path}
             end={item.path === '/'}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 min-h-[48px] ${
+              `flex items-center gap-3 px-3 min-h-12 rounded-control text-body transition-colors duration-150 ${
                 isActive
-                  ? 'bg-accent/15 text-accent'
+                  ? 'bg-surface-2 text-foreground font-semibold'
                   : 'text-muted hover:text-foreground hover:bg-surface-2'
               }`
             }
           >
-            <span className="text-lg">{item.icon}</span>
-            <span>{item.label}</span>
+            {({ isActive }) => (
+              <>
+                <Icon name={item.icon} size={20} className={isActive ? 'text-accent' : ''} />
+                <span>{item.label}</span>
+              </>
+            )}
           </NavLink>
         ))}
       </nav>
 
-      {/* Sign Out */}
-      <div className="p-3 border-t border-border">
+      {/* The system's own state: every job, its dot and when it last ran. */}
+      <div className="border-t border-border p-2">
+        <StatusJobList />
+      </div>
+
+      <div className="p-2 border-t border-border">
         <button
+          type="button"
           onClick={onSignOut}
-          className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-muted hover:text-red-400 hover:bg-red-400/10 transition-all duration-200 w-full min-h-[48px]"
+          className="flex items-center gap-3 px-3 min-h-12 rounded-control text-body text-muted hover:text-danger hover:bg-surface-2 transition-colors duration-150 w-full"
         >
-          <span className="text-lg">🚪</span>
-          <span>Sign Out</span>
+          <Icon name="signout" size={20} />
+          <span>Sign out</span>
         </button>
       </div>
     </aside>

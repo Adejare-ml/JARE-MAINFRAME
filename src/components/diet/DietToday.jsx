@@ -38,7 +38,7 @@ export default function DietToday({ lib, logs, onChanged, onAdd, onOpenSettings,
       const slot = saved.meal_slot || slotForHour(localHour())
       const res = await logMeal({ items, slot, source: 'saved', settings, todayLogs: logs, savedMealId: saved.id })
       confirmBuzz()
-      toast.success(`${saved.name}: ${Number(res.kcal).toLocaleString()} kcal ✓`, {
+      toast.success(`${saved.name}: ${Number(res.kcal).toLocaleString()} kcal`, {
         action: res.id ? { label: 'Undo', onClick: () => remove(res.id, true) } : null,
       })
       onChanged()

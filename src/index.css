@@ -187,6 +187,8 @@ html {
 
 body {
   font-family: var(--font-sans);
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
   font-variant-numeric: tabular-nums;
   background-color: var(--color-background);
   color: var(--color-foreground);
@@ -314,6 +316,11 @@ summary:focus-visible,
   }
 }
 
+.toast[data-leaving="true"] {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
 /* 4. Row insertion: a row added after mount gets `.row-enter`. Initial lists
  * do not (ListRow only sets it when told the row is new). */
 .row-enter {
@@ -406,7 +413,8 @@ summary:focus-visible,
   .sheet-scrim[data-state="closing"] {
     transition-duration: 0ms;
   }
-  .toast {
+  .toast,
+  .toast[data-leaving="true"] {
     transform: none;
     transition: none;
     @starting-style {

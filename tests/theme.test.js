@@ -126,12 +126,12 @@ describe('theme (dark/light/system mode)', () => {
   // The status bar on an installed app follows this meta, and index.html
   // only ever knew the dark value.
   it('repaints the theme-color meta to match the resolved theme', () => {
-    const meta = { content: '#0f0f0f', setAttribute(_, v) { this.content = v } }
+    const meta = { content: '#0b0c0d', setAttribute(_, v) { this.content = v } }
     doc.querySelector = (sel) => (sel.includes('theme-color') ? meta : null)
     setThemeMode('light')
-    expect(meta.content).toBe('#f5f5f5')
+    expect(meta.content).toBe('#f1f2f0')
     setThemeMode('dark')
-    expect(meta.content).toBe('#0f0f0f')
+    expect(meta.content).toBe('#0b0c0d')
   })
 
   it('does not need the meta to exist', () => {

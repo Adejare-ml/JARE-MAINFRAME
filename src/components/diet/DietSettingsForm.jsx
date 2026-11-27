@@ -53,7 +53,7 @@ export default function DietSettingsForm({ settings, onSaved }) {
       toast.error('Not saved: ' + error.message)
       return
     }
-    toast.success('Diet settings saved ✓')
+    toast.success('Diet settings saved')
     onSaved?.()
   }
 

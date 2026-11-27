@@ -121,7 +121,7 @@ export default function CashReconciliation({ onReconciled }) {
       localStorage.setItem('cash_reconciled_' + today, 'true');
       setShouldShow(false);
       
-      toast.success('Cash balance updated to ' + formatNaira(newBalance) + ' ✓');
+      toast.success('Cash balance updated to ' + formatNaira(newBalance) + '');
       
       if (onReconciled) onReconciled();
 

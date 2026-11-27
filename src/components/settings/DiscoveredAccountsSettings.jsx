@@ -68,7 +68,7 @@ export default function DiscoveredAccountsSettings() {
         if (isMissingFunctionError(error)) throw new Error('run supabase/migrations/043_discovered_accounts.sql first')
         throw error
       }
-      toast.success(`${row.label || row.slug} is now a wallet ✓ Rename it under Banks & Wallets if you like.`)
+      toast.success(`${row.label || row.slug} is now a wallet. Rename it under Banks & Wallets if you like.`)
       load()
     } catch (err) {
       toast.error('Could not track it: ' + (err.message || 'check connection'))

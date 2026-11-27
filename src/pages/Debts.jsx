@@ -212,7 +212,7 @@ export default function Debts() {
       if (error) throw error
 
       confirmBuzz()
-      toast.success(editing ? 'Updated ✓' : 'Added ✓')
+      toast.success(editing ? 'Updated' : 'Added')
       fetchDebts()
 
       // A brief checkmark before the sheet closes, rather than it vanishing
@@ -239,7 +239,7 @@ export default function Debts() {
     if (error) toast.error('Failed to update: ' + error.message)
     else {
       if (!debt.settled) confirmBuzz()
-      toast.success(debt.settled ? 'Reopened' : 'Marked settled ✓')
+      toast.success(debt.settled ? 'Reopened' : 'Marked settled')
       fetchDebts()
     }
   }

@@ -18,7 +18,7 @@ export default function TargetReviewCard({ review, current, onDecided }) {
     setBusy(true)
     try {
       await decideTarget(p, accept)
-      toast.success(accept ? `Target set to ${p.kcal_target.toLocaleString()} kcal ✓` : 'Target kept ✓')
+      toast.success(accept ? `Target set to ${p.kcal_target.toLocaleString()} kcal` : 'Target kept')
       onDecided?.()
     } catch (err) {
       toast.error('Not saved: ' + err.message)

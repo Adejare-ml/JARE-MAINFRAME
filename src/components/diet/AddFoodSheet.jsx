@@ -136,7 +136,7 @@ export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onL
         const { error } = await supabase.from('saved_meals').insert({ name, items: refs, meal_slot: slot, sort_order: lib.saved.length })
         if (error) throw error.code === '23505' ? new Error(`There is already a saved meal called "${name}"`) : error
         if (mode === 'save') {
-          toast.success(`Saved "${name}" ✓`)
+          toast.success(`Saved "${name}"`)
           onLogged?.()
           onClose()
           return
@@ -146,7 +146,7 @@ export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onL
       const at = /^\d{2}:\d{2}$/.test(time) ? new Date(`${day}T${time}:00+01:00`) : new Date()
       const res = await logMeal({ items: priced, slot, source: 'manual', at, settings: lib.settings, todayLogs })
       confirmBuzz()
-      toast.success(`${Number(res.kcal ?? totals.kcal).toLocaleString()} kcal logged ✓`)
+      toast.success(`${Number(res.kcal ?? totals.kcal).toLocaleString()} kcal logged`)
       onLogged?.(res)
       onClose()
     } catch (err) {

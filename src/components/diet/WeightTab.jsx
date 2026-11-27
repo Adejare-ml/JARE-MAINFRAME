@@ -61,7 +61,7 @@ export default function WeightTab({ onChanged }) {
       return
     }
     confirmBuzz()
-    toast.success(`${round1(w)} kg logged ✓`)
+    toast.success(`${round1(w)} kg logged`)
     setKg('')
     load()
     onChanged?.()

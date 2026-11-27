@@ -1,19 +1,20 @@
+import Panel from './Panel'
+
 /**
  * The month in review, from src/lib/monthRecap.js -- sentences the page
  * computed, shown as they are. Renders nothing for a month with no rows.
  */
-export default function MonthRecap({ sentences = [], title = 'MONTH IN REVIEW' }) {
+export default function MonthRecap({ sentences = [], title = 'Month in review' }) {
   if (!sentences || sentences.length === 0) return null
   return (
-    <div className="bg-card rounded-3xl p-6 border border-border">
-      <h3 className="text-lg font-bold text-foreground mb-3">{title}</h3>
+    <Panel label={title}>
       <ul className="space-y-2">
         {sentences.map((s) => (
-          <li key={s.key} className="text-sm text-muted leading-relaxed money">
+          <li key={s.key} className="text-body-sm text-muted money whitespace-normal">
             {s.text}
           </li>
         ))}
       </ul>
-    </div>
+    </Panel>
   )
 }

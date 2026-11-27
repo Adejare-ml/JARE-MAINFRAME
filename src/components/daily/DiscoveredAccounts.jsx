@@ -68,7 +68,7 @@ export default function DiscoveredAccounts({ compact = false }) {
         if (isMissingFunctionError(error)) throw new Error('run supabase/migrations/043_discovered_accounts.sql first')
         throw error
       }
-      toast.success(`${name.trim() || row.label || row.slug} is now a wallet ✓ The next alert lands in the ledger.`)
+      toast.success(`${name.trim() || row.label || row.slug} is now a wallet. The next alert lands in the ledger.`)
       setChoosing(null)
       load()
       return data
