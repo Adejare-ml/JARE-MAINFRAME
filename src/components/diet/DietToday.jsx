@@ -5,7 +5,7 @@ import { toast } from '../../lib/toast'
 import { confirmBuzz } from '../../lib/haptics'
 import { dayTotals, remaining, SLOTS, SLOT_LABELS, SLOT_ICONS, localTime, slotForHour, localHour, normaliseSlot } from '../../lib/diet/totals'
 import { sumNutrition, round1 } from '../../lib/diet/nutrition'
-import { priceItems, logMeal, deleteMeal } from './api'
+import { priceItems, logMeal, deleteMeal, isSealedPhotoMeal } from './api'
 import VerdictBadge from './VerdictBadge'
 // Phase 4: the coach and the target review.
 import WhatNext from './WhatNext'
@@ -186,7 +186,8 @@ export default function DietToday({ lib, logs, onChanged, onAdd, onOpenSettings,
                           <VerdictBadge verdict={m.verdict} />
                         )}
                         <span className="text-sm font-bold text-white tabular-nums shrink-0">{Number(m.kcal).toLocaleString()}</span>
-                        {confirmDelete === m.id ? (
+                        {/* 054: a photo reading is final, so it has no delete. */}
+                        {isSealedPhotoMeal(m) ? null : confirmDelete === m.id ? (
                           <button type="button" onClick={() => remove(m.id)} className="shrink-0 px-3 rounded-xl bg-red-500/20 text-red-300 text-xs font-bold min-h-[48px]">
                             Delete?
                           </button>

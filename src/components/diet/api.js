@@ -202,30 +202,33 @@ export async function analyzePhoto({ path, small, note = '' }) {
   return data?.ok ? data : { ok: false, reason: data?.reason || 'the photo service gave no answer', models: data?.models }
 }
 
-/** "Looks right": the items as the owner left them, the meal confirmed (or edited). */
-export async function confirmPhotoMeal(mealId, items, meta) {
-  const payload = items.map((i) => ({
-    food_id: i.food_id ?? undefined,
-    recipe_id: i.recipe_id ?? undefined,
-    portions: i.portions ?? undefined,
-    name: i.name,
-    grams: i.grams,
-    kcal: i.kcal,
-    protein_g: i.protein_g,
-    carbs_g: i.carbs_g,
-    fat_g: i.fat_g,
-    hidden: i.hidden === true,
-    confidence: i.confidence ?? null,
-    estimates: i.estimates ?? {},
-    flagged: false,
-    flag_reason: null,
-  }))
-  const { data, error } = await supabase.rpc('diet_replace_items', { p_meal_id: mealId, p_items: payload, p_meal: { ...meta, needs_review: false } })
+/**
+ * Accept a photo meal as the model read it. Since 054 a photo meal is final:
+ * diet-photo seals it itself, and this is only for a meal the old flow left
+ * at 'auto'. It changes the status and nothing else; the items stay exactly
+ * as the model read them (the database refuses anything more).
+ */
+export async function acceptPhotoMeal(mealId) {
+  const { data, error } = await supabase
+    .from('meal_logs')
+    .update({ status: 'confirmed', needs_review: false })
+    .eq('id', mealId)
+    .select('id, status, kcal, protein_g')
+    .maybeSingle()
   if (error) throw error
   return data
 }
 
-/** Throw the meal and its photo away (a wrong photo, a meal not eaten). */
+/** Whether the owner may still delete or change this meal (054: not a sealed photo meal). */
+export function isSealedPhotoMeal(meal) {
+  return meal?.source === 'photo' && meal?.status !== 'auto'
+}
+
+/**
+ * Throw away the photo of a reading that logged nothing (no food, or no
+ * model answered). A logged photo meal cannot be deleted (054); the id
+ * path is kept for a meal the old flow left at 'auto'.
+ */
 export async function discardPhotoMeal({ id, photo_path }) {
   if (id) {
     const { error } = await supabase.from('meal_logs').delete().eq('id', id)
