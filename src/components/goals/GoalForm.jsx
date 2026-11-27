@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import Sheet from '../ui/Sheet'
-import { GOAL_ICONS, getCategoryIcon } from '../../lib/constants'
+import { GOAL_ICONS, getCategoryIcon, resolveIcon } from '../../lib/constants'
 import { formatGoalAmount } from '../../lib/formatters'
 import { hasColumn } from '../../lib/schema'
 import { startOfMonth, startOfWeek, endOfMonth, toDateOnly } from '../../lib/queries'
 import { decomposeMonthly, decomposeWeekly, weeksRemaining, REPO_METRIC } from '../../lib/planning'
 import CategoryPickerList from '../ui/CategoryPickerList'
+import Icon from '../ui/Icon'
 
 /**
  * Create or edit a monthly or weekly goal.
@@ -129,7 +130,7 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
             target_amount: editing.target_amount == null ? '' : String(editing.target_amount),
             metric_category: editing.metric_category || '',
             metric_wallet_id: editing.metric_wallet_id || '',
-            icon: editing.icon || '',
+            icon: editing.icon ? resolveIcon(editing.icon, 'goal') : '',
             locked: Boolean(editing.locked),
           }
         : EMPTY,
@@ -280,7 +281,7 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
                       : 'bg-background border-border hover:border-border-strong'
                   }`}
                 >
-                  {icon}
+                  <Icon name={icon} size={20} />
                 </button>
               ))}
             </div>
@@ -405,7 +406,7 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
                   >
                     {form.metric_category ? (
                       <>
-                        <span className="text-lg" aria-hidden="true">{getCategoryIcon(form.metric_category)}</span>
+                        <Icon name={getCategoryIcon(form.metric_category)} size={18} className="text-muted" />
                         <span className="truncate">{form.metric_category}</span>
                       </>
                     ) : (

@@ -6,6 +6,7 @@ import { formatNaira } from '../../lib/formatters'
 import { ALL_CATEGORIES, getCategoryIcon } from '../../lib/constants'
 import Sheet from '../ui/Sheet'
 import CategoryPickerList from '../ui/CategoryPickerList'
+import Icon from '../ui/Icon'
 
 /**
  * Per-category monthly targets (migration 024), sitting alongside the one
@@ -79,7 +80,7 @@ export default function CategoryBudgets() {
       toast.error('Failed to save: ' + error.message)
       return
     }
-    toast.success('Budget saved ✓')
+    toast.success('Budget saved')
     closeForm()
     setForm(EMPTY_FORM)
     load()
@@ -138,7 +139,7 @@ export default function CategoryBudgets() {
               className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-background/40 border border-border"
             >
               <p className="text-xs text-foreground min-w-0 truncate flex items-center gap-1.5">
-                <span aria-hidden="true">{getCategoryIcon(budget.category)}</span>
+                <Icon name={getCategoryIcon(budget.category)} size={16} className="text-muted" />
                 <span className="truncate">{budget.category}</span>
                 <span className="text-muted">·</span>
                 <span className="font-semibold text-accent money">{formatNaira(budget.target_amount)}</span>
@@ -207,7 +208,7 @@ export default function CategoryBudgets() {
               onClick={() => setShowCategoryPicker(true)}
               className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm focus:outline-none focus:border-accent min-h-[48px] flex items-center gap-2"
             >
-              <span className="text-lg" aria-hidden="true">{getCategoryIcon(form.category)}</span>
+              <Icon name={getCategoryIcon(form.category)} size={18} className="text-muted" />
               <span className="truncate">{form.category}</span>
             </button>
           </div>

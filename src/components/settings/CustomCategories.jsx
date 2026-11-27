@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { toast } from '../../lib/toast'
 import { hasColumn } from '../../lib/schema'
-import { getCategoryIcon } from '../../lib/constants'
+import { getCategoryIcon, resolveIcon } from '../../lib/constants'
 import {
   setCustomCategories,
   customCategories,
@@ -11,6 +11,7 @@ import {
   NAME_MAX,
 } from '../../lib/categories'
 import Sheet from '../ui/Sheet'
+import Icon from '../ui/Icon'
 
 /**
  * The user's own category names (migration 030), in the same self-contained
@@ -85,7 +86,7 @@ export default function CustomCategories() {
       setFormError(error.code === '23505' ? `You already have ${checked.name}` : 'Failed to save: ' + error.message)
       return
     }
-    toast.success(`${form.icon || ''} ${checked.name} added ✓`.trim())
+    toast.success(`${checked.name} added`)
     closeForm()
     setForm(EMPTY_FORM)
     load()
@@ -146,7 +147,7 @@ export default function CustomCategories() {
               className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-background/40 border border-border"
             >
               <p className="text-xs text-foreground min-w-0 truncate flex items-center gap-1.5">
-                <span aria-hidden="true">{row.icon || getCategoryIcon(row.name)}</span>
+                <Icon name={row.icon ? resolveIcon(row.icon) : getCategoryIcon(row.name)} size={16} className="text-muted" />
                 <span className="truncate">{row.name}</span>
               </p>
               <button
@@ -225,7 +226,7 @@ export default function CustomCategories() {
                       : 'bg-background border-border hover:border-border-strong'
                   }`}
                 >
-                  {icon}
+                  <Icon name={icon} size={20} />
                 </button>
               ))}
             </div>

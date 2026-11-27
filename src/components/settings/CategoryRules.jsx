@@ -5,6 +5,7 @@ import { hasColumn } from '../../lib/schema'
 import { ALL_CATEGORIES, getCategoryIcon } from '../../lib/constants'
 import Sheet from '../ui/Sheet'
 import CategoryPickerList from '../ui/CategoryPickerList'
+import Icon from '../ui/Icon'
 
 /**
  * The user-editable half of categorization (migration 020).
@@ -81,7 +82,7 @@ export default function CategoryRules() {
       toast.error('Failed to save: ' + error.message)
       return
     }
-    toast.success('Rule added ✓')
+    toast.success('Rule added')
     closeForm()
     setForm(EMPTY_FORM)
     load()
@@ -244,7 +245,7 @@ export default function CategoryRules() {
               onClick={() => setShowCategoryPicker(true)}
               className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm focus:outline-none focus:border-accent min-h-[48px] flex items-center gap-2"
             >
-              <span className="text-lg" aria-hidden="true">{getCategoryIcon(form.action_category)}</span>
+              <Icon name={getCategoryIcon(form.action_category)} size={18} className="text-muted" />
               <span className="truncate">{form.action_category}</span>
             </button>
           </div>

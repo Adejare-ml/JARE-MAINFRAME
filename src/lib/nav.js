@@ -12,29 +12,31 @@
  * and a "Modules" row at the top of Settings -- plus a link from the page
  * they relate to. A route still hidden (`hidden`) resolves for a bookmark
  * but appears nowhere until its page does something.
+ *
+ * `icon` is a glyph name for src/components/ui/Icon.jsx.
  */
 export const NAV_ITEMS = [
-  { path: '/', label: 'Daily HQ', icon: '🏠' },
-  { path: '/budget', label: 'Budget', icon: '💰' },
-  { path: '/transactions', label: 'Ledger', icon: '🧾' },
-  { path: '/goals', label: 'Goals', icon: '🎯' },
-  { path: '/debts', label: 'Debts', icon: '🤝' },
+  { path: '/', label: 'Daily HQ', icon: 'home' },
+  { path: '/budget', label: 'Budget', icon: 'budget' },
+  { path: '/transactions', label: 'Ledger', icon: 'ledger' },
+  { path: '/goals', label: 'Goals', icon: 'goal' },
+  { path: '/debts', label: 'Debts', icon: 'debt' },
   // Settings has its own gear in the mobile header (see Layout.jsx), so it is
   // desktop-only here rather than a sixth thumb target.
-  { path: '/settings', label: 'Settings', icon: '⚙️', desktopOnly: true },
+  { path: '/settings', label: 'Settings', icon: 'settings', desktopOnly: true },
 
-  { path: '/projects', label: 'Projects', icon: '🛠️', desktopOnly: true, secondary: true },
-  { path: '/repairs', label: 'Repairs', icon: '🔧', desktopOnly: true, secondary: true },
+  { path: '/projects', label: 'Projects', icon: 'project', desktopOnly: true, secondary: true },
+  { path: '/repairs', label: 'Repairs', icon: 'repair', desktopOnly: true, secondary: true },
   // Meals is secondary like Projects, but its camera is one tap from Daily
   // HQ (the food card hosts the capture sheet itself), so the bottom bar
   // stays at five.
-  { path: '/meals', label: 'Meals', icon: '🍽️', desktopOnly: true, secondary: true, hidden: true },
+  { path: '/meals', label: 'Meals', icon: 'diet', desktopOnly: true, secondary: true, hidden: true },
   // Diet replaced Meals (docs/diet-module.md, Phase 1): /meals redirects to
   // /diet and is hidden here, so old bookmarks still land. Diet takes the
   // same secondary slot; its card on Daily HQ is the one-tap way in, so the
   // bottom bar stays at five.
-  { path: '/diet', label: 'Diet', icon: '🥗', desktopOnly: true, secondary: true },
-  { path: '/ask', label: 'Ask', icon: '💬', hidden: true },
+  { path: '/diet', label: 'Diet', icon: 'diet', desktopOnly: true, secondary: true },
+  { path: '/ask', label: 'Ask', icon: 'ask', hidden: true },
 ]
 
 /** Items for the desktop sidebar. */

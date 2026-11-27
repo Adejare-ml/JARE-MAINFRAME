@@ -20,6 +20,7 @@ import DiscoveredAccountsSettings from '../components/settings/DiscoveredAccount
 import { SettingsSkeleton } from '../components/ui/PageSkeleton'
 import { isOledEnabled, setOledEnabled, getThemeMode, setThemeMode } from '../lib/theme'
 import { CALORIE_TARGET_KEY, CALORIE_TARGET_MIN, CALORIE_TARGET_MAX, parseCalorieTarget } from '../lib/meals'
+import Icon from '../components/ui/Icon'
 
 const WALLET_TYPES = [
   { value: 'bank', label: 'Bank', icon: '🏦' },
@@ -170,7 +171,7 @@ export default function Settings() {
             .insert({ key, value: String(num), updated_at: now })
       if (error) throw error
 
-      toast.success(`${label} saved ✓`)
+      toast.success(`${label} saved`)
       return true
     } catch (err) {
       console.error(`Error saving ${key}:`, err)
@@ -297,7 +298,7 @@ export default function Settings() {
           .update(payload)
           .eq('id', editingWallet.id)
         if (error) throw error
-        toast.success(balanceChanged ? 'Wallet updated, balance set ✓' : 'Wallet updated ✓')
+        toast.success(balanceChanged ? 'Wallet updated, balance set' : 'Wallet updated')
       } else {
         // Set once at creation and never rewritten. Leaving it null made
         // walletSource() fall back to the display name -- reintroducing the
@@ -312,7 +313,7 @@ export default function Settings() {
           }
           throw error
         }
-        toast.success('Wallet added ✓')
+        toast.success('Wallet added')
       }
 
       setShowWalletModal(false)
@@ -380,7 +381,7 @@ export default function Settings() {
                   to={item.path}
                   className="bg-card rounded-2xl p-4 border border-border flex items-center gap-3 min-h-[56px] hover:border-accent/40 transition-colors"
                 >
-                  <span className="text-xl" aria-hidden="true">{item.icon}</span>
+                  <Icon name={item.icon} size={20} className="text-muted" />
                   <span className="text-sm font-bold text-foreground">{item.label}</span>
                   <span className="ml-auto text-muted" aria-hidden="true">→</span>
                 </Link>

@@ -16,6 +16,7 @@ import ProgressRing from '../components/ui/ProgressRing'
 import { summarizeMonth, runway, safeToSpend, budgetPace, categoryAverages } from '../lib/summary'
 import { excludeRefunded } from '../lib/refunds'
 import { buildMonthRecap } from '../lib/monthRecap'
+import Icon from '../components/ui/Icon'
 import {
   transactionListColumns,
   transactionSummaryColumns,
@@ -530,7 +531,7 @@ export default function Budget() {
               >
                 <div className="flex items-center gap-4">
                   <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl bg-gray-500/20`}>
-                    <span className="opacity-80">{getCategoryIcon(t.category)}</span>
+                    <Icon name={getCategoryIcon(t.category)} size={18} className="text-muted" />
                   </div>
                   <div>
                     <p className="text-foreground font-medium">{t.description || t.category}</p>

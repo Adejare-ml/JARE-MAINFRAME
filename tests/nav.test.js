@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { NAV_ITEMS, sidebarItems, bottomNavItems, secondaryItems } from '../src/lib/nav.js'
+import { isIconName } from '../src/lib/constants.js'
 
 describe('navigation', () => {
   // The whole point of the email parsing pipeline is the ledger, and it was
@@ -50,7 +51,7 @@ describe('navigation', () => {
     expect(new Set(paths).size).toBe(paths.length)
     for (const item of NAV_ITEMS) {
       expect(item.label).toBeTruthy()
-      expect(item.icon).toBeTruthy()
+      expect(isIconName(item.icon)).toBe(true)
       expect(item.path.startsWith('/')).toBe(true)
     }
   })

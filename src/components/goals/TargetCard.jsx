@@ -10,6 +10,8 @@ import {
 } from '../../lib/planning'
 import { endOfMonth } from '../../lib/queries'
 import ProgressRing from '../ui/ProgressRing'
+import Icon from '../ui/Icon'
+import { resolveIcon } from '../../lib/constants'
 
 /** Funded fractions that get a brief celebration when crossed during a session. */
 const MILESTONES = [0.25, 0.5, 0.75, 1]
@@ -94,7 +96,7 @@ export default function TargetCard({ goal, transactions = [], liquidWalletIds = 
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-bold text-foreground truncate flex items-center gap-1.5">
-            {goal.icon && <span aria-hidden="true">{goal.icon}</span>}
+            {goal.icon && <Icon name={resolveIcon(goal.icon, 'goal')} size={16} className="text-muted" />}
             <span className="truncate">{goal.title}</span>
             {goal.locked && (
               <span aria-label="Locked" title="Locked -- confirms before early deletion" className="flex-shrink-0 text-amber-400">

@@ -33,6 +33,7 @@ import { pendingTransactions } from '../lib/pendingTransactions'
 import { confirmBuzz } from '../lib/haptics'
 import { resolveSwipe } from '../lib/swipeGesture'
 import CategoryPickerSheet from '../components/ui/CategoryPickerSheet'
+import Icon from '../components/ui/Icon'
 
 /**
  * What a populated list looks like, shown dimmed and inert on a genuinely
@@ -383,7 +384,7 @@ export default function Transactions() {
     try {
       const { error } = await supabase.from('transactions').update({ reviewed: true }).in('id', ids)
       if (error) throw error
-      toast.success(`${ids.length} transaction${ids.length === 1 ? '' : 's'} marked reviewed ✓`)
+      toast.success(`${ids.length} transaction${ids.length === 1 ? '' : 's'} marked reviewed`)
       exitSelectMode()
       fetchData()
     } catch (err) {
@@ -451,7 +452,7 @@ export default function Transactions() {
         }
       }
 
-      toast.success(`${ids.length} transaction${ids.length === 1 ? '' : 's'} categorized ✓`)
+      toast.success(`${ids.length} transaction${ids.length === 1 ? '' : 's'} categorized`)
       exitSelectMode()
       fetchData()
     } catch (err) {
@@ -753,7 +754,7 @@ export default function Transactions() {
             : `Rule ${verb} ✓`,
         )
       } else {
-        toast.success('Transaction updated ✓')
+        toast.success('Transaction updated')
       }
       setExpandedId(null)
       fetchData()
@@ -949,7 +950,7 @@ export default function Transactions() {
             >
               <div className="flex items-center gap-3.5 min-w-0">
                 <div className="w-11 h-11 rounded-2xl bg-background flex items-center justify-center text-xl border border-border">
-                  {getCategoryIcon(p.category)}
+                  <Icon name={getCategoryIcon(p.category)} size={18} className="text-muted" />
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm font-bold text-foreground truncate">{p.description || p.category}</p>
@@ -1014,7 +1015,7 @@ export default function Transactions() {
                             isCredit ? 'border-accent/40' : 'border-border'
                           }`}
                         >
-                          {getCategoryIcon(t.category)}
+                          <Icon name={getCategoryIcon(t.category)} size={18} className="text-muted" />
                         </div>
                         <span
                           className={`absolute -bottom-0.5 -left-0.5 w-2.5 h-2.5 rounded-full border border-card ${getCategoryColor(t.category)}`}
@@ -1124,7 +1125,7 @@ export default function Transactions() {
                           isCredit ? 'border-accent/40' : 'border-border'
                         }`}
                       >
-                        {icon}
+                        <Icon name={icon} size={18} className="text-muted" />
                       </div>
                       {/* Category color, consistent with CategoryBreakdown and
                           Badge -- the same getCategoryColor() class, not a
@@ -1280,7 +1281,7 @@ export default function Transactions() {
                         onClick={() => setShowEditCategoryPicker(true)}
                         className="w-full px-4 py-3 bg-card border border-border rounded-xl text-foreground text-sm focus:outline-none focus:border-accent min-h-[48px] flex items-center gap-2"
                       >
-                        <span className="text-lg" aria-hidden="true">{getCategoryIcon(editCategory)}</span>
+                        <Icon name={getCategoryIcon(editCategory)} size={18} className="text-muted" />
                         <span className="truncate">{editCategory}</span>
                       </button>
 
@@ -1480,7 +1481,7 @@ export default function Transactions() {
                 onClick={() => setShowBulkCategoryPicker(true)}
                 className="flex-1 min-w-0 px-3 py-3 bg-background border border-border rounded-xl text-foreground text-sm focus:outline-none focus:border-accent min-h-[48px] flex items-center gap-2"
               >
-                <span className="text-lg" aria-hidden="true">{bulkCategory ? getCategoryIcon(bulkCategory) : '🏷️'}</span>
+                <Icon name={bulkCategory ? getCategoryIcon(bulkCategory) : 'tag'} size={18} className="text-muted" />
                 <span className={`truncate ${bulkCategory ? '' : 'text-muted'}`}>{bulkCategory || 'Pick a category'}</span>
               </button>
               <button

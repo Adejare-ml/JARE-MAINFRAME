@@ -15,17 +15,19 @@
  */
 import { CATEGORIES, ALL_CATEGORIES, registerCategoryIcons } from './constants.js'
 
+export { resolveIcon, LEGACY_ICON_MAP } from './constants.js'
+
 /** The heading a custom category sits under unless it names a built-in one. */
 export const CUSTOM_SECTION = 'Custom'
 
 /** Matches the check constraint in 030: a category is a label, not a sentence. */
 export const NAME_MAX = 40
 
-/** Icon choices for a new category. Kept apart from GOAL_ICONS: a
- *  category names a kind of spending, not an aim. */
+/** Glyph choices for a new category (Icon.jsx names). Kept apart from
+ *  GOAL_ICONS: a category names a kind of spending, not an aim. */
 export const CUSTOM_CATEGORY_ICONS = [
-  '🏷️', '🎁', '🐾', '🍼', '🚌', '🛵', '🧾', '🎨', '🏋️', '✂️',
-  '🧹', '🌱', '💈', '🍺', '🎮', '🧸', '🩺', '🧳', '📷', '🎵',
+  'tag', 'gift', 'paw', 'bus', 'plane', 'leaf', 'gym', 'music', 'game', 'camera',
+  'heart', 'user', 'users', 'book', 'shirt', 'plate', 'home', 'clinic', 'case', 'cart',
 ]
 
 let custom = []
