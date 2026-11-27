@@ -10,6 +10,7 @@
  * redeploy.
  */
 
+import { askClaude, hasClaude, CLAUDE_TEXT_MODEL } from './lib/models.mjs'
 import { ALL_CATEGORIES } from '../src/lib/constants.js'
 import { extractJsonObject } from '../src/lib/normalize.js'
 import {
@@ -52,7 +53,13 @@ const NVIDIA_API_KEY = env('NVIDIA_API_KEY')
 const OLLAMA_BASE_URL = env('OLLAMA_BASE_URL', 'https://ollama.com')
 const OLLAMA_MODEL = env('OLLAMA_MODEL', 'gemma4:31b-cloud')
 const NVIDIA_BASE_URL = env('NVIDIA_BASE_URL', 'https://integrate.api.nvidia.com/v1')
-const NVIDIA_MODEL = env('NVIDIA_MODEL', 'openai/gpt-oss-120b')
+// gpt-oss-120b went the way of deepseek-v4-flash: the weekly recap of 23 Nov
+// 2026 got `410 Gone -- openai/gpt-oss-120b has reached its end of life on
+// 2026-09-03`, nearly three months after the fact, because Ollama had answered
+// every job until its credits ran out (402) the same week. The default is now
+// a model the catalog listed on 27 Nov 2026; the repository variable
+// NVIDIA_MODEL still overrides it, and Claude (below) now backs both up.
+const NVIDIA_MODEL = env('NVIDIA_MODEL', 'nvidia/nemotron-3.5-lightning-30b-a3b')
 
 /** Extraction is a short, mechanical job -- a long budget only buys a model
  *  room to ramble past the JSON. */
@@ -105,13 +112,42 @@ const REQUEST_TIMEOUT_MS = 60000
 /** Enough for any alert; keeps a pathological email from blowing the context. */
 const MAX_BODY_CHARS = 3000
 
+/**
+ * Claude, the third and last provider (added 27 Nov 2026).
+ *
+ * Ollama and NVIDIA are both free-tier endpoints, and in November both went
+ * at once: Ollama out of credits (402), NVIDIA's model retired (410). Every
+ * job that needs a model stopped together, the weekly recap loudly and the
+ * others quietly. Claude is paid, so it goes last: it answers only when both
+ * free ones have failed. It reuses scripts/lib/models.mjs's askClaude (plain
+ * fetch, no SDK in package.json), with the ANTHROPIC_API_KEY secret the Diet
+ * jobs already use.
+ */
+const CLAUDE_MODEL = CLAUDE_TEXT_MODEL()
+
 export const LLM_CONFIG = {
   ollama: { baseUrl: OLLAMA_BASE_URL, model: OLLAMA_MODEL, configured: Boolean(OLLAMA_API_KEY) },
   nvidia: { baseUrl: NVIDIA_BASE_URL, model: NVIDIA_MODEL, configured: Boolean(NVIDIA_API_KEY) },
+  claude: { baseUrl: 'https://api.anthropic.com', model: CLAUDE_MODEL, configured: hasClaude() },
 }
 
 export function hasAnyProvider() {
-  return LLM_CONFIG.ollama.configured || LLM_CONFIG.nvidia.configured
+  return LLM_CONFIG.ollama.configured || LLM_CONFIG.nvidia.configured || LLM_CONFIG.claude.configured
+}
+
+async function callClaude(userPrompt, systemPrompt = SYSTEM_PROMPT, maxTokens = MAX_TOKENS) {
+  const res = await askClaude({
+    model: CLAUDE_MODEL,
+    system: `${systemPrompt}\n\nReply with one JSON object and nothing else.`,
+    user: userPrompt,
+    // Claude does not ramble past the JSON the way a reasoning model can, but
+    // give it the batch ceiling anyway: the cost is on tokens produced.
+    maxTokens: Math.max(maxTokens, NVIDIA_MAX_TOKENS),
+    effort: 'low',
+    timeoutMs: REQUEST_TIMEOUT_MS,
+  })
+  if (!res.ok) throw new Error(res.reason)
+  return res.text
 }
 
 /**
@@ -257,7 +293,7 @@ async function callNvidia(userPrompt, systemPrompt = SYSTEM_PROMPT, maxTokens = 
  *
  * @param {string} userPrompt
  * @param {{system?: string, maxTokens?: number, warn?: (msg: string) => void, label?: string, declined?: (parsed: object) => boolean}} [options]
- * @returns {Promise<{data: object, provider: 'ollama'|'nvidia'} | null>}
+ * @returns {Promise<{data: object, provider: 'ollama'|'nvidia'|'claude'} | null>}
  */
 export async function callModel(
   userPrompt,
@@ -266,6 +302,7 @@ export async function callModel(
   const providers = [
     { name: 'ollama', enabled: LLM_CONFIG.ollama.configured, call: callOllama },
     { name: 'nvidia', enabled: LLM_CONFIG.nvidia.configured, call: callNvidia },
+    { name: 'claude', enabled: LLM_CONFIG.claude.configured, call: callClaude },
   ]
 
   const what = label ? ` ${label}` : ''
@@ -302,7 +339,7 @@ export async function callModel(
  *
  * @param {string} emailBody
  * @param {(msg: string) => void} [warn]
- * @returns {Promise<{data: object, provider: 'ollama'|'nvidia'} | null>}
+ * @returns {Promise<{data: object, provider: 'ollama'|'nvidia'|'claude'} | null>}
  */
 export async function extractTransaction(emailBody, warn = console.warn) {
   return callModel(`Parse this bank notification email:\n\n${emailBody.slice(0, MAX_BODY_CHARS)}`, {
@@ -361,7 +398,7 @@ export async function categorizeBatch(items, corrections = [], warn = console.wa
  * @returns {Promise<{ok: true, data: object} | {ok: false, error: string}>}
  */
 export async function probeProvider(name, emailBody) {
-  const call = name === 'ollama' ? callOllama : callNvidia
+  const call = { ollama: callOllama, nvidia: callNvidia, claude: callClaude }[name] ?? callNvidia
   const userPrompt = `Parse this bank notification email:\n\n${emailBody.slice(0, MAX_BODY_CHARS)}`
 
   try {

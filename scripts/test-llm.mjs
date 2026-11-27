@@ -23,6 +23,7 @@ const fixturePath = process.argv[2] || 'tests/fixtures/emails/opay-out.txt'
 console.log('Configuration')
 console.log(`  Ollama: ${LLM_CONFIG.ollama.configured ? '🔑 key set' : '— NO KEY'}  ${LLM_CONFIG.ollama.baseUrl}  ${LLM_CONFIG.ollama.model}`)
 console.log(`  NVIDIA: ${LLM_CONFIG.nvidia.configured ? '🔑 key set' : '— NO KEY'}  ${LLM_CONFIG.nvidia.baseUrl}  ${LLM_CONFIG.nvidia.model}`)
+console.log(`  Claude: ${LLM_CONFIG.claude.configured ? '🔑 key set' : '— NO KEY'}  ${LLM_CONFIG.claude.baseUrl}  ${LLM_CONFIG.claude.model}`)
 
 if (!hasAnyProvider()) {
   console.error('\n❌ Neither OLLAMA_API_KEY nor NVIDIA_API_KEY is set.')
@@ -41,7 +42,7 @@ console.log(`\nEmail: ${fixturePath} (${body.length} chars)`)
 
 const outcomes = []
 
-for (const name of ['ollama', 'nvidia']) {
+for (const name of ['ollama', 'nvidia', 'claude']) {
   console.log(`\n${'─'.repeat(60)}\n${name.toUpperCase()}  ${LLM_CONFIG[name].model}`)
 
   if (!LLM_CONFIG[name].configured) {

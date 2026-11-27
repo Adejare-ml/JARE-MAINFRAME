@@ -91,7 +91,7 @@ async function main() {
 
   const input = checkinPlanInput({ settings, yesterday: y, pantry, saved })
   const [claude, ollama] = await Promise.all([
-    hasClaude() ? askClaude({ system: PLAN_SYSTEM, user: input, schema: PLAN_SCHEMA, maxTokens: 400 }) : Promise.resolve({ ok: false, reason: 'ANTHROPIC_API_KEY is not set' }),
+    hasClaude() ? askClaude({ system: PLAN_SYSTEM, user: input, schema: PLAN_SCHEMA, maxTokens: 400, effort: 'low' }) : Promise.resolve({ ok: false, reason: 'ANTHROPIC_API_KEY is not set' }),
     hasOllama() ? askOllama({ system: PLAN_SYSTEM, user: input, schema: PLAN_SCHEMA }) : Promise.resolve({ ok: false, reason: 'OLLAMA_API_KEY is not set' }),
   ])
   const claudePlan = readPlan(claude)
