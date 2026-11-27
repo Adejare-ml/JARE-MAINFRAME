@@ -13,7 +13,9 @@
     "test": "vitest run",
     "test:db": "node scripts/db-test.mjs",
     "lint": "eslint .",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "shots": "node scripts/shots.mjs",
+    "check-style": "node scripts/check-style.mjs"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.3.0",
