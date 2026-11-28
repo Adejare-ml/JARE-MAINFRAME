@@ -3,6 +3,10 @@ import { supabase } from '../lib/supabase';
 import { toast } from '../lib/toast';
 import { formatNaira } from '../lib/formatters';
 import { toDateOnly, excludeVoided } from '../lib/queries';
+import Panel from './ui/Panel';
+import Button from './ui/Button';
+import Money from './ui/Money';
+import { Input } from './ui/Field';
 
 export default function CashReconciliation({ onReconciled }) {
   const [cashWallet, setCashWallet] = useState(null);
@@ -121,7 +125,7 @@ export default function CashReconciliation({ onReconciled }) {
       localStorage.setItem('cash_reconciled_' + today, 'true');
       setShouldShow(false);
       
-      toast.success('Cash balance updated to ' + formatNaira(newBalance) + '');
+      toast.success('Cash balance updated to ' + formatNaira(newBalance));
       
       if (onReconciled) onReconciled();
 
@@ -136,69 +140,52 @@ export default function CashReconciliation({ onReconciled }) {
   if (!shouldShow || !cashWallet) return null;
 
   return (
-    <div className="bg-card rounded-xl p-5 shadow-sm border border-neutral-800 mb-6 text-foreground">
-      <h3 className="text-lg font-bold mb-3">Quick cash check 💰</h3>
-      
+    <Panel label="Cash check" meta={cashWallet.name}>
       {!showUpdateForm ? (
         <div>
-          <p className="text-muted mb-5">
-            Your cash balance is <span className="text-foreground font-semibold money">{formatNaira(cashWallet.balance)}</span>. Does that still look right?
+          <p className="text-body text-muted mb-3">
+            Your cash balance is <Money amount={Number(cashWallet.balance) || 0} className="text-foreground" />. Does that still look right?
           </p>
-          <div className="flex flex-col sm:flex-row gap-3">
-            <button
-              onClick={handleLooksRight}
-              className="flex-1 bg-accent hover:bg-accent text-foreground font-medium py-3 px-4 rounded-lg min-h-[48px] transition-colors"
-            >
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button full onClick={handleLooksRight}>
               Yes, looks right
-            </button>
-            <button
+            </Button>
+            <Button
+              full
+              variant="secondary"
               onClick={() => {
                 setSubmissionId(crypto.randomUUID())
                 setShowUpdateForm(true)
               }}
-              className="flex-1 bg-transparent border border-muted hover:bg-neutral-800 text-foreground font-medium py-3 px-4 rounded-lg min-h-[48px] transition-colors"
             >
               No, let me update
-            </button>
+            </Button>
           </div>
         </div>
       ) : (
-        <form onSubmit={handleUpdateSubmit} className="animate-fade-in">
-          <p className="text-muted mb-4">How much cash do you have right now?</p>
-          
-          <div className="relative mb-4">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted font-medium">₦</span>
-            <input
-              type="number"
-              step="0.01"
-              value={actualCash}
-              onChange={(e) => setActualCash(e.target.value)}
-              placeholder="0.00"
-              className="w-full bg-background border border-neutral-700 text-foreground rounded-lg py-3 pl-10 pr-4 min-h-[48px] focus:outline-none focus:border-accent"
-              required
-            />
-          </div>
-          
-          {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
-
-          <div className="flex gap-3">
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="flex-1 bg-accent hover:bg-accent disabled:opacity-50 text-foreground font-medium py-3 px-4 rounded-lg min-h-[48px] transition-colors"
-            >
+        <form onSubmit={handleUpdateSubmit} className="space-y-3">
+          <Input
+            label="Cash on hand, naira"
+            hint={error ? undefined : 'How much cash do you have right now?'}
+            error={error || undefined}
+            type="number"
+            inputMode="decimal"
+            step="0.01"
+            value={actualCash}
+            onChange={(e) => setActualCash(e.target.value)}
+            placeholder="0.00"
+            required
+          />
+          <div className="flex gap-2">
+            <Button type="submit" full loading={isSubmitting}>
               {isSubmitting ? 'Updating...' : 'Update balance'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowUpdateForm(false)}
-              className="px-4 py-3 min-h-[48px] font-medium text-muted hover:text-foreground transition-colors"
-            >
+            </Button>
+            <Button type="button" variant="ghost" onClick={() => setShowUpdateForm(false)}>
               Cancel
-            </button>
+            </Button>
           </div>
         </form>
       )}
-    </div>
+    </Panel>
   );
 }

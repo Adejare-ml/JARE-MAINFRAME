@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { formatNaira, formatDate, formatTime, getCategoryColor } from '../lib/formatters'
-import { getCategoryIcon } from '../lib/constants'
+import { formatDate } from '../lib/formatters'
 import { toast } from '../lib/toast'
 import ErrorState from '../components/ui/ErrorState'
 import EmptyState from '../components/ui/EmptyState'
@@ -34,6 +33,18 @@ import { confirmBuzz } from '../lib/haptics'
 import { resolveSwipe } from '../lib/swipeGesture'
 import CategoryPickerSheet from '../components/ui/CategoryPickerSheet'
 import Icon from '../components/ui/Icon'
+import PageHeader from '../components/ui/PageHeader'
+import Panel from '../components/ui/Panel'
+import ListRow, { ListRows } from '../components/ui/ListRow'
+import Money from '../components/ui/Money'
+import Badge from '../components/ui/Badge'
+import Label from '../components/ui/Label'
+import Button, { buttonClasses } from '../components/ui/Button'
+import Segmented from '../components/ui/Segmented'
+import CategoryMark from '../components/ui/CategoryMark'
+import Provenance from '../components/ui/Provenance'
+import { Field, Input, Select, controlClasses } from '../components/ui/Field'
+import { useNewIds } from '../components/daily/useNewIds'
 
 /**
  * What a populated list looks like, shown dimmed and inert on a genuinely
@@ -369,6 +380,9 @@ export default function Transactions() {
   const filteredTransactions = transactions
   const groupedTransactions = groupByDate(filteredTransactions)
   const reviewAge = queueAge(oldestUnreviewed, toDateOnly(new Date()))
+  // Rows that arrive while the page is open (a realtime insert) play the
+  // row-insertion motion once; the first load never animates.
+  const isNewRow = useNewIds(filteredTransactions.map((t) => t.id), !loading)
 
   /**
    * Accept the rows as they are: the audit's category stands, the row
@@ -751,7 +765,7 @@ export default function Transactions() {
         toast.success(
           taught.refiled > 0
             ? `Rule ${verb} · ${taught.refiled} more from this payee filed as ${taught.rule.action_category}`
-            : `Rule ${verb} ✓`,
+            : `Rule ${verb}`,
         )
       } else {
         toast.success('Transaction updated')
@@ -770,199 +784,172 @@ export default function Transactions() {
     return <TransactionsSkeleton />
   }
 
+  const countText = `${filteredTransactions.length}${hasMore ? '+' : ''} shown`
+  const headerMeta = [
+    filter === 'Review' && unreviewedCount > 0
+      ? `${unreviewedCount} waiting${reviewAge ? `, ${reviewAge.label}` : ''}`
+      : countText,
+    refreshing ? 'Updating…' : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
+  const sectionLabel = (text) => <Label as="p" className="block mb-1.5">{text}</Label>
+
   return (
-    <div className="space-y-6 pb-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-foreground flex items-center gap-3">
-            <span>Transactions</span>
-            <span className="text-xs bg-surface-2 px-3 py-1 rounded-full text-muted font-normal">
-              {filteredTransactions.length}{hasMore ? '+' : ''}
-            </span>
-            {refreshing && (
-              <span className="text-xs text-muted font-normal animate-pulse" role="status" aria-live="polite">
-                Updating…
-              </span>
-            )}
-          </h1>
-          <p className="text-muted text-sm mt-0.5">
-            {filter === 'Review' && unreviewedCount > 0
-              ? `${unreviewedCount} waiting${reviewAge ? `, ${reviewAge.label}` : ''}`
-              : 'Filter, review, and categorize transactions'}
-          </p>
-        </div>
-        <button
-          onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
-          className={`px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap border transition-all min-h-[48px] ${
-            selectMode
-              ? 'bg-accent text-on-accent border-accent'
-              : 'bg-card text-muted hover:text-foreground border-border'
-          }`}
-        >
-          {selectMode ? 'Done' : 'Select'}
-        </button>
-      </div>
+    <div className="space-y-3 pb-6">
+      <PageHeader
+        title="Transactions"
+        meta={headerMeta}
+        actions={
+          <Button
+            size="sm"
+            variant={selectMode ? 'primary' : 'secondary'}
+            onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
+          >
+            {selectMode ? 'Done' : 'Select'}
+          </Button>
+        }
+      />
+      <span role="status" aria-live="polite" className="sr-only">
+        {refreshing ? 'Updating…' : ''}
+      </span>
 
       {/* Search. Runs in Postgres, not over the loaded page -- otherwise it
           would only ever search the most recent 50 rows and confidently report
           nothing for anything older. */}
       <div className="relative">
+        <Icon name="search" size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
         <input
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
+          aria-label="Search transactions"
           placeholder="Search description, recipient, note or amount…"
-          className="w-full pl-11 pr-4 py-3 bg-card border border-border rounded-2xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+          className={`${controlClasses(false)} pl-10`}
         />
-        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted text-sm pointer-events-none">
-          🔍
-        </span>
       </div>
 
       {/* Range, direction and order. Collapsed by default: the chips answer
           most questions, and three more controls above every visit would
           push the ledger itself below the fold on a phone. */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <button
-            type="button"
-            onClick={() => setShowFilters((v) => !v)}
-            aria-expanded={showFilters}
-            className="text-xs font-semibold text-muted hover:text-foreground min-h-[40px] px-1"
-          >
+      <div className="flex items-center justify-between gap-2">
+        <Button
+          size="sm"
+          variant="ghost"
+          icon="filter"
+          onClick={() => setShowFilters((v) => !v)}
+          aria-expanded={showFilters}
+          className="min-w-0"
+        >
+          <span className="truncate">
             {showFilters ? 'Hide filters' : 'Filters'}
             {rangeSummary ? ` · ${rangeSummary}` : ''}
-          </button>
-          {(rangeSummary || sort !== 'newest') && (
-            <button type="button" onClick={clearRange} className="text-xs font-semibold text-accent min-h-[40px] px-1">
-              Clear
-            </button>
-          )}
-        </div>
-        {showFilters && (
-          <div className="bg-card rounded-2xl border border-border p-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <label className="text-xs text-muted">
-              From
-              <input
-                type="date"
-                value={range.from}
-                max={range.to || undefined}
-                onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))}
-                className="mt-1 w-full px-3 py-2 bg-background border border-border rounded-xl text-foreground text-sm min-h-[44px] focus:outline-none focus:border-accent"
-              />
-            </label>
-            <label className="text-xs text-muted">
-              To
-              <input
-                type="date"
-                value={range.to}
-                min={range.from || undefined}
-                onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))}
-                className="mt-1 w-full px-3 py-2 bg-background border border-border rounded-xl text-foreground text-sm min-h-[44px] focus:outline-none focus:border-accent"
-              />
-            </label>
-            <div className="text-xs text-muted">
-              Direction
-              <div className="mt-1 flex bg-background rounded-xl border border-border p-0.5" role="group" aria-label="Direction">
-                {[
-                  ['all', 'All'],
-                  ['debit', 'Out'],
-                  ['credit', 'In'],
-                ].map(([id, label]) => (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => setRange((r) => ({ ...r, type: id }))}
-                    aria-pressed={range.type === id}
-                    className={`flex-1 py-2 rounded-lg text-xs font-semibold min-h-[40px] ${
-                      range.type === id ? 'bg-accent text-on-accent' : 'text-muted hover:text-foreground'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <label className="text-xs text-muted">
-              Order
-              <select
-                value={sort}
-                onChange={(e) => setSort(e.target.value)}
-                disabled={filter === 'Review'}
-                className="mt-1 w-full px-3 py-2 bg-background border border-border rounded-xl text-foreground text-sm min-h-[44px] focus:outline-none focus:border-accent disabled:opacity-50"
-              >
-                {SORT_OPTIONS.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
+          </span>
+        </Button>
+        {(rangeSummary || sort !== 'newest') && (
+          <Button size="sm" variant="ghost" onClick={clearRange}>
+            Clear
+          </Button>
         )}
       </div>
+      {showFilters && (
+        <Panel label="Filters">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <Input
+              label="From"
+              type="date"
+              value={range.from}
+              max={range.to || undefined}
+              onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))}
+            />
+            <Input
+              label="To"
+              type="date"
+              value={range.to}
+              min={range.from || undefined}
+              onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))}
+            />
+            <div className="min-w-0">
+              {sectionLabel('Direction')}
+              <Segmented
+                full
+                label="Direction"
+                options={[
+                  { value: 'all', label: 'All' },
+                  { value: 'debit', label: 'Out' },
+                  { value: 'credit', label: 'In' },
+                ]}
+                value={range.type}
+                onChange={(id) => setRange((r) => ({ ...r, type: id }))}
+              />
+            </div>
+            <Select label="Order" value={sort} onChange={(e) => setSort(e.target.value)} disabled={filter === 'Review'}>
+              {SORT_OPTIONS.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+        </Panel>
+      )}
 
-      {/* Filter Chips Horizontal Scroll */}
-      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
+      {/* Filter chips. A scrolling row rather than a Segmented control: the
+          options grow with wallets and a deep-linked category, and equal-width
+          segments would not fit at phone width. */}
+      <div className="flex gap-2 overflow-x-auto py-1.5 scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0" role="group" aria-label="Filter">
         {filterOptions.map((opt) => {
           const isActive = filter === opt.id
           const isReview = opt.id === 'Review'
           return (
             <button
               key={opt.id}
+              type="button"
               onClick={() => setFilter(opt.id)}
-              className={`px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 min-h-[48px] ${
-                isActive
-                  ? 'bg-accent text-on-accent font-bold shadow-md shadow-accent/20'
-                  : 'bg-card text-muted hover:text-foreground border border-border'
+              aria-pressed={isActive}
+              className={`${buttonClasses({ variant: 'secondary', size: 'sm' })} shrink-0 ${
+                isActive ? 'bg-card border-border-strong text-foreground' : 'text-muted'
               }`}
             >
               <span>{opt.label}</span>
-              {isReview && unreviewedCount > 0 && (
-                <span className={`px-1.5 py-0.5 text-xs rounded-full font-extrabold ${
-                  isActive ? 'bg-black text-accent' : 'bg-orange-500 text-black'
-                }`}>
-                  {unreviewedCount}
-                </span>
-              )}
+              {isReview && unreviewedCount > 0 && <Badge label={unreviewedCount} tone="warn" />}
             </button>
           )
         })}
       </div>
 
-      {/* Rows logged this session, shown before the server (or the realtime
-          refetch behind it) has confirmed them -- see
-          lib/pendingTransactions.js. Only on the default, unfiltered view:
-          a pending row is not yet a real transaction to filter or search. */}
       {filter === 'Voided' && (
-        <p className="text-xs text-muted-dim px-1">
+        <p className="text-body-sm text-muted">
           Left out of every list and every total. Restore one to bring it back.
         </p>
       )}
 
+      {/* Rows logged this session, shown before the server (or the realtime
+          refetch behind it) has confirmed them -- see
+          lib/pendingTransactions.js. Only on the default, unfiltered view:
+          a pending row is not yet a real transaction to filter or search. */}
       {filter === 'All' && !activeSearch && pending.length > 0 && (
-        <div className="space-y-2 mb-3">
-          {pending.map((p) => (
-            <div
-              key={p.id}
-              className="bg-card/60 rounded-2xl border border-dashed border-border p-4 flex items-center justify-between animate-pulse"
-            >
-              <div className="flex items-center gap-3.5 min-w-0">
-                <div className="w-11 h-11 rounded-2xl bg-background flex items-center justify-center text-xl border border-border">
-                  <Icon name={getCategoryIcon(p.category)} size={18} className="text-muted" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-foreground truncate">{p.description || p.category}</p>
-                  <p className="text-xs text-muted mt-0.5">Saving…</p>
-                </div>
-              </div>
-              <span className={`text-sm font-bold flex-shrink-0 ml-3 money ${p.type === 'credit' ? 'text-accent' : 'text-foreground'}`}>
-                {p.type === 'credit' ? '+' : '-'}{formatNaira(p.amount)}
-              </span>
-            </div>
-          ))}
-        </div>
+        <Panel label="Saving" meta={`${pending.length}`} flush>
+          <ListRows>
+            {pending.map((p) => (
+              <ListRow
+                key={p.id}
+                isNew
+                leading={<CategoryMark category={p.category} />}
+                title={p.description || p.category}
+                subtitle="Saving…"
+                trailing={
+                  <Money
+                    amount={p.type === 'credit' ? Number(p.amount) : -Number(p.amount)}
+                    sign={p.type === 'credit'}
+                    tone={p.type === 'credit' ? 'positive' : 'default'}
+                  />
+                }
+              />
+            ))}
+          </ListRows>
+        </Panel>
       )}
 
       {/* Transaction List */}
@@ -970,97 +957,72 @@ export default function Transactions() {
         <ErrorState message={pageError} onRetry={fetchData} />
       ) : filteredTransactions.length === 0 ? (
         activeSearch ? (
-          <EmptyState
-            icon="🔍"
-            title={`Nothing matches "${activeSearch}"`}
-            message="Searched description, recipient, note and exact amount"
-            actionLabel="Clear search"
-            onAction={() => {
-              setSearch('')
-              setActiveSearch('')
-            }}
-          />
-        ) : filter !== 'All' ? (
-          <EmptyState
-            icon="💳"
-            title="Nothing in this filter"
-            message="Try a different filter, or log a transaction"
-            actionLabel="Clear filter"
-            onAction={() => setFilter('All')}
-          />
-        ) : (
-          <div className="space-y-5">
+          <Panel>
             <EmptyState
-              icon="💳"
-              title="No transactions yet"
-              message="Log one by hand, or wait for the morning import of bank alerts (Settings → System shows when it last ran)"
-              actionLabel="Log a transaction"
-              onAction={() => openQuickLog('debit')}
+              title={`Nothing matches "${activeSearch}"`}
+              message="Searched description, recipient, note and exact amount"
+              actionLabel="Clear search"
+              onAction={() => {
+                setSearch('')
+                setActiveSearch('')
+              }}
             />
-            <div className="opacity-40 pointer-events-none select-none space-y-2" aria-hidden="true">
-              <p className="text-xs text-muted uppercase tracking-wider text-center">
-                Preview — what this looks like once you have some
-              </p>
-              {SAMPLE_TRANSACTIONS.map((t) => {
-                const isCredit = t.type === 'credit'
-                return (
-                  <div
-                    key={t.id}
-                    className="bg-card rounded-2xl border border-border p-4 flex items-center justify-between"
-                  >
-                    <div className="flex items-center gap-3.5 min-w-0">
-                      <div className="relative">
-                        <div
-                          className={`w-11 h-11 rounded-2xl bg-background flex items-center justify-center text-xl border ${
-                            isCredit ? 'border-accent/40' : 'border-border'
-                          }`}
-                        >
-                          <Icon name={getCategoryIcon(t.category)} size={18} className="text-muted" />
-                        </div>
-                        <span
-                          className={`absolute -bottom-0.5 -left-0.5 w-2.5 h-2.5 rounded-full border border-card ${getCategoryColor(t.category)}`}
-                        />
-                      </div>
-                      <p className="text-sm font-bold text-foreground truncate">{t.description}</p>
-                    </div>
-                    <span className={`text-sm font-bold ${isCredit ? 'text-accent' : 'text-foreground'}`}>
-                      {isCredit ? '+' : '-'}{formatNaira(t.amount)}
-                    </span>
-                  </div>
-                )
-              })}
+          </Panel>
+        ) : filter !== 'All' ? (
+          <Panel>
+            <EmptyState
+              title="Nothing in this filter"
+              message="Try a different filter, or log a transaction"
+              actionLabel="Clear filter"
+              onAction={() => setFilter('All')}
+            />
+          </Panel>
+        ) : (
+          <>
+            <Panel>
+              <EmptyState
+                title="No transactions yet"
+                message="Log one by hand, or wait for the morning import of bank alerts (Settings, System shows when it last ran)"
+                actionLabel="Log a transaction"
+                onAction={() => openQuickLog('debit')}
+              />
+            </Panel>
+            <div className="opacity-60 pointer-events-none select-none" aria-hidden="true">
+              <Panel label="Preview" meta="Once you have some" flush>
+                <ListRows>
+                  {SAMPLE_TRANSACTIONS.map((t) => {
+                    const isCredit = t.type === 'credit'
+                    return (
+                      <ListRow
+                        key={t.id}
+                        leading={<CategoryMark category={t.category} />}
+                        title={t.description}
+                        subtitle={t.category}
+                        trailing={<Money amount={isCredit ? t.amount : -t.amount} sign={isCredit} tone={isCredit ? 'positive' : 'default'} />}
+                      />
+                    )
+                  })}
+                </ListRows>
+              </Panel>
             </div>
-          </div>
+          </>
         )
       ) : (
-        <div className="space-y-5">
+        <div className="space-y-3">
           {groupedTransactions.map((group) => (
-          <div key={group.date} className="space-y-2">
-            <div className="sticky top-0 z-10 -mx-1 px-1 py-1.5 bg-background/95 backdrop-blur-sm">
-              <span className="text-xs font-bold text-muted uppercase tracking-wider">{group.label}</span>
-            </div>
+          <Panel key={group.date} label={group.label === group.date ? formatDate(group.date) : group.label} meta={`${group.rows.length}`} flush>
+            <div className="divide-y divide-border">
             {group.rows.map((t) => {
             const isExpanded = expandedId === t.id && !selectMode
             const isSelected = selectedIds.has(t.id)
             const isCredit = t.type === 'credit'
-            const icon = getCategoryIcon(t.category)
-            const categoryColor = getCategoryColor(t.category)
             const walletName = getWalletName(t.wallet_id, t.source)
             const isUnreviewed = needsReview(t)
 
             const isRevealed = revealedId === t.id && !selectMode
 
             return (
-              <div
-                key={t.id}
-                className={`relative bg-card rounded-2xl border transition-all overflow-hidden ${
-                  isSelected
-                    ? 'border-accent bg-accent/5'
-                    : isExpanded
-                      ? 'border-accent bg-card/90 shadow-xl'
-                      : 'border-border hover:border-border-strong'
-                }`}
-              >
+              <div key={t.id} className={`relative overflow-hidden ${isNewRow(t.id) ? 'row-enter' : ''}`}>
                 {/* Sits behind the Main Row, exposed only once that row has
                     been swiped left -- see handleSwipeStart/End. A tap here
                     reuses the exact same one-tap-plus-Undo-toast handleVoid
@@ -1078,19 +1040,22 @@ export default function Transactions() {
                     disabled={updating}
                     aria-hidden={!isRevealed}
                     tabIndex={isRevealed ? 0 : -1}
-                    className={`absolute inset-y-0 right-0 w-20 flex items-center justify-center text-xs font-bold disabled:opacity-50 ${
-                      t.voided ? 'bg-accent/90 text-on-accent' : 'bg-red-500/90 text-foreground'
+                    className={`absolute inset-y-0 right-0 w-20 flex items-center justify-center text-body-sm font-semibold disabled:opacity-50 ${
+                      t.voided ? 'bg-accent text-on-accent' : 'bg-danger text-on-accent'
                     }`}
                   >
                     {t.voided ? 'Restore' : 'Void'}
                   </button>
                 )}
 
-                {/* Main Row */}
+                {/* Main Row. Composed here rather than with ListRow: it
+                    carries the swipe handlers, the reveal transform and the
+                    inline editor below it. */}
                 <div
                   role="button"
                   tabIndex={0}
                   aria-expanded={expandedId === t.id}
+                  aria-pressed={selectMode ? isSelected : undefined}
                   onClick={() => handleRowClick(t)}
                   onKeyDown={(e) => {
                     if (e.target !== e.currentTarget) return
@@ -1103,115 +1068,86 @@ export default function Transactions() {
                   onPointerUp={handleSwipeEnd(t)}
                   style={{
                     transform: isRevealed ? 'translateX(-5rem)' : undefined,
-                    transition: 'transform 0.2s ease',
+                    transition: 'transform var(--dur-state) var(--ease-out), background-color var(--dur-state) var(--ease-standard)',
                   }}
-                  className="relative bg-card p-4 flex items-center justify-between cursor-pointer min-h-[56px]"
+                  className={`relative flex items-center gap-3 px-3 py-2 min-h-14 cursor-pointer ${
+                    isSelected || isExpanded ? 'bg-surface-2' : 'bg-card hover:bg-surface-2'
+                  }`}
                 >
-                  <div className="flex items-center gap-3.5 min-w-0">
-                    {selectMode && (
-                      <span
-                        className={`w-6 h-6 shrink-0 rounded-lg border-2 flex items-center justify-center text-xs font-black transition-all ${
-                          isSelected
-                            ? 'bg-accent border-accent text-on-accent'
-                            : 'border-border text-transparent'
-                        }`}
-                      >
-                        ✓
-                      </span>
-                    )}
-                    <div className="relative">
-                      <div
-                        className={`w-11 h-11 rounded-2xl bg-background flex items-center justify-center text-xl border ${
-                          isCredit ? 'border-accent/40' : 'border-border'
-                        }`}
-                      >
-                        <Icon name={icon} size={18} className="text-muted" />
-                      </div>
-                      {/* Category color, consistent with CategoryBreakdown and
-                          Badge -- the same getCategoryColor() class, not a
-                          second palette to keep in sync with it. */}
-                      <span
-                        className={`absolute -bottom-0.5 -left-0.5 w-2.5 h-2.5 rounded-full border border-card ${categoryColor}`}
-                        aria-hidden="true"
-                      />
-                      {isUnreviewed && (
-                        <span className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 rounded-full border-2 border-card" />
-                      )}
-                    </div>
+                  {selectMode && (
+                    <span
+                      aria-hidden="true"
+                      className={`w-6 h-6 shrink-0 rounded-chip border-2 flex items-center justify-center ${
+                        isSelected ? 'bg-accent border-accent text-on-accent' : 'border-border text-transparent'
+                      }`}
+                    >
+                      <Icon name="check" size={14} />
+                    </span>
+                  )}
+                  <CategoryMark category={t.category} />
 
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-bold text-foreground truncate">
-                          {t.description || t.category}
-                        </p>
-                        {t.want_or_need && (
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-bold uppercase ${
-                            t.want_or_need === 'need' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
-                            t.want_or_need === 'want' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' :
-                            'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
-                          }`}>
-                            {t.want_or_need}
-                          </span>
-                        )}
-                        {t.debt_id && (
-                          <span
-                            className="text-xs px-2 py-0.5 rounded-full font-bold bg-teal-500/15 text-teal-300 border border-teal-500/30 truncate max-w-[140px]"
-                            title="Counts toward this debt"
-                          >
-                            🤝 {debtNames[t.debt_id] || 'Debt'}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted mt-0.5">
-                        {walletName} · {formatDate(t.transaction_date)} {t.transaction_time ? `at ${formatTime(t.transaction_time)}` : ''}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <p className="text-body text-foreground truncate min-w-0">
+                        {t.description || t.category}
                       </p>
-                      {/* Why it landed on this category -- the audit's own
-                          reasoning, or the rule that filed it, folded into
-                          one string by the ingest function. Shown on every row that has
-                          one, not only unreviewed ones: a category chosen
-                          with high confidence is still a change the AI made,
-                          and "never a silent change" means it stays visible
-                          even once you are not being asked to double-check it. */}
-                      {t.explanation && (
-                        <span
-                          className="inline-flex items-center gap-1 max-w-full mt-1 px-2 py-0.5 rounded-full bg-surface-2 text-muted-dim text-xs leading-tight"
-                          title={t.explanation}
-                        >
-                          <span aria-hidden="true">💡</span>
-                          <span className="truncate">{t.explanation}</span>
+                      {t.want_or_need && (
+                        <span className="shrink-0">
+                          <Badge label={t.want_or_need} />
+                        </span>
+                      )}
+                      {t.debt_id && (
+                        <span className="min-w-0 max-w-[140px] truncate" title="Counts toward this debt">
+                          <Badge label={`Debt · ${debtNames[t.debt_id] || 'Debt'}`} />
                         </span>
                       )}
                     </div>
+                    {/* The date is the group header above; the line under the
+                        title says what it was and which wallet it moved. */}
+                    <p className="text-body-sm text-muted truncate">
+                      {t.category} · {walletName}
+                    </p>
+                    {/* Where the row came from: the source and the time the
+                        bank (or the hand-log) stamped on it. */}
+                    <Provenance source={t.source} at={t.transaction_time} />
+                    {/* Why it landed on this category -- the audit's own
+                        reasoning, or the rule that filed it, folded into
+                        one string by the ingest function. Shown on every row that has
+                        one, not only unreviewed ones: a category chosen
+                        with high confidence is still a change the AI made,
+                        and "never a silent change" means it stays visible
+                        even once you are not being asked to double-check it. */}
+                    {t.explanation && (
+                      <p className="flex items-center gap-1.5 mt-0.5 text-body-sm text-muted-dim min-w-0" title={t.explanation}>
+                        <Icon name="info" size={14} className="shrink-0" />
+                        <span className="truncate">{t.explanation}</span>
+                      </p>
+                    )}
                   </div>
 
-                  <div className="text-right ml-3 shrink-0">
-                    <span className={`text-base font-extrabold tabular-nums money ${isCredit ? 'text-accent' : 'text-foreground'}`}>
-                      {isCredit ? '+' : '-'}{formatNaira(t.amount)}
-                    </span>
-                    <p className="text-xs text-muted capitalize mt-0.5 flex items-center justify-end gap-1.5">
-                      {/* How sure the parser was. It has ridden in the column
-                          list all along and been rendered nowhere, which meant
-                          a LOW-confidence guess looked exactly as settled as a
-                          figure read straight off the bank's own email. Shown
-                          only when it is not HIGH: a chip on every row is
-                          decoration, a chip on the doubtful ones is a signal. */}
-                      {t.confidence && t.confidence !== 'HIGH' && (
-                        <span className={`px-1.5 py-0.5 rounded font-bold uppercase text-xs tracking-wide ${
-                          t.confidence === 'LOW'
-                            ? 'bg-red-500/15 text-red-300'
-                            : 'bg-yellow-500/15 text-yellow-300'
-                        }`}>
-                          {t.confidence}
-                        </span>
-                      )}
-                      <span>{t.source || 'manual'}</span>
-                    </p>
+                  <div className="shrink-0 flex flex-col items-end gap-1 text-right">
+                    <Money
+                      amount={isCredit ? Number(t.amount) : -Number(t.amount)}
+                      sign={isCredit}
+                      tone={isCredit ? 'positive' : 'default'}
+                    />
+                    {(isUnreviewed || (t.confidence && t.confidence !== 'HIGH')) && (
+                      <span className="flex items-center gap-1">
+                        {/* How sure the parser was. Shown only when it is not
+                            HIGH: a chip on every row is decoration, a chip on
+                            the doubtful ones is a signal. */}
+                        {t.confidence && t.confidence !== 'HIGH' && (
+                          <Badge label={t.confidence} tone={t.confidence === 'LOW' ? 'danger' : 'warn'} />
+                        )}
+                        {isUnreviewed && <Badge label="Review" tone="warn" />}
+                      </span>
+                    )}
                   </div>
                 </div>
 
                 {/* Expanded Details & Editor */}
                 {isExpanded && (
-                  <div className="px-4 pb-5 pt-2 border-t border-border space-y-4 bg-background/50 animate-fade-in">
+                  <div className="px-3 pb-4 pt-3 border-t border-border space-y-4 bg-card lg:px-4">
 
                     {/* Direction, amount and date -- what the parse can get
                         wrong about the money itself. These used to be fixable
@@ -1219,71 +1155,47 @@ export default function Transactions() {
                         repair them either: the upsert's ignoreDuplicates throws
                         away the corrected second read. */}
                     <div>
-                      <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">
-                        Direction
-                      </label>
-                      <div className="grid grid-cols-2 gap-2">
-                        {[
-                          { value: 'debit', label: 'Money out', sign: '−' },
-                          { value: 'credit', label: 'Money in', sign: '+' },
-                        ].map(({ value, label, sign }) => (
-                          <button
-                            key={value}
-                            type="button"
-                            onClick={() => setEditType(value)}
-                            className={`py-3 rounded-xl text-xs font-bold border transition-all min-h-[48px] ${
-                              editType === value
-                                ? 'bg-accent/20 border-accent text-accent'
-                                : 'bg-card border-border text-muted hover:text-foreground'
-                            }`}
-                          >
-                            {sign} {label}
-                          </button>
-                        ))}
-                      </div>
+                      {sectionLabel('Direction')}
+                      <Segmented
+                        full
+                        label="Direction"
+                        options={[
+                          { value: 'debit', label: 'Money out' },
+                          { value: 'credit', label: 'Money in' },
+                        ]}
+                        value={editType}
+                        onChange={setEditType}
+                      />
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">
-                          Amount (₦)
-                        </label>
-                        <input
-                          type="number"
-                          inputMode="decimal"
-                          min="0"
-                          step="0.01"
-                          value={editAmount}
-                          onChange={(e) => setEditAmount(e.target.value)}
-                          className="w-full px-4 py-3 bg-card border border-border rounded-xl text-foreground text-sm focus:outline-none focus:border-accent min-h-[48px]"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">
-                          Date
-                        </label>
-                        <input
-                          type="date"
-                          value={editDate}
-                          onChange={(e) => setEditDate(e.target.value)}
-                          className="w-full px-4 py-3 bg-card border border-border rounded-xl text-foreground text-sm focus:outline-none focus:border-accent min-h-[48px]"
-                        />
-                      </div>
+                      <Input
+                        label="Amount, naira"
+                        type="number"
+                        inputMode="decimal"
+                        min="0"
+                        step="0.01"
+                        value={editAmount}
+                        onChange={(e) => setEditAmount(e.target.value)}
+                      />
+                      <Input label="Date" type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} />
                     </div>
 
                     {/* Category Selector */}
                     <div>
-                      <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">
-                        Category
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => setShowEditCategoryPicker(true)}
-                        className="w-full px-4 py-3 bg-card border border-border rounded-xl text-foreground text-sm focus:outline-none focus:border-accent min-h-[48px] flex items-center gap-2"
-                      >
-                        <Icon name={getCategoryIcon(editCategory)} size={18} className="text-muted" />
-                        <span className="truncate">{editCategory}</span>
-                      </button>
+                      <Field label="Category">
+                        {({ id }) => (
+                          <button
+                            id={id}
+                            type="button"
+                            onClick={() => setShowEditCategoryPicker(true)}
+                            className={`${controlClasses(false)} flex items-center gap-2 text-left`}
+                          >
+                            <CategoryMark category={editCategory} size="sm" />
+                            <span className="truncate">{editCategory}</span>
+                          </button>
+                        )}
+                      </Field>
 
                       {/* The decision this queue exists for, offered where it is
                           made: one rule for the payee, and every other row from
@@ -1291,14 +1203,14 @@ export default function Transactions() {
                           payee to key on and a category that is one -- see
                           ruleFromTransaction. */}
                       {hasColumn('category_rules.trigger_field') && ruleFromTransaction(t, editCategory) && (
-                        <label className="mt-3 flex items-start gap-3 cursor-pointer min-h-[44px]">
+                        <label className="mt-2 flex items-start gap-3 cursor-pointer min-h-12 py-2">
                           <input
                             type="checkbox"
                             checked={editMakeRule}
                             onChange={(e) => setEditMakeRule(e.target.checked)}
-                            className="mt-0.5 w-4 h-4 accent-accent flex-shrink-0"
+                            className="mt-0.5 w-5 h-5 accent-accent shrink-0"
                           />
-                          <span className="text-xs text-muted leading-relaxed">
+                          <span className="text-body-sm text-muted">
                             Always file <span className="text-foreground font-semibold">{t.recipient}</span> as{' '}
                             <span className="text-foreground font-semibold">{editCategory}</span>
                             <span className="block">
@@ -1310,60 +1222,50 @@ export default function Transactions() {
                     </div>
 
                     {/* Note Field */}
-                    <div>
-                      <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">
-                        Note / Description
-                      </label>
-                      <input
-                        type="text"
-                        value={editNote}
-                        onChange={(e) => setEditNote(e.target.value)}
-                        placeholder="Add a note..."
-                        className="w-full px-4 py-3 bg-card border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
-                      />
-                    </div>
+                    <Input
+                      label="Note / description"
+                      type="text"
+                      value={editNote}
+                      onChange={(e) => setEditNote(e.target.value)}
+                      placeholder="Add a note..."
+                    />
 
                     {/* Counts toward a debt. Only the open loans this row can
                         repay are offered: a debit for what I owe, a credit
                         for what is owed to me. */}
                     {hasColumn('transactions.debt_id') && linkableDebts(debts, { type: editType }).length > 0 && (
-                      <div>
-                        <label htmlFor={`debt-${t.id}`} className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">
-                          Counts toward
-                        </label>
-                        <select
-                          id={`debt-${t.id}`}
-                          value={editDebtId}
-                          onChange={(e) => setEditDebtId(e.target.value)}
-                          className="w-full px-4 py-3 bg-card border border-border rounded-xl text-foreground text-sm focus:outline-none focus:border-accent min-h-[48px]"
-                        >
-                          <option value="">No debt</option>
-                          {linkableDebts(debts, { type: editType }).map((d) => (
-                            <option key={d.id} value={d.id}>
-                              {d.counterparty}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      <Select
+                        id={`debt-${t.id}`}
+                        label="Counts toward"
+                        value={editDebtId}
+                        onChange={(e) => setEditDebtId(e.target.value)}
+                      >
+                        <option value="">No debt</option>
+                        {linkableDebts(debts, { type: editType }).map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.counterparty}
+                          </option>
+                        ))}
+                      </Select>
                     )}
 
-                    {/* Want or Need Selector */}
+                    {/* Want or Need Selector. Toggle buttons rather than a
+                        Segmented control: "none" is a valid answer, and a
+                        second tap on the chosen tag clears it. */}
                     <div>
-                      <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">
-                        Tag (Want / Need)
-                      </label>
-                      <div className="grid grid-cols-4 gap-2">
+                      {sectionLabel('Tag (want / need)')}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2" role="group" aria-label="Tag">
                         {['need', 'want', 'obligation', 'emergency'].map(tag => (
                           <button
                             key={tag}
                             type="button"
                             onClick={() => setEditWantNeed(editWantNeed === tag ? null : tag)}
-                            className={`py-2 px-1 rounded-xl text-xs font-bold uppercase tracking-wider border transition-all min-h-[48px] ${
-                              editWantNeed === tag
-                                ? 'bg-accent/20 border-accent text-accent'
-                                : 'bg-card border-border text-muted hover:text-foreground'
+                            aria-pressed={editWantNeed === tag}
+                            className={`${buttonClasses({ variant: 'secondary', size: 'md', full: true })} capitalize ${
+                              editWantNeed === tag ? 'bg-card border-border-strong text-foreground' : 'text-muted'
                             }`}
                           >
+                            {editWantNeed === tag && <Icon name="check" size={16} />}
                             {tag}
                           </button>
                         ))}
@@ -1371,20 +1273,13 @@ export default function Transactions() {
                     </div>
 
                     {/* Save Button */}
-                    <div className="flex items-center gap-2 pt-2">
-                      <button
-                        onClick={() => handleSaveChanges(t.id)}
-                        disabled={updating}
-                        className="flex-1 py-3 bg-accent text-on-accent font-bold text-sm rounded-xl hover:bg-accent/90 transition-all min-h-[48px] flex items-center justify-center gap-2"
-                      >
-                        {updating ? 'Saving...' : 'Save & Mark Reviewed ✓'}
-                      </button>
-                      <button
-                        onClick={() => setExpandedId(null)}
-                        className="px-4 py-3 bg-surface-2 text-muted hover:text-foreground text-sm font-semibold rounded-xl min-h-[48px]"
-                      >
+                    <div className="flex items-center gap-2 pt-1">
+                      <Button full loading={updating} onClick={() => handleSaveChanges(t.id)}>
+                        {updating ? 'Saving...' : 'Save & mark reviewed'}
+                      </Button>
+                      <Button variant="secondary" onClick={() => setExpandedId(null)}>
                         Cancel
-                      </button>
+                      </Button>
                     </div>
 
                     {/* One tap, backed by a 5-second Undo toast rather than a
@@ -1398,26 +1293,18 @@ export default function Transactions() {
                         when it is pressed, is worse than not offering it -- the
                         banner already explains what to run. */}
                     {hasColumn('transactions.voided') && (
-                    <div className="pt-1">
+                    <div className="space-y-2">
                       {t.voided ? (
-                        <button
-                          onClick={() => handleUnvoid(t)}
-                          disabled={updating}
-                          className="w-full py-2.5 text-xs font-semibold text-accent hover:text-foreground transition-colors min-h-[44px] disabled:opacity-50"
-                        >
+                        <Button full variant="ghost" icon="undo" onClick={() => handleUnvoid(t)} disabled={updating}>
                           Restore this transaction
-                        </button>
+                        </Button>
                       ) : (
                         <>
-                          <button
-                            onClick={() => handleVoid(t)}
-                            disabled={updating}
-                            className="w-full py-2.5 text-xs font-semibold text-muted hover:text-red-300 transition-colors min-h-[44px] disabled:opacity-50"
-                          >
+                          <Button full variant="danger" icon="trash" onClick={() => handleVoid(t)} disabled={updating}>
                             {updating ? 'Voiding…' : 'Void this transaction'}
-                          </button>
-                          <p className="text-xs text-muted-dim leading-relaxed">
-                            Hides it from every list and every total -- undo from the toast for
+                          </Button>
+                          <p className="text-body-sm text-muted-dim">
+                            Hides it from every list and every total. Undo from the toast for
                             the next five seconds, or find it under the Voided filter and
                             restore it any time after.
                           </p>
@@ -1431,67 +1318,55 @@ export default function Transactions() {
               </div>
             )
             })}
-          </div>
+            </div>
+          </Panel>
           ))}
         </div>
       )}
 
       {hasMore && (
-        <button
-          onClick={handleLoadMore}
-          disabled={loadingMore}
-          className="w-full py-3.5 bg-card border border-border text-muted hover:text-foreground text-sm font-semibold rounded-2xl transition-all min-h-[48px] disabled:opacity-50"
-        >
+        <Button full variant="secondary" loading={loadingMore} onClick={handleLoadMore}>
           {loadingMore ? 'Loading…' : `Load ${PAGE_SIZE} more`}
-        </button>
+        </Button>
       )}
 
       {/* Bulk bar. Sticks above the bottom nav so the count stays visible while
           scrolling to pick more rows. */}
       {selectMode && selectedIds.size > 0 && (
-        <div className="fixed bottom-20 left-0 right-0 z-40 px-4 animate-fade-in">
-          <div className="max-w-3xl mx-auto bg-card border border-accent/40 rounded-2xl shadow-2xl p-3 space-y-2.5">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-foreground">
-                {selectedIds.size} selected
-              </span>
-              <button
-                onClick={() => setSelectedIds(new Set())}
-                className="text-xs font-semibold text-muted hover:text-foreground px-2 py-1"
-              >
-                Clear
-              </button>
-            </div>
-            {/* Accept-as-is: the audit's category stands and the rows leave
-                the queue. Most LOW rows carry a real category and only a
-                confidence flag; this is their whole review. */}
-            {filter === 'Review' && (
-              <button
-                type="button"
-                onClick={handleBulkMarkReviewed}
-                disabled={updating}
-                className="w-full px-3 py-3 bg-background border border-border rounded-xl text-foreground text-sm font-semibold min-h-[48px] disabled:opacity-50 hover:border-accent/50"
-              >
-                {updating ? 'Working…' : `Mark ${selectedIds.size} reviewed as ${selectedIds.size === 1 ? 'it is' : 'they are'}`}
-              </button>
-            )}
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setShowBulkCategoryPicker(true)}
-                className="flex-1 min-w-0 px-3 py-3 bg-background border border-border rounded-xl text-foreground text-sm focus:outline-none focus:border-accent min-h-[48px] flex items-center gap-2"
-              >
-                <Icon name={bulkCategory ? getCategoryIcon(bulkCategory) : 'tag'} size={18} className="text-muted" />
-                <span className={`truncate ${bulkCategory ? '' : 'text-muted'}`}>{bulkCategory || 'Pick a category'}</span>
-              </button>
-              <button
-                onClick={handleBulkCategorize}
-                disabled={updating || !bulkCategory}
-                className="px-5 py-3 bg-accent text-on-accent font-bold text-sm rounded-xl min-h-[48px] disabled:opacity-50 whitespace-nowrap"
-              >
-                {updating ? 'Applying…' : 'Apply'}
-              </button>
-            </div>
+        <div className="fixed bottom-20 left-0 right-0 z-40 px-4">
+          <div className="max-w-3xl mx-auto">
+            <Panel
+              label={`${selectedIds.size} selected`}
+              action={
+                <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
+                  Clear
+                </Button>
+              }
+            >
+              <div className="space-y-2">
+                {/* Accept-as-is: the audit's category stands and the rows leave
+                    the queue. Most LOW rows carry a real category and only a
+                    confidence flag; this is their whole review. */}
+                {filter === 'Review' && (
+                  <Button full variant="secondary" onClick={handleBulkMarkReviewed} disabled={updating}>
+                    {updating ? 'Working…' : `Mark ${selectedIds.size} reviewed as ${selectedIds.size === 1 ? 'it is' : 'they are'}`}
+                  </Button>
+                )}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowBulkCategoryPicker(true)}
+                    className={`${controlClasses(false)} min-w-0 flex-1 flex items-center gap-2 text-left`}
+                  >
+                    {bulkCategory ? <CategoryMark category={bulkCategory} size="sm" /> : <Icon name="tag" size={16} className="text-muted" />}
+                    <span className={`truncate ${bulkCategory ? '' : 'text-muted'}`}>{bulkCategory || 'Pick a category'}</span>
+                  </button>
+                  <Button onClick={handleBulkCategorize} disabled={updating || !bulkCategory} loading={updating}>
+                    {updating ? 'Applying…' : 'Apply'}
+                  </Button>
+                </div>
+              </div>
+            </Panel>
           </div>
         </div>
       )}
