@@ -31,7 +31,7 @@ export default function Layout({ children, onSignOut, pendingMigrations = [] }) 
 
         <BottomNav />
 
-        <main className="lg:ml-60 pb-28 lg:pb-8 px-4 lg:px-8 pt-4 lg:pt-6">
+        <main className="lg:ml-60 pb-40 lg:pb-8 px-4 lg:px-8 pt-4 lg:pt-6">
           <div className="max-w-5xl mx-auto">{children}</div>
         </main>
 

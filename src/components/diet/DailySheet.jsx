@@ -209,7 +209,9 @@ export default function DailySheet({ day, onDayChange, onChanged }) {
                       {r.hidden && <span className="text-muted"> (hidden)</span>}
                     </th>
                     <td className="py-1 px-2 border-b border-border text-right">
-                      {editing === r.item_id ? (
+                      {r.locked ? (
+                        <span title="A photo reading is final">{num(r.grams)}</span>
+                      ) : editing === r.item_id ? (
                         <input
                           type="number"
                           inputMode="decimal"
@@ -235,7 +237,7 @@ export default function DailySheet({ day, onDayChange, onChanged }) {
                     <td className="py-2 px-2 border-b border-border text-right">{num(r.carbs_g)}</td>
                     <td className="py-2 px-2 border-b border-border text-right">{num(r.fat_g)}</td>
                     <td className="py-0 px-0 border-b border-border text-right">
-                      <IconButton name="close" label={`Remove ${r.item}`} onClick={() => removeItem(r)} />
+                      {!r.locked && <IconButton name="close" label={`Remove ${r.item}`} onClick={() => removeItem(r)} />}
                     </td>
                   </tr>
                 ))}

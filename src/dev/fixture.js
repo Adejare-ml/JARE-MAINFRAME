@@ -104,7 +104,7 @@ function buildTables(scenario) {
     transaction_time: time,
     transaction_id: null,
     available_balance: null,
-    confidence: 0.95,
+    confidence: 'HIGH',
     reviewed: true,
     debt_id: null,
     voided: false,
@@ -125,7 +125,7 @@ function buildTables(scenario) {
     tx(-6, 'debit', 12000, 'Subscriptions', 'Netflix and Spotify', 0, '06:00:00'),
     tx(-8, 'debit', 7400, 'Feeding / Groceries', 'Market, Wuse', 2, '11:15:00', 'manual'),
     tx(-9, 'debit', 2500, 'Transport', 'Bolt ride home', 1, '21:10:00', 'opay'),
-    tx(-0, 'debit', 1200, 'Uncategorized', 'POS 0042 ABUJA', 0, '09:12:00', 'gtbank', { reviewed: false, confidence: 0.4 }),
+    tx(-0, 'debit', 1200, 'Uncategorized', 'POS 0042 ABUJA', 0, '09:12:00', 'gtbank', { reviewed: false, confidence: 'LOW' }),
   ]
   // Recurring bill pattern for UpcomingBills: DSTV monthly.
   for (const back of [27, 57, 87]) transactions.push(tx(-back, 'debit', 15700, 'Subscriptions', 'DSTV Compact', 0, '08:00:00'))

@@ -24,7 +24,7 @@ import { Notice, Code } from './parts'
  */
 
 const WORD = {
-  [STATUS.OK]: 'Running',
+  [STATUS.OK]: 'OK',
   [STATUS.STALE]: 'Quiet too long',
   [STATUS.FAILING]: 'Failing',
   [STATUS.NEVER]: 'Never run',

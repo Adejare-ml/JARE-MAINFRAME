@@ -64,6 +64,8 @@ export function sheetRows(logs) {
         carbs_g: round1(it.carbs_g),
         fat_g: round1(it.fat_g),
         hidden: it.hidden === true,
+        // A sealed photo meal (054) is the model's reading: shown, never edited.
+        locked: log.source === 'photo' && log.status !== 'auto',
       })
     }
   }
