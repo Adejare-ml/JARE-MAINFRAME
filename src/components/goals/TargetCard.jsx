@@ -11,6 +11,10 @@ import {
 import { endOfMonth } from '../../lib/queries'
 import ProgressRing from '../ui/ProgressRing'
 import Icon from '../ui/Icon'
+import IconButton from '../ui/IconButton'
+import Button from '../ui/Button'
+import Badge from '../ui/Badge'
+import StatusDot from '../ui/StatusDot'
 import { resolveIcon } from '../../lib/constants'
 
 /** Funded fractions that get a brief celebration when crossed during a session. */
@@ -51,17 +55,14 @@ export default function TargetCard({ goal, transactions = [], liquidWalletIds = 
 
   // A cap is healthy while it is low and a savings goal while it is high, so
   // the same percentage means opposite things and cannot share a colour rule.
-  // A repo goal nobody has checked yet gets neither: a filled ring at 0% would
-  // be the app asserting a result it has not got. Hex literals rather than
-  // Tailwind classes because ProgressRing paints its arc as an inline SVG
-  // stroke -- Budget.jsx's donut (Stage H) sets the same precedent.
-  const ringColor = !progress.measured
-    ? 'rgba(255,255,255,0.2)'
-    : !progress.checked
-      ? 'rgba(255,255,255,0.1)'
-      : isCap
-        ? progress.share > 1 ? '#ef4444' : progress.share > 0.8 ? '#eab308' : 'var(--color-accent)'
-        : progress.met ? 'var(--color-accent)' : 'rgba(34,197,94,0.6)'
+  // A repo goal nobody has checked yet gets no arc at all: a filled ring at 0%
+  // would be the app asserting a result it has not got. Token vars because
+  // ProgressRing paints its arc as an inline SVG stroke.
+  const ringColor = !progress.checked
+    ? 'var(--color-surface-2)'
+    : isCap
+      ? progress.share > 1 ? 'var(--color-danger)' : progress.share > 0.8 ? 'var(--color-warn)' : 'var(--color-accent)'
+      : 'var(--color-accent)'
 
   // A brief pulse the moment funding crosses 25/50/75/100% -- during THIS
   // session only. Seeded from the value already on screen at mount, so
@@ -88,58 +89,38 @@ export default function TargetCard({ goal, transactions = [], liquidWalletIds = 
   }, [confirmingDelete])
 
   return (
-    <div
-      className={`bg-background/50 border rounded-2xl p-4 space-y-3 ${
-        goal.locked ? 'border-amber-500/20' : 'border-border'
-      } ${celebrate ? 'animate-milestone' : ''}`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-sm font-bold text-foreground truncate flex items-center gap-1.5">
-            {goal.icon && <Icon name={resolveIcon(goal.icon, 'goal')} size={16} className="text-muted" />}
-            <span className="truncate">{goal.title}</span>
+    <li className={`px-3 py-3 lg:px-4 space-y-3 ${goal.locked ? 'border-l-2 border-l-warn' : ''} ${celebrate ? 'animate-milestone' : ''}`}>
+      <div className="flex items-start gap-3">
+        <span aria-hidden="true" className="inline-flex items-center justify-center w-7 h-7 mt-0.5 rounded-chip bg-surface-2 text-muted shrink-0">
+          <Icon name={resolveIcon(goal.icon, 'goal')} size={16} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="flex items-center gap-2 min-w-0">
+            <span className="text-heading text-foreground truncate">{goal.title}</span>
             {goal.locked && (
-              <span aria-label="Locked" title="Locked -- confirms before early deletion" className="flex-shrink-0 text-amber-400">
-                🔒
+              <span title="Locked: confirms before early deletion" className="inline-flex shrink-0 text-warn">
+                <Icon name="lock" size={16} title="Locked" />
               </span>
             )}
-            {goal.generated === true && (
-              <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full bg-surface-2 text-muted-dim text-xs font-semibold uppercase tracking-wider">
-                Derived
-              </span>
-            )}
+            {goal.generated === true && <Badge label="Derived" />}
           </p>
-          <p className="text-xs text-muted mt-0.5">
+          <p className="text-body-sm text-muted truncate">
             {goal.period === 'monthly' ? 'This month' : 'This week'}
             {periodsLeft != null && ` · ${periodsLeft} week${periodsLeft === 1 ? '' : 's'} left`}
             {goal.metric_category && ` · ${goal.metric_category}`}
           </p>
         </div>
-        <div className="flex gap-1 flex-shrink-0">
-          <button
-            type="button"
-            onClick={() => onEdit(goal)}
-            aria-label={`Edit ${goal.title}`}
-            className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-surface-2 text-muted hover:text-foreground"
-          >
-            ✏️
-          </button>
-          <button
-            type="button"
-            onClick={() => onDelete(goal.id)}
-            aria-label={`Delete ${goal.title}`}
-            className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-red-500/10 text-muted hover:text-red-400"
-          >
-            🗑️
-          </button>
+        <div className="flex -mr-3 -my-1.5 shrink-0">
+          <IconButton name="edit" label={`Edit ${goal.title}`} onClick={() => onEdit(goal)} />
+          <IconButton name="trash" label={`Delete ${goal.title}`} onClick={() => onDelete(goal.id)} />
         </div>
       </div>
 
       {progress.measured ? (
         <>
-          <div className="flex items-center gap-4">
-            <ProgressRing value={progress.share} size={64} strokeWidth={6} color={ringColor}>
-              <span className={`text-xs font-bold tabular-nums ${progress.met ? 'text-accent' : 'text-foreground'}`}>
+          <div className="flex items-center gap-3">
+            <ProgressRing value={progress.checked ? progress.share : 0} size={56} strokeWidth={5} color={ringColor}>
+              <span className="type-data text-foreground">
                 {Math.round(Math.min(100, progress.share * 100))}%
               </span>
             </ProgressRing>
@@ -147,19 +128,19 @@ export default function TargetCard({ goal, transactions = [], liquidWalletIds = 
               {/* money only when the metric actually is one -- a repo goal's
                   figure is a commit count, and blurring that under zen mode
                   would hide a number that was never financial. */}
-              <p className={`text-lg font-bold text-foreground tabular-nums ${isRepo ? '' : 'money'}`}>
-                {formatGoalAmount(progress.done, goal.metric)}
-                <span className="text-muted text-xs font-normal">
+              <p className="whitespace-nowrap">
+                <span className={`text-heading font-semibold text-foreground font-sans tabular-nums ${isRepo ? '' : 'money'}`}>
+                  {formatGoalAmount(progress.done, goal.metric)}
+                </span>
+                <span className={`text-body-sm text-muted font-sans ${isRepo ? '' : 'money'}`}>
                   {' '}
                   of {formatGoalAmount(progress.target, goal.metric)}
                 </span>
               </p>
               {/* Where the number came from. Without this it is just a number. */}
-              <p className="text-xs text-muted-dim mt-0.5">{progress.source}</p>
+              <p className="type-data text-muted-dim">{progress.source}</p>
               {projectedDate && (
-                <p className="text-xs text-muted-dim mt-0.5">
-                  At this pace: {formatDate(projectedDate)}
-                </p>
+                <p className="type-data text-muted-dim">At this pace: {formatDate(projectedDate)}</p>
               )}
             </div>
           </div>
@@ -168,17 +149,14 @@ export default function TargetCard({ goal, transactions = [], liquidWalletIds = 
               a receipt: the figure above was written by a scheduled job the
               browser cannot re-run, so it has to be checkable by eye. */}
           {commits.length > 0 && (
-            <ul className="space-y-0.5 pt-0.5">
+            <ul className="space-y-0.5">
               {commits.slice(0, EVIDENCE_SHOWN).map((c) => (
-                <li key={c.sha} className="text-xs text-muted-dim truncate">
-                  <span className="font-mono text-muted">{String(c.sha).slice(0, 7)}</span>{' '}
-                  {c.message}
+                <li key={c.sha} className="text-body-sm text-muted-dim truncate">
+                  <span className="type-data text-muted">{String(c.sha).slice(0, 7)}</span> {c.message}
                 </li>
               ))}
               {commits.length > EVIDENCE_SHOWN && (
-                <li className="text-xs text-muted-dim">
-                  and {commits.length - EVIDENCE_SHOWN} more
-                </li>
+                <li className="text-body-sm text-muted-dim">and {commits.length - EVIDENCE_SHOWN} more</li>
               )}
             </ul>
           )}
@@ -186,94 +164,89 @@ export default function TargetCard({ goal, transactions = [], liquidWalletIds = 
           {/* Checked and empty is not missed. Saying nothing here would leave a
               0% bar to imply a verdict the verifier never reached. */}
           {isRepo && progress.checked && progress.done === 0 && (
-            <p className="text-xs text-muted">
+            <p className="text-body-sm text-muted">
               No commits in this period. If the work happened elsewhere, tick it off.
             </p>
           )}
         </>
       ) : (
-        <p className="text-xs text-muted">
-          A reminder — nothing to measure it against, so you tick this one yourself.
+        <p className="text-body-sm text-muted">
+          A reminder, with nothing to measure it against, so you tick this one yourself.
         </p>
       )}
 
       {/* What a plan you approved said this period was about. Above `next`,
           because the words are the plan and the number is only its size. The
-          citation is a chip, not a trailing caption, for the same reason a
-          recategorised transaction gets one (Transactions.jsx): a plan item
-          the model wrote is still a change worth being able to check, not
-          just words to take on faith. */}
+          citation is shown, not hidden: a plan item the model wrote is still
+          a change worth being able to check, not just words to take on faith. */}
       {goal.focus && (
-        <div className="text-xs text-foreground border-t border-border pt-2.5 space-y-1">
-          <p>{goal.focus}</p>
+        <div className="border-t border-border pt-2.5 space-y-1">
+          <p className="text-body-sm text-foreground">{goal.focus}</p>
           {goal.plan_evidence?.cites && (
-            <span
-              className="inline-flex items-center gap-1 max-w-full px-2 py-0.5 rounded-full bg-surface-2 text-muted-dim text-xs font-mono leading-tight"
-              title={goal.plan_evidence.cites}
-            >
-              <span aria-hidden="true">💡</span>
-              <span className="truncate">{goal.plan_evidence.cites}</span>
-            </span>
+            <p className="type-data text-muted-dim truncate" title={goal.plan_evidence.cites}>
+              From: {goal.plan_evidence.cites}
+            </p>
           )}
         </div>
       )}
 
       {next && (
-        <p className={`text-xs text-muted ${goal.focus ? '' : 'border-t border-border pt-2.5'}`}>
+        <p className={`text-body-sm text-foreground ${goal.focus ? '' : 'border-t border-border pt-2.5'}`}>
           <span className="text-muted">Next: </span>
           {next.title}
         </p>
       )}
 
       {progress.measured && progress.met && (
-        <p className="text-xs text-accent font-semibold">
-          {isCap ? 'Still under ✓' : 'Done ✓'}
+        <p className="flex items-center gap-2 text-body-sm text-accent font-semibold">
+          <StatusDot status="ok" />
+          {isCap ? 'Still under' : 'Done'}
         </p>
       )}
 
       {/* Ticked by hand on top of the evidence, not instead of it -- the count
           above stays whatever the repository actually said. */}
       {isRepo && !progress.met && goal.completed && (
-        <p className="text-xs text-accent font-semibold">Marked done by you ✓</p>
+        <p className="flex items-center gap-2 text-body-sm text-accent font-semibold">
+          <StatusDot status="ok" />
+          Marked done by you
+        </p>
       )}
 
       {confirmingDelete && (
-        <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl space-y-2">
-          <p className="text-xs text-red-400">
+        <div role="alert" className="border-t border-border pt-3 space-y-2">
+          <p className="text-body-sm text-danger">
             {goal.locked
-              ? 'This goal is locked -- money set aside for it is not meant to come out early.'
+              ? 'This goal is locked: money set aside for it is not meant to come out early.'
               : 'Delete this goal? Anything it generated goes with it.'}
           </p>
           {goal.locked && (
-            <label className="flex items-center gap-2 text-xs text-red-300">
+            <label className="flex items-center gap-3 min-h-12 text-body-sm text-foreground">
               <input
                 type="checkbox"
                 checked={lockAcknowledged}
                 onChange={(e) => setLockAcknowledged(e.target.checked)}
-                className="w-4 h-4 accent-red-500"
+                className="w-5 h-5"
+                style={{ accentColor: 'var(--color-danger)' }}
               />
               I understand, delete it anyway
             </label>
           )}
           <div className="flex gap-2">
-            <button
-              type="button"
+            <Button
+              variant="danger"
+              className="flex-1"
               onClick={() => onDelete(goal.id, true)}
               disabled={goal.locked && !lockAcknowledged}
-              className="flex-1 py-2.5 bg-red-500 text-foreground text-xs font-bold rounded-lg min-h-[44px] disabled:opacity-40"
             >
               Delete
-            </button>
-            <button
-              type="button"
-              onClick={() => onDelete(null)}
-              className="flex-1 py-2.5 bg-surface-2 text-muted text-xs font-bold rounded-lg min-h-[44px]"
-            >
+            </Button>
+            <Button variant="secondary" className="flex-1" onClick={() => onDelete(null)}>
               Cancel
-            </button>
+            </Button>
           </div>
         </div>
       )}
-    </div>
+    </li>
   )
 }
