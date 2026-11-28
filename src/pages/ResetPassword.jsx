@@ -1,6 +1,11 @@
 import { useState } from 'react'
 import { validateNewPassword, PASSWORD_MIN } from '../lib/auth'
 import { toast } from '../lib/toast'
+import Panel from '../components/ui/Panel'
+import Button from '../components/ui/Button'
+import Label from '../components/ui/Label'
+import StatusDot from '../components/ui/StatusDot'
+import { Input } from '../components/ui/Field'
 
 /**
  * Where the reset link lands. The client has already exchanged the link's
@@ -42,102 +47,87 @@ export default function ResetPassword({ onUpdate, onDone, onCancel, expired = fa
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-10">
-          <h1 className="text-4xl font-bold text-foreground tracking-tight mb-2">
-            <span className="text-accent">J</span>are
-          </h1>
-          <p className="text-sm text-muted tracking-widest uppercase">Mainframe</p>
-          <div className="mt-4 h-0.5 w-12 bg-accent mx-auto rounded-full" />
+    <div className="min-h-screen bg-background flex items-center justify-center px-4 py-10">
+      <div className="w-full max-w-sm space-y-6">
+        <div className="text-center space-y-1">
+          <h1 className="text-title text-foreground">Jare</h1>
+          <Label as="p">Mainframe</Label>
         </div>
 
         {expired ? (
-          <div className="space-y-5">
-            <div>
-              <h2 className="text-lg font-bold text-foreground">This link has expired</h2>
-              <p className="text-xs text-muted mt-1">
-                Reset links work once and for about an hour. Ask for a new one from the sign-in page.
-              </p>
+          <Panel label="Reset link" tone="warn">
+            <div className="space-y-4">
+              <div>
+                <h2 className="flex items-center gap-2 text-title text-foreground">
+                  <StatusDot status="warn" />
+                  This link has expired
+                </h2>
+                <p className="text-body-sm text-muted mt-1">
+                  Reset links work once and for about an hour. Ask for a new one from the sign-in page.
+                </p>
+              </div>
+              <Button full icon="chevL" onClick={onCancel}>
+                Back to sign in
+              </Button>
             </div>
-            <button
-              type="button"
-              onClick={onCancel}
-              className="w-full py-3.5 bg-accent hover:bg-accent/90 text-on-accent font-semibold rounded-xl transition-all duration-200 active:scale-[0.98] min-h-[48px]"
-            >
-              Back to sign in
-            </button>
-          </div>
+          </Panel>
         ) : (
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div>
-            <h2 className="text-lg font-bold text-foreground">Choose a new password</h2>
-            <p className="text-xs text-muted mt-1">At least {PASSWORD_MIN} characters. You will stay signed in on this device.</p>
-          </div>
+          <Panel label="New password">
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <h2 className="text-title text-foreground">Choose a new password</h2>
+                <p className="text-body-sm text-muted mt-1">
+                  At least {PASSWORD_MIN} characters. You will stay signed in on this device.
+                </p>
+              </div>
 
-          <div>
-            <label htmlFor="new-password" className="block text-sm font-medium text-muted mb-2">
-              New password
-            </label>
-            <input
-              id="new-password"
-              type="password"
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value)
-                if (error) setError('')
-              }}
-              required
-              autoFocus
-              autoComplete="new-password"
-              minLength={PASSWORD_MIN}
-              className="w-full px-4 py-3 bg-card border border-border rounded-xl text-foreground placeholder-hint focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-all duration-200 min-h-[48px]"
-              placeholder="••••••••"
-            />
-          </div>
+              <Input
+                id="new-password"
+                label="New password"
+                type="password"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value)
+                  if (error) setError('')
+                }}
+                required
+                autoFocus
+                autoComplete="new-password"
+                minLength={PASSWORD_MIN}
+                placeholder="••••••••"
+              />
 
-          <div>
-            <label htmlFor="confirm-password" className="block text-sm font-medium text-muted mb-2">
-              Once more
-            </label>
-            <input
-              id="confirm-password"
-              type="password"
-              value={confirm}
-              onChange={(e) => {
-                setConfirm(e.target.value)
-                if (error) setError('')
-              }}
-              required
-              autoComplete="new-password"
-              minLength={PASSWORD_MIN}
-              className="w-full px-4 py-3 bg-card border border-border rounded-xl text-foreground placeholder-hint focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-all duration-200 min-h-[48px]"
-              placeholder="••••••••"
-            />
-          </div>
+              <Input
+                id="confirm-password"
+                label="Once more"
+                type="password"
+                value={confirm}
+                onChange={(e) => {
+                  setConfirm(e.target.value)
+                  if (error) setError('')
+                }}
+                required
+                autoComplete="new-password"
+                minLength={PASSWORD_MIN}
+                placeholder="••••••••"
+              />
 
-          {error && (
-            <div role="alert" className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 text-red-400 text-sm">
-              {error}
-            </div>
-          )}
+              {error && (
+                <p role="alert" className="flex items-start gap-2 text-body-sm text-danger">
+                  <StatusDot status="danger" className="mt-1.5" />
+                  <span>{error}</span>
+                </p>
+              )}
 
-          <button
-            type="submit"
-            disabled={saving}
-            className="w-full py-3.5 bg-accent hover:bg-accent/90 text-on-accent font-semibold rounded-xl transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed min-h-[48px]"
-          >
-            {saving ? 'Saving…' : 'Save password'}
-          </button>
+              <Button type="submit" full loading={saving}>
+                {saving ? 'Saving…' : 'Save password'}
+              </Button>
 
-          <button
-            type="button"
-            onClick={onCancel}
-            className="w-full py-3 text-sm text-muted hover:text-foreground min-h-[44px]"
-          >
-            Cancel and go back to sign in
-          </button>
-        </form>
+              <Button variant="ghost" full onClick={onCancel}>
+                Cancel and go back to sign in
+              </Button>
+            </form>
+          </Panel>
         )}
       </div>
     </div>

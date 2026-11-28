@@ -1,5 +1,10 @@
 import { useState } from 'react'
 import { RESET_SENT_MESSAGE, isRateLimitError } from '../lib/auth'
+import Panel from '../components/ui/Panel'
+import Button from '../components/ui/Button'
+import Label from '../components/ui/Label'
+import StatusDot from '../components/ui/StatusDot'
+import { Input } from '../components/ui/Field'
 
 /**
  * Sign in, or ask for a reset link.
@@ -63,139 +68,110 @@ export default function Login({ onLogin, onReset }) {
     setError('')
   }
 
+  const errorLine = error && (
+    <p role="alert" className="flex items-start gap-2 text-body-sm text-danger">
+      <StatusDot status="danger" className="mt-1.5" />
+      <span>{error}</span>
+    </p>
+  )
+
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        {/* Logo */}
-        <div className="text-center mb-10">
-          <h1 className="text-4xl font-bold text-foreground tracking-tight mb-2">
-            <span className="text-accent">J</span>are
-          </h1>
-          <p className="text-sm text-muted tracking-widest uppercase">Mainframe</p>
-          <div className="mt-4 h-0.5 w-12 bg-accent mx-auto rounded-full" />
-        </div>
+    <div className="min-h-screen bg-background flex items-center justify-center px-4 py-10">
+      <div className="w-full max-w-sm space-y-6">
+        <Wordmark />
 
         {forgot ? (
-          <form onSubmit={handleReset} className="space-y-5">
-            <div>
-              <h2 className="text-lg font-bold text-foreground">Forgot your password?</h2>
-              <p className="text-xs text-muted mt-1">Enter your email and a reset link will be sent to it.</p>
-            </div>
-
-            {sent ? (
-              <div role="status" className="bg-accent/10 border border-accent/30 rounded-xl px-4 py-3 text-sm text-foreground">
-                {RESET_SENT_MESSAGE}
-              </div>
-            ) : (
+          <Panel label="Reset password">
+            <form onSubmit={handleReset} className="space-y-4">
               <div>
-                <label htmlFor="reset-email" className="block text-sm font-medium text-muted mb-2">
-                  Email
-                </label>
-                <input
+                <h2 className="text-title text-foreground">Forgot your password?</h2>
+                <p className="text-body-sm text-muted mt-1">Enter your email and a reset link will be sent to it.</p>
+              </div>
+
+              {sent ? (
+                <p role="status" className="flex items-start gap-2 text-body-sm text-foreground">
+                  <StatusDot status="accent" className="mt-1.5" />
+                  <span>{RESET_SENT_MESSAGE}</span>
+                </p>
+              ) : (
+                <Input
                   id="reset-email"
+                  label="Email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   autoFocus
                   autoComplete="email"
-                  className="w-full px-4 py-3 bg-card border border-border rounded-xl text-foreground placeholder-hint focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-all duration-200 min-h-[48px]"
                   placeholder="your@email.com"
                 />
-              </div>
-            )}
-
-            {error && (
-              <div role="alert" className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 text-red-400 text-sm">
-                {error}
-              </div>
-            )}
-
-            {!sent && (
-              <button
-                type="submit"
-                disabled={loading || !onReset}
-                className="w-full py-3.5 bg-accent hover:bg-accent/90 text-on-accent font-semibold rounded-xl transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed min-h-[48px]"
-              >
-                {loading ? 'Sending…' : 'Send reset link'}
-              </button>
-            )}
-
-            <button type="button" onClick={showSignIn} className="w-full py-3 text-sm text-muted hover:text-foreground min-h-[44px]">
-              ← Back to sign in
-            </button>
-          </form>
-        ) : (
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-muted mb-2">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoComplete="email"
-              className="w-full px-4 py-3 bg-card border border-border rounded-xl text-foreground placeholder-hint focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-all duration-200 min-h-[48px]"
-              placeholder="your@email.com"
-            />
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label htmlFor="password" className="block text-sm font-medium text-muted">
-                Password
-              </label>
-              {onReset && (
-                <button type="button" onClick={showForgot} className="text-xs text-muted hover:text-accent min-h-[44px] px-1">
-                  Forgot password?
-                </button>
               )}
-            </div>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              autoComplete="current-password"
-              className="w-full px-4 py-3 bg-card border border-border rounded-xl text-foreground placeholder-hint focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-all duration-200 min-h-[48px]"
-              placeholder="••••••••"
-            />
-          </div>
 
-          {error && (
-            <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 text-red-400 text-sm">
-              {error}
-            </div>
-          )}
+              {errorLine}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3.5 bg-accent hover:bg-accent/90 text-on-accent font-semibold rounded-xl transition-all duration-200 hover:shadow-lg hover:shadow-accent/25 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed min-h-[48px]"
-          >
-            {loading ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
-                Signing in...
-              </span>
-            ) : (
-              'Sign In'
-            )}
-          </button>
-        </form>
+              {!sent && (
+                <Button type="submit" full loading={loading} disabled={!onReset}>
+                  {loading ? 'Sending…' : 'Send reset link'}
+                </Button>
+              )}
+
+              <Button variant="ghost" full icon="chevL" onClick={showSignIn}>
+                Back to sign in
+              </Button>
+            </form>
+          </Panel>
+        ) : (
+          <Panel label="Sign in">
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <Input
+                id="email"
+                label="Email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+                placeholder="your@email.com"
+              />
+
+              <Input
+                id="password"
+                label="Password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoComplete="current-password"
+                placeholder="••••••••"
+              />
+
+              {errorLine}
+
+              <Button type="submit" full loading={loading} icon="lock">
+                {loading ? 'Signing in…' : 'Sign in'}
+              </Button>
+
+              {onReset && (
+                <Button variant="ghost" full onClick={showForgot}>
+                  Forgot password?
+                </Button>
+              )}
+            </form>
+          </Panel>
         )}
 
-        <p className="text-center text-xs text-muted-dim mt-8">
-          Personal Life Operating System
-        </p>
+        <p className="text-center type-data text-muted-dim">Personal life operating system</p>
       </div>
+    </div>
+  )
+}
+
+/** The name, plainly: no glow, no accent bar. Shared look with ResetPassword. */
+function Wordmark() {
+  return (
+    <div className="text-center space-y-1">
+      <h1 className="text-title text-foreground">Jare</h1>
+      <Label as="p">Mainframe</Label>
     </div>
   )
 }
