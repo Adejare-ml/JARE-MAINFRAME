@@ -3,6 +3,12 @@ import { supabase } from '../../lib/supabase'
 import { toast } from '../../lib/toast'
 import { hasColumn } from '../../lib/schema'
 import { urlBase64ToUint8Array, subscriptionToRow, pushSupport, SUPPORT_MESSAGES } from '../../lib/push'
+import Panel from '../ui/Panel'
+import ListRow, { ListRows } from '../ui/ListRow'
+import Button from '../ui/Button'
+import IconButton from '../ui/IconButton'
+import Badge from '../ui/Badge'
+import { Notice, Code } from './parts'
 
 /**
  * Turn the morning reminder on or off for this device.
@@ -128,87 +134,92 @@ export default function Reminders() {
   const thisDeviceOn = Boolean(current) && devices.some((d) => d.endpoint === current.endpoint)
 
   return (
-    <section className="bg-card rounded-3xl p-6 border border-border space-y-4">
-      <div className="flex items-center justify-between border-b border-border pb-3">
-        <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">Reminders</h2>
-        {available && support.supported && (
-          <button
+    <Panel
+      id="reminders"
+      label="Reminders"
+      className="scroll-mt-16"
+      flush
+      action={
+        available &&
+        support.supported && (
+          <Button
+            size="sm"
+            variant={thisDeviceOn ? 'secondary' : 'primary'}
+            icon="bell"
             onClick={thisDeviceOn ? disable : enable}
-            disabled={busy}
+            loading={busy}
             aria-pressed={thisDeviceOn}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all min-h-[44px] disabled:opacity-50 ${
-              thisDeviceOn ? 'bg-surface-2 text-foreground hover:bg-red-500/20 hover:text-red-300' : 'bg-accent text-on-accent hover:bg-accent/90'
-            }`}
           >
-            {busy ? 'Working…' : thisDeviceOn ? 'Turn off on this device' : 'Turn on for this device'}
-          </button>
+            {busy ? 'Working…' : thisDeviceOn ? 'Turn off here' : 'Turn on here'}
+          </Button>
+        )
+      }
+    >
+      <div className="p-3 lg:p-4 space-y-3">
+        {!available ? (
+          <Notice>
+            Reminders need <Code>supabase/migrations/031_push_subscriptions.sql</Code>. Run it in the Supabase SQL editor
+            and this section starts working.
+          </Notice>
+        ) : !support.supported ? (
+          <p className="text-body-sm text-muted">{SUPPORT_MESSAGES[support.reason]}</p>
+        ) : (
+          <>
+            <p className="text-body-sm text-muted">
+              One notification each morning at 07:30 with what needs you: debts due, bills expected, urgent repairs,
+              milestones past their date, and anything waiting for review. Nothing on a quiet day.
+            </p>
+            {!VAPID_PUBLIC_KEY && (
+              <Notice>
+                <Code>VITE_VAPID_PUBLIC_KEY</Code> is not set in this build, so this device cannot subscribe yet. Generate
+                the pair with <Code>node scripts/generate-vapid.mjs</Code>.
+              </Notice>
+            )}
+            {permission === 'denied' && (
+              <Notice>Notifications are blocked for this site in the browser. Allow them in the site settings, then try again.</Notice>
+            )}
+          </>
         )}
       </div>
 
-      {!available ? (
-        <p className="text-xs text-yellow-400 leading-relaxed">
-          Reminders need{' '}
-          <code className="font-mono text-yellow-200">supabase/migrations/031_push_subscriptions.sql</code>. Run it in
-          the Supabase SQL editor and this section starts working.
-        </p>
-      ) : !support.supported ? (
-        <p className="text-xs text-muted leading-relaxed">{SUPPORT_MESSAGES[support.reason]}</p>
-      ) : (
-        <>
-          <p className="text-xs text-muted leading-relaxed">
-            One notification each morning at 07:30 with what needs you: debts due, bills expected, urgent repairs,
-            milestones past their date, and anything waiting for review. Nothing on a quiet day.
-          </p>
-          {!VAPID_PUBLIC_KEY && (
-            <p className="text-xs text-yellow-400 leading-relaxed">
-              <code className="font-mono text-yellow-200">VITE_VAPID_PUBLIC_KEY</code> is not set in this build, so
-              this device cannot subscribe yet. Generate the pair with{' '}
-              <code className="font-mono text-yellow-200">node scripts/generate-vapid.mjs</code>.
-            </p>
-          )}
-          {permission === 'denied' && (
-            <p className="text-xs text-yellow-400 leading-relaxed">
-              Notifications are blocked for this site in the browser. Allow them in the site settings, then try again.
-            </p>
-          )}
-          {devices.length > 0 && (
-            <ul className="space-y-2">
-              {devices.map((device) => {
-                const isThis = current?.endpoint === device.endpoint
-                return (
-                  <li
-                    key={device.id}
-                    className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-background/40 border border-border"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-xs text-foreground truncate">
-                        {describeDevice(device.user_agent)}
-                        {isThis && <span className="ml-2 text-xs text-accent font-bold uppercase">this device</span>}
-                      </p>
-                      <p className="text-xs text-muted-dim mt-0.5">
-                        {device.failed_at && (!device.last_used_at || device.failed_at > device.last_used_at)
-                          ? 'Last send failed'
-                          : device.last_used_at
-                            ? 'Receiving'
-                            : 'Waiting for the first morning'}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => forget(device)}
-                      aria-label={`Remove ${describeDevice(device.user_agent)}`}
-                      className="flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-full hover:bg-red-500/10 text-muted hover:text-red-400"
-                    >
-                      🗑️
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </>
+      {available && support.supported && devices.length > 0 && (
+        <div className="border-t border-border">
+          <ListRows as="ul" label="Devices">
+            {devices.map((device) => {
+              const isThis = current?.endpoint === device.endpoint
+              const failed = device.failed_at && (!device.last_used_at || device.failed_at > device.last_used_at)
+              return (
+                <ListRow
+                  key={device.id}
+                  as="li"
+                  title={describeDevice(device.user_agent)}
+                  subtitle={
+                    failed ? (
+                      <span className="text-warn">Last send failed</span>
+                    ) : device.last_used_at ? (
+                      'Receiving'
+                    ) : (
+                      'Waiting for the first morning'
+                    )
+                  }
+                  trailing={
+                    <>
+                      {isThis && <Badge label="This device" />}
+                      <IconButton
+                        name="trash"
+                        label={`Remove ${describeDevice(device.user_agent)}`}
+                        onClick={() => forget(device)}
+                        className="-mr-2"
+                      />
+                    </>
+                  }
+                />
+              )
+            })}
+          </ListRows>
+        </div>
       )}
-    </section>
+    </Panel>
   )
 }
 

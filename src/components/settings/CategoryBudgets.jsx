@@ -2,11 +2,17 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { toast } from '../../lib/toast'
 import { hasColumn } from '../../lib/schema'
-import { formatNaira } from '../../lib/formatters'
-import { ALL_CATEGORIES, getCategoryIcon } from '../../lib/constants'
+import { ALL_CATEGORIES } from '../../lib/constants'
 import Sheet from '../ui/Sheet'
 import CategoryPickerList from '../ui/CategoryPickerList'
-import Icon from '../ui/Icon'
+import Panel from '../ui/Panel'
+import ListRow, { ListRows } from '../ui/ListRow'
+import Button from '../ui/Button'
+import IconButton from '../ui/IconButton'
+import Money from '../ui/Money'
+import CategoryMark from '../ui/CategoryMark'
+import { Field, Input, controlClasses } from '../ui/Field'
+import { SheetHeader, Notice, Code } from './parts'
 
 /**
  * Per-category monthly targets (migration 024), sitting alongside the one
@@ -100,63 +106,61 @@ export default function CategoryBudgets() {
   if (loading) return null
 
   return (
-    <section className="bg-card rounded-3xl p-6 border border-border space-y-4">
-      <div className="flex items-center justify-between border-b border-border pb-3">
-        <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">
-          Category Budgets
-        </h2>
-        {available && (
-          <button
+    <Panel
+      label="Category budgets"
+      flush
+      action={
+        available && (
+          <Button
+            size="sm"
+            variant="secondary"
+            icon="plus"
             onClick={() => {
               setForm(EMPTY_FORM)
               setShowForm(true)
             }}
-            className="px-3 py-1.5 bg-surface-2 hover:bg-accent text-foreground hover:text-on-accent rounded-lg text-xs font-bold transition-all min-h-[44px]"
           >
-            + New
-          </button>
-        )}
-      </div>
-
+            New
+          </Button>
+        )
+      }
+    >
       {!available ? (
-        <p className="text-xs text-yellow-400 leading-relaxed">
-          Category budgets need{' '}
-          <code className="font-mono text-yellow-200">
-            supabase/migrations/024_category_budgets.sql
-          </code>
-          . Run it in the Supabase SQL editor and this section starts working.
-        </p>
+        <div className="p-3 lg:p-4">
+          <Notice>
+            Category budgets need <Code>supabase/migrations/024_category_budgets.sql</Code>. Run it in the Supabase SQL
+            editor and this section starts working.
+          </Notice>
+        </div>
       ) : budgets.length === 0 ? (
-        <p className="text-xs text-muted">
-          Nothing yet. Set one for a category worth watching -- Budget shows
-          how much of it is left, and flags the month you go over.
+        <p className="p-3 lg:p-4 text-body-sm text-muted">
+          Nothing yet. Set one for a category worth watching. Budget shows how much of it is left, and flags the month
+          you go over.
         </p>
       ) : (
-        <ul className="space-y-2">
+        <ListRows as="ul" label="Category budgets">
           {budgets.map((budget) => (
-            <li
+            <ListRow
               key={budget.id}
-              className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-background/40 border border-border"
-            >
-              <p className="text-xs text-foreground min-w-0 truncate flex items-center gap-1.5">
-                <Icon name={getCategoryIcon(budget.category)} size={16} className="text-muted" />
-                <span className="truncate">{budget.category}</span>
-                <span className="text-muted">·</span>
-                <span className="font-semibold text-accent money">{formatNaira(budget.target_amount)}</span>
-                <span className="text-muted">/mo</span>
-              </p>
-              <button
-                type="button"
-                onClick={() => handleDelete(budget.id)}
-                disabled={deletingId === budget.id}
-                aria-label={`Delete budget for ${budget.category}`}
-                className="flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-full hover:bg-red-500/10 text-muted hover:text-red-400 disabled:opacity-50"
-              >
-                🗑️
-              </button>
-            </li>
+              as="li"
+              leading={<CategoryMark category={budget.category} />}
+              title={budget.category}
+              subtitle="Monthly target"
+              trailing={
+                <>
+                  <Money amount={budget.target_amount} />
+                  <IconButton
+                    name="trash"
+                    label={`Delete budget for ${budget.category}`}
+                    onClick={() => handleDelete(budget.id)}
+                    disabled={deletingId === budget.id}
+                    className="-mr-2"
+                  />
+                </>
+              }
+            />
           ))}
-        </ul>
+        </ListRows>
       )}
 
       <Sheet
@@ -168,81 +172,56 @@ export default function CategoryBudgets() {
         {/* Swapped in as a view within this same Sheet, rather than a second
             nested one -- see CategoryPickerList's own comment for why. */}
         {showCategoryPicker ? (
-          <div className="p-6 space-y-4 overflow-y-auto">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-foreground">Which category</h2>
-              <button
-                type="button"
-                onClick={() => setShowCategoryPicker(false)}
-                className="text-sm font-semibold text-muted hover:text-foreground min-h-[44px] px-2 flex items-center gap-1"
-              >
-                ← Back
-              </button>
+          <>
+            <SheetHeader title="Which category" onBack={() => setShowCategoryPicker(false)} />
+            <div className="p-4 overflow-y-auto">
+              <CategoryPickerList
+                value={form.category}
+                onSelect={(category) => {
+                  setForm((f) => ({ ...f, category }))
+                  setShowCategoryPicker(false)
+                }}
+              />
             </div>
-            <CategoryPickerList
-              value={form.category}
-              onSelect={(category) => {
-                setForm((f) => ({ ...f, category }))
-                setShowCategoryPicker(false)
-              }}
-            />
-          </div>
+          </>
         ) : (
-        <form onSubmit={handleSave} className="p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-foreground">New category budget</h2>
-            <button
-              type="button"
-              onClick={closeForm}
-              aria-label="Close"
-              className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-surface-2 text-muted hover:text-foreground"
-            >
-              ✕
-            </button>
-          </div>
+          <>
+            <SheetHeader title="New category budget" onClose={closeForm} />
+            <form onSubmit={handleSave} className="p-4 space-y-4 overflow-y-auto">
+              <Field label="Category">
+                {({ id }) => (
+                  <button
+                    id={id}
+                    type="button"
+                    onClick={() => setShowCategoryPicker(true)}
+                    className={`${controlClasses()} flex items-center gap-2 text-left`}
+                  >
+                    <CategoryMark category={form.category} size="sm" />
+                    <span className="truncate">{form.category}</span>
+                  </button>
+                )}
+              </Field>
 
-          <div>
-            <label className="block text-xs text-muted mb-1.5">Category</label>
-            <button
-              type="button"
-              onClick={() => setShowCategoryPicker(true)}
-              className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm focus:outline-none focus:border-accent min-h-[48px] flex items-center gap-2"
-            >
-              <Icon name={getCategoryIcon(form.category)} size={18} className="text-muted" />
-              <span className="truncate">{form.category}</span>
-            </button>
-          </div>
+              <Input
+                id="budget-target"
+                label="Monthly target"
+                hint="In naira. Already have one for this category? Saving replaces it."
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.01"
+                value={form.target_amount}
+                onChange={(e) => setForm((f) => ({ ...f, target_amount: e.target.value }))}
+                placeholder="15000"
+              />
 
-          <div>
-            <label htmlFor="budget-target" className="block text-xs text-muted mb-1.5">
-              Monthly target (₦)
-            </label>
-            <input
-              id="budget-target"
-              type="number"
-              inputMode="decimal"
-              min="0"
-              step="0.01"
-              value={form.target_amount}
-              onChange={(e) => setForm((f) => ({ ...f, target_amount: e.target.value }))}
-              placeholder="15000"
-              className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
-            />
-            <p className="text-xs text-muted-dim mt-1.5">
-              Already have one for this category? Saving replaces it.
-            </p>
-          </div>
-
-          <button
-            type="submit"
-            disabled={saving}
-            className="w-full py-3.5 bg-accent text-on-accent font-bold text-sm rounded-xl min-h-[48px] disabled:opacity-50"
-          >
-            {saving ? 'Saving…' : 'Save budget'}
-          </button>
-        </form>
+              <Button type="submit" full loading={saving}>
+                {saving ? 'Saving…' : 'Save budget'}
+              </Button>
+            </form>
+          </>
         )}
       </Sheet>
-    </section>
+    </Panel>
   )
 }

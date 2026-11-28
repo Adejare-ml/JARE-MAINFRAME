@@ -60,7 +60,7 @@ const missingVars = [
   .map(([name]) => name)
 
 if (missingVars.length > 0) {
-  console.error(`❌ Missing required environment variables: ${missingVars.join(', ')}`)
+  console.error(`Missing required environment variables: ${missingVars.join(', ')}`)
   process.exit(1)
 }
 
@@ -78,7 +78,7 @@ const snapshotDate = daysAgo(1)
 
 async function main() {
   OWNER_USER_ID = await resolveOwnerUserId(supabase, OWNER_USER_ID)
-  console.log(`💰 Snapshotting net worth as of ${snapshotDate} (run ${today})`)
+  console.log(`Snapshotting net worth as of ${snapshotDate} (run ${today})`)
 
   const { data: wallets, error } = await supabase
     .from('wallets')
@@ -114,13 +114,13 @@ async function main() {
 
   if (upsertError) throw upsertError
 
-  console.log(`✅ Snapshot written for ${today}`)
+  console.log(`Snapshot written for ${today}`)
 }
 
 main()
   .then(() => recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: process.exitCode !== 1 }))
   .catch(async (err) => {
-    console.error('❌ Net worth snapshot failed:', err?.message || err)
+    console.error('Net worth snapshot failed:', err?.message || err)
     await recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: false, summary: err?.message || String(err) })
     process.exit(1)
   })

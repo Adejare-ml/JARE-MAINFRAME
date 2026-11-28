@@ -2,8 +2,12 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { hasColumn, pendingMigrations } from '../../lib/schema'
 import { timeAgo } from '../../lib/formatters'
-import { STATUS, summarizeRuns, gmailCursorStatus, overallStatus } from '../../lib/health'
+import { STATUS, summarizeRuns, gmailCursorStatus, overallStatus, jobTitle } from '../../lib/health'
 import { useEdgeFunctionStatus } from '../../hooks/useEdgeFunctionStatus'
+import Panel from '../ui/Panel'
+import StatusDot from '../ui/StatusDot'
+import Label from '../ui/Label'
+import { Notice, Code } from './parts'
 
 /**
  * The one place the app admits whether its automation is alive.
@@ -19,14 +23,6 @@ import { useEdgeFunctionStatus } from '../../hooks/useEdgeFunctionStatus'
  * load does not grow four more queries for one section.
  */
 
-const DOT = {
-  [STATUS.OK]: 'bg-accent',
-  [STATUS.STALE]: 'bg-orange-400',
-  [STATUS.FAILING]: 'bg-red-500',
-  [STATUS.NEVER]: 'bg-surface-2',
-  [STATUS.ATTENTION]: 'bg-amber-400',
-}
-
 const WORD = {
   [STATUS.OK]: 'Running',
   [STATUS.STALE]: 'Quiet too long',
@@ -36,9 +32,22 @@ const WORD = {
 }
 
 const WORD_COLOUR = {
-  [STATUS.FAILING]: 'text-red-400',
-  [STATUS.STALE]: 'text-orange-300',
-  [STATUS.ATTENTION]: 'text-amber-300',
+  [STATUS.FAILING]: 'text-danger',
+  [STATUS.STALE]: 'text-warn',
+  [STATUS.ATTENTION]: 'text-warn',
+}
+
+/** One fact under the job list: a label, its value, an optional how-to. */
+function Fact({ label, value, note, tone }) {
+  return (
+    <div className="px-3 py-2.5 lg:px-4">
+      <dt>
+        <Label>{label}</Label>
+      </dt>
+      <dd className="text-body text-foreground mt-0.5">{value}</dd>
+      {note && <dd className={`text-body-sm mt-0.5 break-words ${tone === 'warn' ? 'text-warn' : 'text-muted'}`}>{note}</dd>}
+    </div>
+  )
 }
 
 export default function SystemHealth() {
@@ -86,129 +95,119 @@ export default function SystemHealth() {
   const pending = pendingMigrations()
 
   return (
-    <section className="bg-card rounded-3xl p-6 border border-border space-y-4">
-      <div className="flex items-center justify-between border-b border-border pb-3">
-        <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">System</h2>
-        {available && !loading && (
-          <span className="flex items-center gap-2 text-xs font-semibold text-foreground">
-            <span className={`w-2 h-2 rounded-full ${DOT[overall]}`} aria-hidden="true" />
+    // id="system": the status rail and Daily HQ link to /settings#system,
+    // and Settings scrolls here when the hash is present.
+    <Panel
+      id="system"
+      label="System"
+      className="scroll-mt-16"
+      meta={
+        available && !loading ? (
+          <span className="flex items-center gap-2">
+            <StatusDot status={overall} />
             {WORD[overall]}
           </span>
-        )}
-      </div>
-
+        ) : null
+      }
+      flush
+    >
       {!available ? (
-        <div className="rounded-xl bg-orange-500/10 border border-orange-500/20 p-4 text-xs text-orange-300 leading-relaxed">
-          Run <code className="font-mono">supabase/migrations/025_sync_runs.sql</code> in the Supabase SQL editor to see when
-          each scheduled job last ran and whether it worked.
+        <div className="p-3 lg:p-4">
+          <Notice>
+            Run <Code>supabase/migrations/025_sync_runs.sql</Code> in the Supabase SQL editor to see when each scheduled
+            job last ran and whether it worked.
+          </Notice>
         </div>
       ) : runsError ? (
-        <div className="rounded-xl bg-red-500/10 border border-red-500/20 p-4 text-xs text-red-300 leading-relaxed">
-          Could not read the job log: {runsError}
+        <div className="p-3 lg:p-4">
+          <Notice status="danger">Could not read the job log: {runsError}</Notice>
         </div>
       ) : (
-        <ul className="space-y-2.5" aria-label="Scheduled jobs">
+        <ul className="divide-y divide-border" aria-label="Scheduled jobs">
           {jobs.map((job) => (
-            <li key={job.id} className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-2.5 min-w-0">
-                <span className={`mt-1.5 w-2 h-2 shrink-0 rounded-full ${DOT[job.status]}`} aria-hidden="true" />
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-foreground">{job.label}</p>
-                  {/* A report is rendered line by line, drifts red and
-                      missed alerts amber, so a reconcile summary is read,
-                      not skimmed. Anything else is the stored text in
-                      full: the one-line truncation used to cut the gap
-                      list exactly where the wallet names were. */}
-                  {job.suspect && <p className="text-xs text-red-300">{job.suspectReason}</p>}
-                  {job.report ? (
-                    <>
-                      {job.report.drifts.map((line) => (
-                        <p key={line} className="text-xs text-red-300 break-words">{line}</p>
-                      ))}
-                      {job.report.gaps.map((line) => (
-                        <p key={line} className="text-xs text-amber-300 break-words">{line}</p>
-                      ))}
-                      {job.report.other.map((line) => (
-                        <p key={line} className="text-xs text-muted-dim break-words">{line}</p>
-                      ))}
-                    </>
-                  ) : (
-                    job.lastRun?.summary && (
-                      <p className="text-xs text-muted-dim break-words whitespace-pre-wrap">{job.lastRun.summary}</p>
-                    )
-                  )}
-                </div>
+            <li key={job.id} className="flex items-start gap-3 px-3 py-2.5 lg:px-4 min-h-14">
+              <StatusDot status={job.suspect ? STATUS.FAILING : job.status} className="mt-2" />
+              <div className="min-w-0 flex-1">
+                <p className="text-body text-foreground">{jobTitle(job)}</p>
+                {/* A report is rendered line by line, drifts red and
+                    missed alerts amber, so a reconcile summary is read,
+                    not skimmed. Anything else is the stored text in
+                    full: the one-line truncation used to cut the gap
+                    list exactly where the wallet names were. */}
+                {job.suspect && <p className="text-body-sm text-danger break-words">{job.suspectReason}</p>}
+                {job.report ? (
+                  <>
+                    {job.report.drifts.map((line) => (
+                      <p key={line} className="text-body-sm text-danger break-words">{line}</p>
+                    ))}
+                    {job.report.gaps.map((line) => (
+                      <p key={line} className="text-body-sm text-warn break-words">{line}</p>
+                    ))}
+                    {job.report.other.map((line) => (
+                      <p key={line} className="text-body-sm text-muted break-words">{line}</p>
+                    ))}
+                  </>
+                ) : (
+                  job.lastRun?.summary && (
+                    <p className="text-body-sm text-muted break-words whitespace-pre-wrap">{job.lastRun.summary}</p>
+                  )
+                )}
               </div>
               <div className="text-right shrink-0">
-                <p className={`text-xs font-semibold ${job.suspect ? 'text-red-400' : WORD_COLOUR[job.status] || 'text-muted'}`}>
+                <p className={`text-body-sm font-semibold ${job.suspect ? 'text-danger' : WORD_COLOUR[job.status] || 'text-muted'}`}>
                   {job.suspect ? 'Recorded nothing' : WORD[job.status]}
                 </p>
-                {job.lastRun && <p className="text-xs text-muted-dim">{timeAgo(job.lastRun.finished_at)}</p>}
+                {job.lastRun && <p className="type-data text-muted-dim">{timeAgo(job.lastRun.finished_at)}</p>}
               </div>
             </li>
           ))}
         </ul>
       )}
 
-      <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-        <div className="rounded-xl bg-background/60 border border-border p-3">
-          <dt className="text-xs text-muted uppercase tracking-wider">Bank alerts last recorded</dt>
-          <dd className="text-sm text-foreground mt-1">
-            {cursor.status === STATUS.NEVER ? (
-              'Never checked'
-            ) : (
+      <dl className="grid grid-cols-1 sm:grid-cols-2 border-t border-border divide-y divide-border sm:divide-y-0">
+        <Fact
+          label="Bank alerts last recorded"
+          value={cursor.status === STATUS.NEVER ? 'Never checked' : `Checked ${timeAgo(integration.last_checked)}`}
+          note={cursor.status === STATUS.STALE ? 'Longer than a day since the audit recorded anything. See the audit above.' : null}
+          tone="warn"
+        />
+        <Fact
+          label="Ask endpoint"
+          value={ask === 'checking' ? 'Checking…' : ask === 'reachable' ? 'Deployed and answering' : 'Not deployed'}
+          note={
+            ask === 'unreachable' ? (
               <>
-                Checked {timeAgo(integration.last_checked)}
+                <Code>supabase functions deploy ask-question</Code>, then set its OLLAMA_API_KEY secret.
               </>
-            )}
-          </dd>
-          {cursor.status === STATUS.STALE && (
-            <dd className="text-xs text-orange-300 mt-1">Longer than a day since the audit recorded anything -- see the job above.</dd>
-          )}
-        </div>
-
-        <div className="rounded-xl bg-background/60 border border-border p-3">
-          <dt className="text-xs text-muted uppercase tracking-wider">Ask endpoint</dt>
-          <dd className="text-sm text-foreground mt-1">
-            {ask === 'checking' ? 'Checking…' : ask === 'reachable' ? 'Deployed and answering' : 'Not deployed'}
-          </dd>
-          {ask === 'unreachable' && (
-            <dd className="text-xs text-muted-dim mt-1">
-              <code className="font-mono">supabase functions deploy ask-question</code>, then set its OLLAMA_API_KEY secret.
-            </dd>
-          )}
-        </div>
-
-        <div className="rounded-xl bg-background/60 border border-border p-3">
-          <dt className="text-xs text-muted uppercase tracking-wider">Meal photo reader</dt>
-          <dd className="text-sm text-foreground mt-1">
-            {meal === 'checking'
+            ) : null
+          }
+        />
+        <Fact
+          label="Meal photo reader"
+          value={
+            meal === 'checking'
               ? 'Checking…'
               : meal === 'reachable'
                 ? 'Deployed and answering'
                 : meal === 'nokey'
                   ? 'Deployed, no model key'
-                  : 'Not deployed'}
-          </dd>
-          {meal !== 'reachable' && meal !== 'checking' && (
-            <dd className="text-xs text-muted-dim mt-1">
-              <code className="font-mono">supabase functions deploy analyze-meal</code>, then set its OLLAMA_API_KEY (and optionally
-              NVIDIA_API_KEY) secret.
-            </dd>
-          )}
-        </div>
-
-        <div className="rounded-xl bg-background/60 border border-border p-3">
-          <dt className="text-xs text-muted uppercase tracking-wider">Database</dt>
-          <dd className="text-sm text-foreground mt-1">
-            {pending.length === 0 ? 'Up to date' : `${pending.length} migration${pending.length === 1 ? '' : 's'} to run`}
-          </dd>
-          {pending.length > 0 && (
-            <dd className="text-xs text-muted-dim mt-1 font-mono break-all">{pending.join(', ')}</dd>
-          )}
-        </div>
-
+                  : 'Not deployed'
+          }
+          note={
+            meal !== 'reachable' && meal !== 'checking' ? (
+              <>
+                <Code>supabase functions deploy analyze-meal</Code>, then set its OLLAMA_API_KEY (and optionally
+                NVIDIA_API_KEY) secret.
+              </>
+            ) : null
+          }
+        />
+        <Fact
+          label="Database"
+          value={pending.length === 0 ? 'Up to date' : `${pending.length} migration${pending.length === 1 ? '' : 's'} to run`}
+          note={pending.length > 0 ? <Code>{pending.join(', ')}</Code> : null}
+        />
       </dl>
-    </section>
+    </Panel>
   )
 }

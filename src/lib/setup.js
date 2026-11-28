@@ -35,8 +35,8 @@ export function setupGaps({ subscriberCount = null, askStatus = null, mealStatus
     rows.push({
       id: 'migrations',
       text: `${n} migration${n === 1 ? '' : 's'} to run: ${pendingMigrations.join(', ')}`,
-      to: '/settings',
-      label: 'System →',
+      to: '/settings#system',
+      label: 'System',
     })
   }
 
@@ -44,8 +44,8 @@ export function setupGaps({ subscriberCount = null, askStatus = null, mealStatus
     rows.push({
       id: 'push',
       text: 'No phone is subscribed, so the morning reminder reaches nobody. Turn it on under Reminders.',
-      to: '/settings',
-      label: 'Reminders →',
+      to: '/settings#reminders',
+      label: 'Reminders',
     })
   }
 
@@ -56,8 +56,8 @@ export function setupGaps({ subscriberCount = null, askStatus = null, mealStatus
         backupJob.status === STATUS.NEVER
           ? 'The weekly backup has never run. Create the private backup repository and its token (README, "Backups").'
           : 'Backups are not configured: there is no copy of this ledger anywhere. Create the private backup repository and its token (README, "Backups").',
-      to: '/settings',
-      label: 'System →',
+      to: '/settings#system',
+      label: 'System',
     })
   }
 
@@ -68,15 +68,15 @@ export function setupGaps({ subscriberCount = null, askStatus = null, mealStatus
     rows.push({
       id: 'functions',
       text: `${notDeployed.join(' and ')} ${notDeployed.length === 1 ? 'is' : 'are'} not deployed. Run \`supabase functions deploy\` and set OLLAMA_API_KEY (Settings → System has the commands).`,
-      to: '/settings',
-      label: 'System →',
+      to: '/settings#system',
+      label: 'System',
     })
   } else if (mealStatus === 'nokey') {
     rows.push({
       id: 'meal-key',
       text: 'The meal photo reader is deployed but has no model key: set OLLAMA_API_KEY as a function secret.',
-      to: '/settings',
-      label: 'System →',
+      to: '/settings#system',
+      label: 'System',
     })
   }
 

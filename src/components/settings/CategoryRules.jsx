@@ -2,10 +2,17 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { toast } from '../../lib/toast'
 import { hasColumn } from '../../lib/schema'
-import { ALL_CATEGORIES, getCategoryIcon } from '../../lib/constants'
+import { ALL_CATEGORIES } from '../../lib/constants'
 import Sheet from '../ui/Sheet'
 import CategoryPickerList from '../ui/CategoryPickerList'
-import Icon from '../ui/Icon'
+import Panel from '../ui/Panel'
+import ListRow, { ListRows } from '../ui/ListRow'
+import Button from '../ui/Button'
+import IconButton from '../ui/IconButton'
+import Segmented from '../ui/Segmented'
+import CategoryMark from '../ui/CategoryMark'
+import { Field, Input, controlClasses } from '../ui/Field'
+import { SheetHeader, Notice, Code } from './parts'
 
 /**
  * The user-editable half of categorization (migration 020).
@@ -102,63 +109,58 @@ export default function CategoryRules() {
   if (loading) return null
 
   return (
-    <section className="bg-card rounded-3xl p-6 border border-border space-y-4">
-      <div className="flex items-center justify-between border-b border-border pb-3">
-        <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">
-          Category Rules
-        </h2>
-        {available && (
-          <button
+    <Panel
+      label="Category rules"
+      flush
+      action={
+        available && (
+          <Button
+            size="sm"
+            variant="secondary"
+            icon="plus"
             onClick={() => {
               setForm(EMPTY_FORM)
               setShowForm(true)
             }}
-            className="px-3 py-1.5 bg-surface-2 hover:bg-accent text-foreground hover:text-on-accent rounded-lg text-xs font-bold transition-all min-h-[44px]"
           >
-            + New
-          </button>
-        )}
-      </div>
-
+            New
+          </Button>
+        )
+      }
+    >
       {!available ? (
-        <p className="text-xs text-yellow-400 leading-relaxed">
-          Category rules need{' '}
-          <code className="font-mono text-yellow-200">
-            supabase/migrations/020_category_rules.sql
-          </code>
-          . Run it in the Supabase SQL editor and this section starts working.
-        </p>
+        <div className="p-3 lg:p-4">
+          <Notice>
+            Category rules need <Code>supabase/migrations/020_category_rules.sql</Code>. Run it in the Supabase SQL editor
+            and this section starts working.
+          </Notice>
+        </div>
       ) : rules.length === 0 ? (
-        <p className="text-xs text-muted">
-          Nothing yet. Add one for a merchant the AI keeps miscategorising --
-          "recipient contains Netflix → Subscriptions" -- and every future
-          sync files it correctly, checked before the AI's own guess.
+        <p className="p-3 lg:p-4 text-body-sm text-muted">
+          Nothing yet. Add one for a merchant the AI keeps miscategorising (recipient contains Netflix, filed under
+          Subscriptions) and every future sync files it correctly, checked before the AI&apos;s own guess.
         </p>
       ) : (
-        <ul className="space-y-2">
+        <ListRows as="ul" label="Category rules">
           {rules.map((rule) => (
-            <li
+            <ListRow
               key={rule.id}
-              className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-background/40 border border-border"
-            >
-              <p className="text-xs text-foreground min-w-0 truncate">
-                <span className="text-muted">{rule.trigger_field} contains</span>{' '}
-                <span className="font-mono text-foreground">"{rule.trigger_value}"</span>{' '}
-                <span className="text-muted">→</span>{' '}
-                <span className="font-semibold text-accent">{rule.action_category}</span>
-              </p>
-              <button
-                type="button"
-                onClick={() => handleDelete(rule.id)}
-                disabled={deletingId === rule.id}
-                aria-label={`Delete rule for ${rule.trigger_value}`}
-                className="flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-full hover:bg-red-500/10 text-muted hover:text-red-400 disabled:opacity-50"
-              >
-                🗑️
-              </button>
-            </li>
+              as="li"
+              leading={<CategoryMark category={rule.action_category} />}
+              title={`${rule.trigger_field} contains "${rule.trigger_value}"`}
+              subtitle={`File under ${rule.action_category}`}
+              trailing={
+                <IconButton
+                  name="trash"
+                  label={`Delete rule for ${rule.trigger_value}`}
+                  onClick={() => handleDelete(rule.id)}
+                  disabled={deletingId === rule.id}
+                  className="-mr-2"
+                />
+              }
+            />
           ))}
-        </ul>
+        </ListRows>
       )}
 
       <Sheet
@@ -170,109 +172,76 @@ export default function CategoryRules() {
         {/* Swapped in as a view within this same Sheet, rather than a second
             nested one -- see CategoryPickerList's own comment for why. */}
         {showCategoryPicker ? (
-          <div className="p-6 space-y-4 overflow-y-auto">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-foreground">File it under</h2>
-              <button
-                type="button"
-                onClick={() => setShowCategoryPicker(false)}
-                className="text-sm font-semibold text-muted hover:text-foreground min-h-[44px] px-2 flex items-center gap-1"
-              >
-                ← Back
-              </button>
+          <>
+            <SheetHeader title="File it under" onBack={() => setShowCategoryPicker(false)} />
+            <div className="p-4 overflow-y-auto">
+              <CategoryPickerList
+                value={form.action_category}
+                onSelect={(action_category) => {
+                  setForm((f) => ({ ...f, action_category }))
+                  setShowCategoryPicker(false)
+                }}
+              />
             </div>
-            <CategoryPickerList
-              value={form.action_category}
-              onSelect={(action_category) => {
-                setForm((f) => ({ ...f, action_category }))
-                setShowCategoryPicker(false)
-              }}
-            />
-          </div>
+          </>
         ) : (
-        <form onSubmit={handleSave} className="p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-foreground">New category rule</h2>
-            <button
-              type="button"
-              onClick={closeForm}
-              aria-label="Close"
-              className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-surface-2 text-muted hover:text-foreground"
-            >
-              ✕
-            </button>
-          </div>
+          <>
+            <SheetHeader title="New category rule" onClose={closeForm} />
+            <form onSubmit={handleSave} className="p-4 space-y-4 overflow-y-auto">
+              <Field label="When the">
+                {() => (
+                  <Segmented
+                    full
+                    label="Field to check"
+                    value={form.trigger_field}
+                    onChange={(field) => setForm((f) => ({ ...f, trigger_field: field }))}
+                    options={[
+                      { value: 'recipient', label: 'Recipient' },
+                      { value: 'description', label: 'Description' },
+                    ]}
+                  />
+                )}
+              </Field>
 
-          <div>
-            <span className="block text-xs text-muted mb-1.5">When the</span>
-            <div className="grid grid-cols-2 gap-2">
-              {['recipient', 'description'].map((field) => (
-                <button
-                  key={field}
-                  type="button"
-                  onClick={() => setForm((f) => ({ ...f, trigger_field: field }))}
-                  aria-pressed={form.trigger_field === field}
-                  className={`py-3 rounded-xl text-sm font-bold capitalize min-h-[48px] transition-colors ${
-                    form.trigger_field === field
-                      ? 'bg-accent text-on-accent'
-                      : 'bg-background border border-border text-muted hover:text-foreground'
-                  }`}
-                >
-                  {field}
-                </button>
-              ))}
-            </div>
-          </div>
+              <Input
+                id="rule-value"
+                label="Contains"
+                type="text"
+                value={form.trigger_value}
+                onChange={(e) => setForm((f) => ({ ...f, trigger_value: e.target.value }))}
+                placeholder="Netflix"
+              />
 
-          <div>
-            <label htmlFor="rule-value" className="block text-xs text-muted mb-1.5">
-              contains
-            </label>
-            <input
-              id="rule-value"
-              type="text"
-              value={form.trigger_value}
-              onChange={(e) => setForm((f) => ({ ...f, trigger_value: e.target.value }))}
-              placeholder="Netflix"
-              className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
-            />
-          </div>
+              <Field label="File it under">
+                {({ id }) => (
+                  <button
+                    id={id}
+                    type="button"
+                    onClick={() => setShowCategoryPicker(true)}
+                    className={`${controlClasses()} flex items-center gap-2 text-left`}
+                  >
+                    <CategoryMark category={form.action_category} size="sm" />
+                    <span className="truncate">{form.action_category}</span>
+                  </button>
+                )}
+              </Field>
 
-          <div>
-            <label className="block text-xs text-muted mb-1.5">file it under</label>
-            <button
-              type="button"
-              onClick={() => setShowCategoryPicker(true)}
-              className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm focus:outline-none focus:border-accent min-h-[48px] flex items-center gap-2"
-            >
-              <Icon name={getCategoryIcon(form.action_category)} size={18} className="text-muted" />
-              <span className="truncate">{form.action_category}</span>
-            </button>
-          </div>
+              <Input
+                id="rule-priority"
+                label="Priority"
+                hint="Lower checks first; only matters if two rules could both match."
+                type="number"
+                value={form.priority}
+                onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))}
+              />
 
-          <div>
-            <label htmlFor="rule-priority" className="block text-xs text-muted mb-1.5">
-              Priority (lower checks first; only matters if two rules could both match)
-            </label>
-            <input
-              id="rule-priority"
-              type="number"
-              value={form.priority}
-              onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))}
-              className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm focus:outline-none focus:border-accent min-h-[48px]"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={saving}
-            className="w-full py-3.5 bg-accent text-on-accent font-bold text-sm rounded-xl min-h-[48px] disabled:opacity-50"
-          >
-            {saving ? 'Saving…' : 'Add rule'}
-          </button>
-        </form>
+              <Button type="submit" full loading={saving}>
+                {saving ? 'Saving…' : 'Add rule'}
+              </Button>
+            </form>
+          </>
         )}
       </Sheet>
-    </section>
+    </Panel>
   )
 }
