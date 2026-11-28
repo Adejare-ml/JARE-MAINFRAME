@@ -195,10 +195,14 @@ body {
   min-height: 100dvh;
 }
 
-/* Figures never wrap and keep tabular digits (Money, Readout). */
-.money {
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
+/* Figures never wrap and keep tabular digits (Money, Readout). In the
+ * components layer, so a sentence marked .money for zen mode can still take
+ * `whitespace-normal`. */
+@layer components {
+  .money {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
 }
 
 .safe-area-bottom {

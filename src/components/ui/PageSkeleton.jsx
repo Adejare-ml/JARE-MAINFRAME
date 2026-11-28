@@ -42,11 +42,17 @@ export default function PageSkeleton() {
 
 export function DailyHQSkeleton() {
   return (
-    <div className="space-y-6">
-      <Skeleton className="h-10 bg-surface-2 rounded-xl w-64" />
-      <Skeleton className="h-32 bg-card rounded-3xl border border-border" />
-      <Skeleton className="h-28 bg-card rounded-3xl border border-border" />
-      <Skeleton className="h-44 bg-card rounded-3xl border border-border" />
+    <div className="space-y-3" aria-hidden="true">
+      <div className="flex items-end justify-between gap-3">
+        <div className="space-y-1.5">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-6 w-48" />
+        </div>
+        <Skeleton className="h-12 w-32" />
+      </div>
+      <Skeleton className="h-48 bg-card border border-border rounded-panel" />
+      <Skeleton className="h-40 bg-card border border-border rounded-panel" />
+      <Skeleton className="h-36 bg-card border border-border rounded-panel" />
     </div>
   )
 }

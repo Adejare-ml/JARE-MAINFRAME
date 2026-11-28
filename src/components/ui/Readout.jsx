@@ -57,7 +57,7 @@ export default function Readout({ value, kind = 'naira', label, unit, size = 'fi
     <div className="min-w-0">
       {label && <Label as="p" className="mb-1">{label}</Label>}
       <p className="whitespace-nowrap" title={exact} aria-label={fullLabel}>
-        <span className={`${isMoney ? 'money' : ''} tabular-nums ${sizeClass} ${toneText(tone)}`}>{text}</span>
+        <span className={`${isMoney ? 'money' : ''} font-sans tabular-nums ${sizeClass} ${toneText(tone)}`}>{text}</span>
         {unit && <span className="text-body-sm text-muted ml-1.5">{unit}</span>}
       </p>
       {sub && <p className="text-body-sm text-muted mt-1">{sub}</p>}

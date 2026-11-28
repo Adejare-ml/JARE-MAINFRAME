@@ -1,6 +1,11 @@
 import { useState } from 'react'
 import { formatGoalAmount } from '../../lib/formatters'
 import { goalProgress, GENERATED_SLOT_BASE } from '../../lib/planning'
+import TaskCheck from './TaskCheck'
+import { useNewIds } from './useNewIds'
+import Button from '../ui/Button'
+import Icon from '../ui/Icon'
+import { controlClasses } from '../ui/Field'
 
 /**
  * Today's tasks — the ones you typed and the ones the app derived — in one list
@@ -68,8 +73,15 @@ export default function TodayList({
     if (reason !== (task.blocked_reason || '')) onSaveReason?.(task, reason || null)
   }
 
+  // A task added while the page is open fades and moves 4px in; the first
+  // render's tasks do not.
+  const isNew = useNewIds(tasks.map((t) => t.id))
+  const enter = (task) => (isNew(task.id) ? 'row-enter' : '')
+
+  const titleClass = (done) => `block text-body ${done ? 'text-muted line-through' : 'text-foreground'}`
+
   return (
-    <ul className="space-y-2">
+    <ul className="divide-y divide-border border-t border-border">
       {tasks.map((task) => {
         const progress = goalProgress(task, transactions)
         const derived = task.generated === true || (task.slot ?? 0) >= GENERATED_SLOT_BASE
@@ -81,27 +93,13 @@ export default function TodayList({
         // would never show it, so that one keeps its checkbox.
         if (progress.measured && !progress.overridable) {
           return (
-            <li
-              key={task.id}
-              className="flex items-start gap-3 p-3 rounded-2xl bg-background/50 border border-border min-h-[48px]"
-            >
-              <span
-                className={`w-6 h-6 rounded-lg flex-shrink-0 flex items-center justify-center text-xs font-bold mt-0.5 ${
-                  progress.met ? 'bg-accent text-on-accent' : 'border-2 border-border text-transparent'
-                }`}
-                aria-hidden="true"
-              >
-                ✓
-              </span>
-              <span className="min-w-0 flex-1">
-                <span
-                  className={`block text-sm ${progress.met ? 'text-muted line-through' : 'text-foreground'}`}
-                >
-                  {task.title}
-                </span>
-                <span className="block text-xs text-muted-dim mt-0.5">
-                  {formatGoalAmount(progress.done, task.metric)} of{' '}
-                  {formatGoalAmount(progress.target, task.metric)} · {progress.source}
+            <li key={task.id} className={`flex items-start gap-2 px-3 min-h-14 ${enter(task)}`}>
+              <TaskCheck done={progress.met} locked />
+              <span className="min-w-0 flex-1 py-2">
+                <span className={titleClass(progress.met)}>{task.title}</span>
+                {/* Inter, not mono: the line carries ₦ figures, and mono never renders ₦. */}
+                <span className="block text-body-sm text-muted mt-0.5">
+                  {formatGoalAmount(progress.done, task.metric)} of {formatGoalAmount(progress.target, task.metric)} · {progress.source}
                 </span>
               </span>
             </li>
@@ -111,7 +109,7 @@ export default function TodayList({
         // ── Editing a typed task ──
         if (editingId === task.id) {
           return (
-            <li key={task.id}>
+            <li key={task.id} className="px-3 py-2">
               <input
                 autoFocus
                 type="text"
@@ -123,7 +121,7 @@ export default function TodayList({
                   if (e.key === 'Escape') setEditingId(null)
                 }}
                 aria-label="Edit priority"
-                className="w-full px-4 py-3 bg-background border border-accent rounded-2xl text-foreground text-sm placeholder-hint focus:outline-none min-h-[48px]"
+                className={controlClasses()}
               />
             </li>
           )
@@ -147,42 +145,22 @@ export default function TodayList({
           !task.completed
 
         return (
-          <li
-            key={task.id}
-            className="p-3 rounded-2xl bg-background/50 border border-border space-y-2"
-          >
-            <div className="flex items-center gap-2 min-h-[24px]">
-              <button
-                type="button"
+          <li key={task.id} className={`px-3 ${enter(task)}`}>
+            <div className="flex items-center gap-2 min-h-12">
+              <TaskCheck
+                done={done}
                 onClick={() => onToggle(task)}
                 disabled={busyId === task.id || evidenceDone}
-                aria-pressed={done}
-                aria-label={done ? `Mark "${task.title}" not done` : `Mark "${task.title}" done`}
-                className="flex-shrink-0 disabled:opacity-60"
-              >
-                <span
-                  className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center text-xs font-bold transition-colors ${
-                    done ? 'bg-accent border-accent text-on-accent' : 'border-border text-transparent'
-                  }`}
-                  aria-hidden="true"
-                >
-                  ✓
-                </span>
-              </button>
+                label={done ? `Mark "${task.title}" not done` : `Mark "${task.title}" done`}
+              />
 
               {derived ? (
-                <span className="min-w-0 flex-1">
-                  <span className={`block text-sm ${done ? 'text-muted line-through' : 'text-foreground'}`}>
-                    {task.title}
-                  </span>
+                <span className="min-w-0 flex-1 py-2">
+                  <span className={titleClass(done)}>{task.title}</span>
                   {/* Why this is on your list, and what it knows. A task nobody
                       typed has to account for itself, or it reads as the app
                       inventing work. */}
-                  <span className="block text-xs text-muted-dim mt-0.5">
-                    {/* A plan you approved says what this is about; otherwise
-                        all a derived task can say for itself is where it came
-                        from. Either way it accounts for itself, or it reads as
-                        the app inventing work. */}
+                  <span className="block text-body-sm text-muted mt-0.5">
                     {task.focus ||
                       (progress.overridable && progress.measured
                         ? repoLine(progress, task)
@@ -193,58 +171,60 @@ export default function TodayList({
                 <button
                   type="button"
                   onClick={() => startEdit(task)}
-                  className="min-w-0 flex-1 text-left"
+                  className="min-w-0 flex-1 text-left min-h-12"
                 >
-                  <span className={`block text-sm ${done ? 'text-muted line-through' : 'text-foreground'}`}>
-                    {task.title}
-                  </span>
+                  <span className={titleClass(done)}>{task.title}</span>
                 </button>
               )}
             </div>
 
             {task.blocked_reason && reasonId !== task.id && (
-              <p className="text-xs text-muted pl-8">
+              <p className="text-body-sm text-muted pl-9 pb-2">
                 <span className="text-muted-dim">Why not: </span>
                 {task.blocked_reason}
               </p>
             )}
 
             {askWhy && reasonId === task.id && (
-              <input
-                autoFocus
-                type="text"
-                value={reasonDraft}
-                onChange={(e) => setReasonDraft(e.target.value)}
-                onBlur={() => commitReason(task)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') e.currentTarget.blur()
-                  if (e.key === 'Escape') setReasonId(null)
-                }}
-                placeholder="Office work overran…"
-                aria-label="What got in the way?"
-                className="w-full px-4 py-2.5 bg-background border border-accent rounded-xl text-foreground text-xs placeholder-hint focus:outline-none min-h-[44px]"
-              />
+              <div className="pb-2">
+                <input
+                  autoFocus
+                  type="text"
+                  value={reasonDraft}
+                  onChange={(e) => setReasonDraft(e.target.value)}
+                  onBlur={() => commitReason(task)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') e.currentTarget.blur()
+                    if (e.key === 'Escape') setReasonId(null)
+                  }}
+                  placeholder="Office work overran"
+                  aria-label="What got in the way?"
+                  className={controlClasses()}
+                />
+              </div>
             )}
 
             {askWhy && reasonId !== task.id && onSaveReason && (
-              <button
-                type="button"
-                onClick={() => {
-                  setReasonId(task.id)
-                  setReasonDraft(task.blocked_reason || '')
-                }}
-                aria-label={task.blocked_reason ? 'Change reason for not completing' : 'Add reason for not completing'}
-                className="text-xs text-muted hover:text-foreground underline underline-offset-2 pl-8"
-              >
-                {task.blocked_reason ? 'Change why' : 'Say what got in the way'}
-              </button>
+              <div className="pl-6 pb-1">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setReasonId(task.id)
+                    setReasonDraft(task.blocked_reason || '')
+                  }}
+                  aria-label={task.blocked_reason ? 'Change reason for not completing' : 'Add reason for not completing'}
+                >
+                  {task.blocked_reason ? 'Change why' : 'Say what got in the way'}
+                </Button>
+              </div>
             )}
           </li>
         )
       })}
 
       {adding && (
-        <li>
+        <li className="px-3 py-2">
           <input
             autoFocus
             type="text"
@@ -260,7 +240,7 @@ export default function TodayList({
             }}
             placeholder="What matters today?"
             aria-label="New priority"
-            className="w-full px-4 py-3 bg-background border border-accent rounded-2xl text-foreground text-sm placeholder-hint focus:outline-none min-h-[48px]"
+            className={controlClasses()}
           />
         </li>
       )}
@@ -271,10 +251,10 @@ export default function TodayList({
             type="button"
             onClick={() => setAdding(true)}
             aria-label="Add a new priority"
-            className="w-full flex items-center gap-3 p-3 rounded-2xl border border-dashed border-border text-muted hover:text-foreground hover:border-border-strong transition-colors min-h-[48px] text-left text-sm"
+            className="w-full flex items-center gap-2 px-3 min-h-12 text-body text-muted hover:text-foreground hover:bg-surface-2 transition-colors duration-150 text-left"
           >
-            <span className="w-6 h-6 flex items-center justify-center text-base" aria-hidden="true">
-              ＋
+            <span className="w-6 flex justify-center">
+              <Icon name="plus" size={18} />
             </span>
             Add a priority
           </button>
@@ -282,7 +262,7 @@ export default function TodayList({
       )}
 
       {tasks.length === 0 && !adding && !canAdd && (
-        <li className="text-xs text-muted py-4 text-center">Nothing planned for today.</li>
+        <li className="px-3 py-3 text-body-sm text-muted">Nothing planned for today.</li>
       )}
     </ul>
   )

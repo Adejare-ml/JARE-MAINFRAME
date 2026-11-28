@@ -1,17 +1,14 @@
-import { formatNaira } from '../../lib/formatters'
 import { summarizeMonth, TRANSFER_CATEGORIES } from '../../lib/summary'
+import Panel from '../ui/Panel'
+import Stat from '../ui/Stat'
+import Money from '../ui/Money'
 
 /**
- * What yesterday actually came to.
+ * What yesterday actually came to: what you spent, the one transaction that
+ * dominated it, and how much of the plan you finished.
  *
- * Dayflow opens its standup with yesterday's highlights, on the reasoning that
- * you cannot say what today should be without knowing how the last one went.
- * The money equivalent: what you spent, the one transaction that dominated it,
- * and how much of the plan you finished.
- *
- * Renders nothing at all when yesterday held neither spending nor tasks. An
- * empty card that says "₦0.00 spent · 0/0 done" is worse than no card -- it
- * takes up the same space to tell you nothing.
+ * Renders nothing when yesterday held neither spending nor tasks. An empty
+ * card that says "₦0.00 spent · 0/0 done" takes the same space to say nothing.
  */
 export default function Yesterday({ transactions, tasks, isDone, liquidWalletIds }) {
   const summary = summarizeMonth(transactions, liquidWalletIds)
@@ -19,7 +16,7 @@ export default function Yesterday({ transactions, tasks, isDone, liquidWalletIds
   const total = tasks.length
   const done = tasks.filter((t) => isDone(t)).length
 
-  // Biggest single debit, ignoring transfers -- moving money to savings is not
+  // Biggest single debit, ignoring transfers: moving money to savings is not
   // the day's notable expense even when it is the day's largest number.
   const biggest = (transactions || [])
     .filter(
@@ -34,34 +31,18 @@ export default function Yesterday({ transactions, tasks, isDone, liquidWalletIds
   if (summary.spent === 0 && total === 0) return null
 
   return (
-    // Dashed border and a dimmer surface, deliberately unlike every other
-    // card on this page -- this one is the only section reporting on a day
-    // that is already over, and it should read that way at a glance, not
-    // just by the word "Yesterday" in its heading.
-    <section className="bg-card/60 rounded-3xl p-6 border border-dashed border-border space-y-3">
-      <h2 className="text-xs font-semibold text-muted-dim uppercase tracking-wider flex items-center gap-1.5">
-        <span aria-hidden="true">◐</span> Yesterday
-      </h2>
-
-      <div className="flex items-baseline gap-4 flex-wrap">
-        <p className="text-lg font-bold text-foreground tabular-nums money">
-          {formatNaira(summary.spent)}
-          <span className="text-muted text-xs font-normal"> spent</span>
-        </p>
-        {total > 0 && (
-          <p className="text-lg font-bold text-foreground tabular-nums">
-            {done}
-            <span className="text-muted text-xs font-normal">/{total} done</span>
-          </p>
-        )}
+    // The only panel reporting on a day that is over; its label says so.
+    <Panel label="Yesterday" meta="Closed">
+      <div className="grid grid-cols-2 gap-3">
+        <Stat label="Spent" value={<Money amount={summary.spent} kobo={false} />} />
+        {total > 0 && <Stat label="Done" value={`${done} of ${total}`} />}
       </div>
-
       {biggest && (
-        <p className="text-xs text-muted">
-          Largest: {biggest.description || biggest.category} ·{' '}
-          <span className="text-foreground font-semibold money">{formatNaira(biggest.amount)}</span>
+        <p className="text-body-sm text-muted mt-2 flex items-baseline gap-1.5 min-w-0">
+          <span className="truncate">Largest: {biggest.description || biggest.category}</span>
+          <Money amount={biggest.amount} className="shrink-0 text-foreground" />
         </p>
       )}
-    </section>
+    </Panel>
   )
 }

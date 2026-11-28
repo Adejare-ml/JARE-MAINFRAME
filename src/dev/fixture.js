@@ -80,8 +80,8 @@ function syncRuns(scenario) {
 function buildTables(scenario) {
   const today = ymd(new Date())
   const wallets = [
-    { id: uuid(1), name: 'GTBank', type: 'bank', balance: 182450.75, is_active: true, account_last4: '4821', alert_sender: 'gens@gtbank.com', last_alert_at: isoAt(0, 9, 41) },
-    { id: uuid(2), name: 'OPay', type: 'mobile', balance: 23910, is_active: true, account_last4: '0912', alert_sender: 'no-reply@opay-nigeria.com', last_alert_at: isoAt(-1, 18, 2) },
+    { id: uuid(1), name: 'GTBank', type: 'bank', balance: 182450.75, is_active: true, account_last4: '4821', alert_sender: 'gens@gtbank.com', balance_as_of: isoAt(0, 9, 41) },
+    { id: uuid(2), name: 'OPay', type: 'mobile', balance: 23910, is_active: true, account_last4: '0912', alert_sender: 'no-reply@opay-nigeria.com', balance_as_of: isoAt(-1, 18, 2) },
     { id: uuid(3), name: 'Cash', type: 'cash', balance: 6500, is_active: true },
     { id: uuid(4), name: 'PiggyVest', type: 'savings', balance: 410000, is_active: true },
     { id: uuid(5), name: 'Bamboo', type: 'investment', balance: 1250300.4, is_active: true },
@@ -295,7 +295,22 @@ export async function maybeInstallFixture() {
     return ch
   }
   supabase.removeChannel = () => {}
-  supabase.functions.invoke = async () => ({ data: { ok: true, providers: { ollama: true } }, error: null })
+  // `functions` and `storage` are getters that build a fresh client on each
+  // read, so they are replaced as properties rather than patched.
+  Object.defineProperty(supabase, 'functions', {
+    configurable: true,
+    value: { invoke: async () => ({ data: { ok: true, providers: { ollama: true } }, error: null }) },
+  })
+  Object.defineProperty(supabase, 'storage', {
+    configurable: true,
+    value: {
+      from: () => ({
+        upload: async () => ({ data: null, error: null }),
+        createSignedUrl: async () => ({ data: { signedUrl: '' }, error: null }),
+        remove: async () => ({ data: null, error: null }),
+      }),
+    },
+  })
   supabase.auth.getSession = async () => ({ data: { session }, error: null })
   supabase.auth.onAuthStateChange = () => ({ data: { subscription: { unsubscribe() {} } } })
   supabase.auth.signOut = async () => ({ error: null })

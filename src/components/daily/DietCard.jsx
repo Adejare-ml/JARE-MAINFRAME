@@ -1,22 +1,22 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { hasColumn } from '../../lib/schema'
 import { localDay, dayTotals, remaining } from '../../lib/diet/totals'
 import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh'
 import { loadLibrary, loadDay } from '../diet/api'
 import ProgressRing from '../ui/ProgressRing'
+import Panel from '../ui/Panel'
+import Readout from '../ui/Readout'
+import Button, { buttonClasses } from '../ui/Button'
+import Icon from '../ui/Icon'
 import AddFoodSheet from '../diet/AddFoodSheet'
 
 /**
  * Calories and protein left today, on Daily HQ (the Diet module, Phase 1).
  *
- * Takes the place of FoodToday (042), which read the old meals table. Like
- * FoodToday it hosts its own sheet, so logging takes one tap from here
- * rather than a trip to the Diet page first. The camera button FoodToday
- * had is not here: its photo reader, the analyze-meal edge function, is
- * marked unverified in its own header and imports a file that moved in
- * #180, so it cannot deploy as it stands. Photo logging returns with the
- * three-model analysis in Phase 3 (docs/diet-module.md).
+ * Took the place of FoodToday (042, since deleted), which read the old
+ * meals table. It hosts its own sheet, so logging takes one tap from here
+ * rather than a trip to the Diet page first; Snap opens the same sheet on a
+ * photo (Phase 3, docs/diet-module.md).
  *
  * Renders a one-line notice when migration 048 has not run.
  */
@@ -47,52 +47,50 @@ export default function DietCard() {
 
   if (!available) {
     return (
-      <section className="bg-card rounded-3xl p-6 border border-border">
-        <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-1">Diet today</p>
-        <p className="text-xs text-orange-300 leading-relaxed">
-          Run <code className="font-mono">supabase/migrations/048_diet.sql</code> (then 049 and 050) to track calories and protein.
+      <Panel label="Food today" tone="warn">
+        <p className="text-body-sm text-muted">
+          Run <code className="type-data text-foreground">supabase/migrations/048_diet.sql</code> (then 049 and 050) to track calories and protein.
         </p>
-      </section>
+      </Panel>
     )
   }
 
   const totals = dayTotals(logs)
   const left = remaining(totals, lib?.settings)
-  const ringColor = left.over ? '#f87171' : left.kcal_ratio != null && left.kcal_ratio >= 0.85 ? '#fdba74' : 'var(--color-accent)'
+  const near = !left.over && left.kcal_ratio != null && left.kcal_ratio >= 0.85
+  const ringColor = left.over ? 'var(--color-danger)' : near ? 'var(--color-warn)' : 'var(--color-accent)'
 
   return (
-    <section className="bg-card rounded-3xl p-6 border border-border" aria-label="Diet today">
-      <div className="flex items-center gap-4">
-        <ProgressRing value={left.kcal_ratio ?? 0} size={64} strokeWidth={6} color={ringColor}>
-          <span className="text-lg" aria-hidden="true">
-            🥗
-          </span>
-        </ProgressRing>
+    <Panel
+      label="Food today"
+      meta={`${totals.count} meal${totals.count === 1 ? '' : 's'}`}
+      action={<Button size="sm" variant="ghost" to="/diet">Diet</Button>}
+    >
+      <div className="flex items-center gap-3">
+        <ProgressRing value={left.kcal_ratio ?? 0} size={52} strokeWidth={5} color={ringColor} />
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold text-muted uppercase tracking-wider">Diet today</p>
           {left.kcal_left != null ? (
-            <p className={`text-xl font-extrabold tabular-nums ${left.over ? 'text-red-400' : 'text-foreground'}`}>
-              {Math.abs(left.kcal_left).toLocaleString()} <span className="text-sm font-bold text-muted">kcal {left.over ? 'over' : 'left'}</span>
-            </p>
+            <Readout
+              kind="number"
+              value={Math.abs(left.kcal_left)}
+              unit={left.over ? 'kcal over' : 'kcal left'}
+              tone={left.over ? 'danger' : 'default'}
+            />
           ) : (
-            <p className="text-xl font-extrabold text-foreground tabular-nums">
-              {totals.kcal.toLocaleString()} <span className="text-sm font-bold text-muted">kcal</span>
-            </p>
+            <Readout kind="number" value={totals.kcal} unit="kcal" />
           )}
-          <p className="text-xs text-muted truncate">
+          <p className="text-body-sm text-muted truncate">
             {left.protein_left != null
               ? left.protein_met
                 ? `Protein target met (${totals.protein_g} g)`
                 : `${left.protein_left} g protein to go`
               : `${totals.protein_g} g protein`}
-            {' · '}
-            {totals.count} meal{totals.count === 1 ? '' : 's'}
           </p>
         </div>
       </div>
-      <div className="grid grid-cols-[1fr_1fr_auto] gap-2 mt-4">
-        <label className={`flex items-center justify-center gap-2 bg-accent text-on-accent font-extrabold text-sm rounded-xl min-h-[48px] cursor-pointer hover:bg-accent/90 ${lib ? '' : 'opacity-60 pointer-events-none'}`}>
-          <span aria-hidden="true">📷</span> Snap
+      <div className="grid grid-cols-2 gap-2 mt-3">
+        <label className={`${buttonClasses({ variant: 'primary', full: true })} cursor-pointer has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent ${lib ? '' : 'opacity-50 pointer-events-none'}`}>
+          <Icon name="camera" size={18} /> Snap
           <input
             type="file"
             accept="image/*"
@@ -108,20 +106,18 @@ export default function DietCard() {
             }}
           />
         </label>
-        <button
-          type="button"
+        <Button
+          variant="secondary"
+          icon="plus"
+          full
           onClick={() => {
             setFile(null)
             setOpen(true)
           }}
           disabled={!lib}
-          className="flex items-center justify-center gap-2 bg-surface-2 border border-border text-foreground font-extrabold text-sm rounded-xl min-h-[48px] hover:bg-surface-2 disabled:opacity-60"
         >
-          <span aria-hidden="true">＋</span> Log food
-        </button>
-        <Link to="/diet" className="flex items-center justify-center px-4 rounded-xl bg-surface-2 border border-border text-foreground text-sm font-bold min-h-[48px] hover:bg-surface-2">
-          Diet →
-        </Link>
+          Log food
+        </Button>
       </div>
       {lib && (
         <AddFoodSheet
@@ -136,6 +132,6 @@ export default function DietCard() {
           initialFile={file}
         />
       )}
-    </section>
+    </Panel>
   )
 }

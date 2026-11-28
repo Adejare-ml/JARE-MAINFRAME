@@ -10,6 +10,8 @@ const STRICT_PATHS = [
   'src/index.css',
   'src/components/ui',
   'src/components/layout',
+  'src/components/daily',
+  'src/pages/DailyHQ.jsx',
   'src/lib/nav.js',
   'src/lib/constants.js',
   'src/lib/categories.js',

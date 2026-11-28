@@ -8,6 +8,8 @@
  *   npm run shots -- <route> [<route>...] [--themes dark,light,oled]
  *                    [--scenario ok|attention|failing|stale|never|offline|nomigration]
  *                    [--out <dir>] [--width 360] [--height 740] [--prefix name]
+ *                    [--time HH:MM]   (Lagos clock for the page, default 10:30;
+ *                                      use 20:30 to see the evening panels)
  *
  * Writes <out>/<prefix><route>-<theme>.png (the first 740px, what a phone
  * shows) and <route>-<theme>-full.png (the whole page). Starts a Vite dev
@@ -45,6 +47,14 @@ const out = resolve(opt('out', process.env.SHOTS_DIR || 'shots'))
 const width = Number(opt('width', 360))
 const height = Number(opt('height', 740))
 const prefix = opt('prefix', '')
+const clock = opt('time', '10:30')
+
+/** Today in Lagos at the given HH:MM, as an absolute instant (Lagos is UTC+1, no DST). */
+function lagosInstant(hhmm) {
+  const [h, m] = hhmm.split(':').map(Number)
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos' }).format(new Date())
+  return new Date(`${today}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00+01:00`)
+}
 mkdirSync(out, { recursive: true })
 
 function freePort() {
@@ -82,13 +92,19 @@ let problems = 0
 try {
   for (const route of routes) {
     for (const theme of themes) {
-      const context = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 2 })
+      const context = await browser.newContext({
+        viewport: { width, height },
+        deviceScaleFactor: 2,
+        timezoneId: 'Africa/Lagos',
+        locale: 'en-NG',
+      })
       await context.addInitScript(([t]) => {
         localStorage.setItem('theme_mode', t === 'light' ? 'light' : 'dark')
         localStorage.setItem('oled_background', t === 'oled' ? 'true' : 'false')
         localStorage.setItem('zen_mode', 'false')
       }, [theme])
       const page = await context.newPage()
+      await page.clock.setFixedTime(lagosInstant(clock))
       page.on('pageerror', (e) => console.warn(`  [pageerror] ${e.message}`))
       const sep = route.includes('?') ? '&' : '?'
       await page.goto(`${server.url}${route}${sep}fixture=${scenario}`, { waitUntil: 'networkidle' })

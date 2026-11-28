@@ -2,8 +2,8 @@ import { formatNairaSigned } from '../../lib/formatters'
 import { toneText } from './tone'
 
 /**
- * An inline naira amount: Inter weight 500 (so the ₦ glyph comes from Inter's
- * latin-ext face, never mono), tabular, never wraps, `.money` so zen mode
+ * An inline naira amount: Inter weight 500, forced even inside a mono line
+ * (so the ₦ glyph comes from Inter's latin-ext face, never mono), tabular, never wraps, `.money` so zen mode
  * blurs it. Kobo shown by default: the ledger is exact.
  *
  * Expense amounts stay `default` (foreground). Only income and positive
@@ -18,7 +18,7 @@ import { toneText } from './tone'
  */
 export default function Money({ amount, kobo = true, sign = false, tone = 'default', className = '' }) {
   return (
-    <span className={`money font-medium whitespace-nowrap tabular-nums ${toneText(tone)} ${className}`}>
+    <span className={`money font-sans font-medium whitespace-nowrap tabular-nums ${toneText(tone)} ${className}`}>
       {formatNairaSigned(amount, { kobo, sign })}
     </span>
   )

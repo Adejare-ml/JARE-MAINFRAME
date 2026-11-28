@@ -10,7 +10,8 @@ import { Link } from 'react-router-dom'
  * @param {object} props
  * @param {React.ReactNode} [props.leading] - a CategoryMark, StatusDot or checkbox
  * @param {React.ReactNode} props.title
- * @param {React.ReactNode} [props.subtitle] - body-sm, muted
+ * @param {React.ReactNode} [props.subtitle] - body-sm, muted; truncates unless `wrap`
+ * @param {boolean} [props.wrap] - let the subtitle wrap to two lines (a sentence, not a label)
  * @param {React.ReactNode} [props.meta] - a data-step line under the subtitle (Provenance)
  * @param {React.ReactNode} [props.trailing] - an amount, a chevron, a small button
  * @param {() => void} [props.onClick]
@@ -18,14 +19,14 @@ import { Link } from 'react-router-dom'
  * @param {boolean} [props.isNew] - inserted after mount: fades and moves 4px in once
  * @param {string} [props.label] - accessible name when the visible text is not enough
  */
-export default function ListRow({ leading, title, subtitle, meta, trailing, onClick, to, isNew = false, label, as: As = 'div' }) {
+export default function ListRow({ leading, title, subtitle, meta, trailing, onClick, to, isNew = false, wrap = false, label, as: As = 'div' }) {
   const tall = subtitle || meta
   const body = (
     <>
       {leading && <span className="shrink-0 flex items-center">{leading}</span>}
       <span className="min-w-0 flex-1">
         <span className="block text-body text-foreground truncate">{title}</span>
-        {subtitle && <span className="block text-body-sm text-muted truncate">{subtitle}</span>}
+        {subtitle && <span className={`block text-body-sm text-muted ${wrap ? 'line-clamp-2' : 'truncate'}`}>{subtitle}</span>}
         {meta && <span className="block type-data text-muted-dim truncate">{meta}</span>}
       </span>
       {trailing && <span className="shrink-0 flex items-center gap-2 text-right text-body">{trailing}</span>}

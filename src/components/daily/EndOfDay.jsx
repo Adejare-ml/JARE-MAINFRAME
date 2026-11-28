@@ -1,4 +1,8 @@
 import { useState } from 'react'
+import Panel from '../ui/Panel'
+import Button from '../ui/Button'
+import TaskCheck from './TaskCheck'
+import { controlClasses } from '../ui/Field'
 
 /**
  * The evening question: what landed, and what did not.
@@ -37,81 +41,67 @@ export default function EndOfDay({ open, onToggle, onSaveReason, busyId }) {
   }
 
   return (
-    <section className="bg-card rounded-3xl p-6 border border-border space-y-4">
-      <div>
-        <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">
-          Before you close
-        </h2>
-        <p className="text-xs text-muted mt-1.5">
-          {open.length} thing{open.length === 1 ? '' : 's'} still open. Tick what landed; say
-          what got in the way of the rest.
-        </p>
-      </div>
-
-      <ul className="space-y-2">
+    <Panel label="Before you close" meta={`${open.length} open`} flush>
+      <p className="px-3 py-2.5 text-body-sm text-muted border-b border-border">
+        Tick what landed; say what got in the way of the rest.
+      </p>
+      <ul className="divide-y divide-border">
         {open.map((task) => (
-          <li
-            key={task.id}
-            className="bg-background/50 border border-border rounded-2xl p-3 space-y-2"
-          >
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
+          <li key={task.id} className="px-3">
+            <div className="flex items-center gap-2 min-h-12">
+              <TaskCheck
+                done={false}
                 onClick={() => onToggle(task)}
                 disabled={busyId === task.id}
-                aria-label={`Mark "${task.title}" done`}
-                className="flex-shrink-0 disabled:opacity-60"
-              >
-                <span
-                  className="w-6 h-6 rounded-lg border-2 border-border flex items-center justify-center text-xs font-bold text-transparent"
-                  aria-hidden="true"
-                >
-                  ✓
-                </span>
-              </button>
-              <span className="min-w-0 flex-1 text-sm text-foreground">{task.title}</span>
+                label={`Mark "${task.title}" done`}
+              />
+              <span className="min-w-0 flex-1 text-body text-foreground truncate">{task.title}</span>
             </div>
 
             {task.blocked_reason && reasonId !== task.id && (
-              <p className="text-xs text-muted pl-8">
+              <p className="text-body-sm text-muted pl-9 pb-2">
                 <span className="text-muted-dim">Why not: </span>
                 {task.blocked_reason}
               </p>
             )}
 
             {reasonId === task.id ? (
-              <input
-                autoFocus
-                type="text"
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onBlur={() => commit(task)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') e.currentTarget.blur()
-                  if (e.key === 'Escape') setReasonId(null)
-                }}
-                placeholder="The client review overran…"
-                aria-label={`What got in the way of "${task.title}"`}
-                className="w-full px-4 py-2.5 bg-background border border-accent rounded-xl text-foreground text-xs placeholder-hint focus:outline-none min-h-[44px]"
-              />
+              <div className="pb-2">
+                <input
+                  autoFocus
+                  type="text"
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onBlur={() => commit(task)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') e.currentTarget.blur()
+                    if (e.key === 'Escape') setReasonId(null)
+                  }}
+                  placeholder="The client review overran"
+                  aria-label={`What got in the way of "${task.title}"`}
+                  className={controlClasses()}
+                />
+              </div>
             ) : (
               onSaveReason && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setReasonId(task.id)
-                    setDraft(task.blocked_reason || '')
-                  }}
-                  aria-label={task.blocked_reason ? `Change reason for not completing "${task.title}"` : `Add reason for not completing "${task.title}"`}
-                  className="text-xs text-muted hover:text-foreground underline underline-offset-2 pl-8"
-                >
-                  {task.blocked_reason ? 'Change why' : 'Say what got in the way'}
-                </button>
+                <div className="pl-6 pb-1">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setReasonId(task.id)
+                      setDraft(task.blocked_reason || '')
+                    }}
+                    aria-label={task.blocked_reason ? `Change reason for not completing "${task.title}"` : `Add reason for not completing "${task.title}"`}
+                  >
+                    {task.blocked_reason ? 'Change why' : 'Say what got in the way'}
+                  </Button>
+                </div>
               )
             )}
           </li>
         ))}
       </ul>
-    </section>
+    </Panel>
   )
 }

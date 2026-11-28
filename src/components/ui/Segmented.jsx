@@ -44,7 +44,7 @@ export default function Segmented({ options, value, onChange, label, tabs = fals
             aria-controls={tabs ? `${idPrefix}-panel-${o.value}` : undefined}
             aria-pressed={tabs ? undefined : selected}
             onClick={() => onChange(o.value)}
-            className={`relative z-10 flex-1 min-w-16 px-4 text-body-sm font-semibold transition-colors duration-150 ${
+            className={`relative z-10 flex-1 min-w-14 px-3 text-body-sm font-semibold transition-colors duration-150 ${
               selected ? 'text-foreground' : 'text-muted hover:text-foreground'
             }`}
           >
