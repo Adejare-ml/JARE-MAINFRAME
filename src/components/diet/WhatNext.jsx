@@ -1,5 +1,9 @@
 import { useState } from 'react'
 import { askWhatNext } from './api'
+import Panel from '../ui/Panel'
+import Button from '../ui/Button'
+import Badge from '../ui/Badge'
+import ListRow, { ListRows } from '../ui/ListRow'
 
 /**
  * "What should I eat next?" (Diet module, Phase 4). Sends what is left of
@@ -18,35 +22,36 @@ export default function WhatNext() {
   }
 
   return (
-    <section className="bg-card rounded-3xl p-6 border border-border space-y-3" aria-label="What to eat next">
-      <button type="button" onClick={ask} disabled={state.busy} className="w-full min-h-[48px] rounded-xl bg-surface-2 border border-border text-foreground text-sm font-bold disabled:opacity-60">
-        {state.busy ? 'Asking the coach…' : '🧭 What should I eat next?'}
-      </button>
-      {state.error && (
-        <p className="text-xs text-orange-300" role="alert">
-          {state.error}
-        </p>
-      )}
-      {state.result && (
-        <div className="space-y-2" aria-live="polite">
-          {state.result.reason && <p className="text-sm text-foreground leading-relaxed">{state.result.reason}</p>}
-          <ul className="space-y-2">
+    <Panel label="What to eat next" meta={state.result ? `${state.result.next_options.length} option${state.result.next_options.length === 1 ? '' : 's'}` : undefined} flush={Boolean(state.result?.next_options.length)}>
+      <div className={state.result?.next_options.length ? 'p-3 lg:p-4 space-y-3' : 'space-y-3'}>
+        <Button variant="secondary" full onClick={ask} loading={state.busy}>
+          {state.busy ? 'Asking the coach…' : 'What should I eat next?'}
+        </Button>
+        {state.error && (
+          <p className="text-body-sm text-warn" role="alert">
+            {state.error}
+          </p>
+        )}
+        {state.result?.reason && <p className="text-body text-foreground">{state.result.reason}</p>}
+        {state.result && state.result.next_options.length === 0 && <p className="text-body-sm text-muted">No suggestion passed the checks. Try again in a moment.</p>}
+        {state.result?.flag && <p className="text-body-sm text-warn">{state.result.flag}</p>}
+      </div>
+      {state.result?.next_options.length > 0 && (
+        <div aria-live="polite" className="border-t border-border">
+          <ListRows as="ul">
             {state.result.next_options.map((o, i) => (
-              <li key={i} className="rounded-2xl border border-border bg-background/50 p-3">
-                <p className="text-sm font-bold text-foreground">
-                  {o.meal}
-                  {o.from_pantry && <span className="ml-2 text-xs font-extrabold uppercase tracking-wider text-accent">at home</span>}
-                </p>
-                <p className="text-xs text-muted tabular-nums">
-                  {o.kcal.toLocaleString()} kcal · {o.protein_g} g protein{o.why ? ` · ${o.why}` : ''}
-                </p>
-              </li>
+              <ListRow
+                key={i}
+                as="li"
+                wrap
+                title={o.meal}
+                subtitle={`${o.kcal.toLocaleString()} kcal · ${o.protein_g} g protein${o.why ? ` · ${o.why}` : ''}`}
+                trailing={o.from_pantry ? <Badge label="at home" tone="accent" /> : null}
+              />
             ))}
-          </ul>
-          {state.result.next_options.length === 0 && <p className="text-xs text-muted">No suggestion passed the checks. Try again in a moment.</p>}
-          {state.result.flag && <p className="text-xs text-orange-300">{state.result.flag}</p>}
+          </ListRows>
         </div>
       )}
-    </section>
+    </Panel>
   )
 }

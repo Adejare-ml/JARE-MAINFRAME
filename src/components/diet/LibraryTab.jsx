@@ -4,9 +4,18 @@ import { toast } from '../../lib/toast'
 import { searchFoods } from '../../lib/diet/foods'
 import { sumNutrition, toNumber, round1 } from '../../lib/diet/nutrition'
 import { SLOT_LABELS } from '../../lib/diet/totals'
-import { formatNaira } from '../../lib/formatters'
 import { priceItems } from './api'
 import AddFoodSheet from './AddFoodSheet'
+import Panel from '../ui/Panel'
+import ListRow, { ListRows } from '../ui/ListRow'
+import Button from '../ui/Button'
+import IconButton from '../ui/IconButton'
+import Icon from '../ui/Icon'
+import Badge from '../ui/Badge'
+import Label from '../ui/Label'
+import Money from '../ui/Money'
+import Segmented from '../ui/Segmented'
+import { Input, controlClasses } from '../ui/Field'
 
 /**
  * Library: the saved meals, recipes, foods and pantry that logging draws on.
@@ -22,27 +31,14 @@ import AddFoodSheet from './AddFoodSheet'
 export default function LibraryTab({ lib, onChanged }) {
   const [section, setSection] = useState('saved')
   const tabs = [
-    ['saved', 'Saved meals'],
+    ['saved', 'Saved'],
     ['recipes', 'Recipes'],
     ['foods', 'Foods'],
     ['pantry', 'Pantry'],
   ]
   return (
-    <div className="space-y-4">
-      <div className="flex gap-2 overflow-x-auto scrollbar-none" role="tablist" aria-label="Library">
-        {tabs.map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            role="tab"
-            aria-selected={section === key}
-            onClick={() => setSection(key)}
-            className={`shrink-0 px-4 min-h-[44px] rounded-full text-xs font-bold border ${section === key ? 'border-accent bg-accent/10 text-accent' : 'border-border text-muted'}`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+    <div className="space-y-3">
+      <Segmented label="Library" full options={tabs.map(([value, label]) => ({ value, label }))} value={section} onChange={setSection} />
       {section === 'saved' && <SavedMeals lib={lib} onChanged={onChanged} />}
       {section === 'recipes' && <Recipes lib={lib} onChanged={onChanged} />}
       {section === 'foods' && <Foods lib={lib} onChanged={onChanged} />}
@@ -51,8 +47,7 @@ export default function LibraryTab({ lib, onChanged }) {
   )
 }
 
-const card = 'bg-card rounded-3xl p-5 border border-border'
-const input = 'w-full px-3 py-2.5 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[44px]'
+const input = controlClasses()
 
 function SavedMeals({ lib, onChanged }) {
   const [adding, setAdding] = useState(false)
@@ -66,41 +61,41 @@ function SavedMeals({ lib, onChanged }) {
   }
 
   return (
-    <section className={`${card} space-y-3`} aria-label="Saved meals">
-      <p className="text-xs text-muted">One tap on the Today screen logs any of these.</p>
-      <ul className="divide-y divide-border">
+    <Panel label="Saved meals" meta={`${lib.saved.length} saved`} flush>
+      <p className="px-3 py-2 lg:px-4 text-body-sm text-muted">One tap on the Today screen logs any of these.</p>
+      <div className={lib.saved.length ? 'border-t border-border' : ''}>
+      <ListRows as="ul">
         {lib.saved.map((s) => {
           const items = priceItems(s.items, lib)
           const n = sumNutrition(items)
           return (
-            <li key={s.id} className="py-3 flex items-center gap-3">
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold text-foreground truncate">{s.name}</p>
-                <p className="text-xs text-muted truncate">
-                  {items.map((i) => i.name).join(', ')} · {s.meal_slot ? SLOT_LABELS[s.meal_slot] : 'any meal'}
-                </p>
-              </div>
-              <span className="text-sm text-foreground tabular-nums shrink-0">
-                {n.kcal} kcal · {n.protein_g} g
-              </span>
-              {confirm === s.id ? (
-                <button type="button" onClick={() => remove(s.id)} className="px-3 min-h-[44px] rounded-xl bg-red-500/20 text-red-300 text-xs font-bold">
-                  Delete?
-                </button>
-              ) : (
-                <button type="button" onClick={() => setConfirm(s.id)} className="min-w-[44px] min-h-[44px] rounded-full text-muted hover:text-red-300" aria-label={`Delete ${s.name}`}>
-                  ✕
-                </button>
-              )}
-            </li>
+            <ListRow
+              key={s.id}
+              as="li"
+              title={s.name}
+              subtitle={`${items.map((i) => i.name).join(', ')} · ${s.meal_slot ? SLOT_LABELS[s.meal_slot] : 'any meal'}`}
+              meta={`${n.kcal} kcal · ${n.protein_g} g protein`}
+              trailing={
+                confirm === s.id ? (
+                  <Button size="sm" variant="danger" onClick={() => remove(s.id)}>
+                    Delete?
+                  </Button>
+                ) : (
+                  <IconButton name="close" label={`Delete ${s.name}`} onClick={() => setConfirm(s.id)} className="-mr-3" />
+                )
+              }
+            />
           )
         })}
-      </ul>
-      <button type="button" onClick={() => setAdding(true)} className="w-full min-h-[48px] rounded-xl bg-surface-2 border border-border text-foreground text-sm font-bold">
-        ＋ New saved meal
-      </button>
+      </ListRows>
+      </div>
+      <div className="p-3 lg:p-4 border-t border-border">
+        <Button variant="secondary" icon="plus" full onClick={() => setAdding(true)}>
+          New saved meal
+        </Button>
+      </div>
       <AddFoodSheet isOpen={adding} onClose={() => setAdding(false)} lib={lib} mode="save" onLogged={onChanged} />
-    </section>
+    </Panel>
   )
 }
 
@@ -123,40 +118,41 @@ function Recipes({ lib, onChanged }) {
   }
 
   return (
-    <section className={`${card} space-y-3`} aria-label="Recipes">
-      <p className="text-xs text-muted">Ingredients by raw weight. Nutrition per portion is worked out from them, so changing the pot changes every portion.</p>
-      <ul className="space-y-2">
+    <Panel label="Recipes" meta={`${lib.recipes.length} recipe${lib.recipes.length === 1 ? '' : 's'}`} flush>
+      <p className="px-3 py-2 lg:px-4 text-body-sm text-muted border-b border-border">Ingredients by raw weight. Nutrition per portion is worked out from them, so changing the pot changes every portion.</p>
+      <ul className={`divide-y divide-border ${lib.recipes.length ? 'border-t border-border' : ''}`}>
         {lib.recipes.map((r) => {
           const p = lib.portions.get(r.id)
+          const isOpen = open === r.id
           return (
-            <li key={r.id} className="rounded-2xl border border-border bg-background/40">
-              <button type="button" onClick={() => setOpen(open === r.id ? null : r.id)} className="w-full flex items-center gap-3 p-3 min-h-[52px] text-left" aria-expanded={open === r.id}>
-                <span aria-hidden="true">🍲</span>
+            <li key={r.id} className={isOpen ? 'bg-surface-2' : ''}>
+              <button
+                type="button"
+                onClick={() => setOpen(isOpen ? null : r.id)}
+                className="w-full flex items-center gap-3 px-3 py-2 min-h-14 text-left transition-colors duration-150 hover:bg-surface-2"
+                aria-expanded={isOpen}
+              >
                 <span className="flex-1 min-w-0">
-                  <span className="block text-sm font-bold text-foreground truncate">{r.name}</span>
-                  <span className="block text-xs text-muted">
+                  <span className="block text-body text-foreground truncate">{r.name}</span>
+                  <span className="block text-body-sm text-muted truncate">
                     {round1(r.portions)} portions · {p ? `${p.kcal} kcal, ${p.protein_g} g protein, ${p.grams} g each` : 'no ingredients yet'}
                   </span>
                 </span>
-                <span className="text-muted" aria-hidden="true">
-                  {open === r.id ? '▴' : '▾'}
-                </span>
+                <Icon name={isOpen ? 'chevU' : 'chevD'} size={18} className="text-muted shrink-0" />
               </button>
-              {open === r.id && <RecipeEditor recipe={r} lib={lib} onChanged={onChanged} />}
+              {isOpen && <RecipeEditor recipe={r} lib={lib} onChanged={onChanged} />}
             </li>
           )
         })}
       </ul>
-      <form onSubmit={create} className="flex gap-2">
+      <form onSubmit={create} className="flex gap-2 p-3 lg:p-4 border-t border-border">
         <label htmlFor="new-recipe" className="sr-only">
           New recipe name
         </label>
         <input id="new-recipe" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="New recipe, e.g. Egusi pot" className={input} />
-        <button type="submit" className="px-4 rounded-xl bg-accent text-on-accent text-sm font-bold min-h-[44px]">
-          Add
-        </button>
+        <Button type="submit">Add</Button>
       </form>
-    </section>
+    </Panel>
   )
 }
 
@@ -207,10 +203,10 @@ function RecipeEditor({ recipe, lib, onChanged }) {
 
   return (
     <div className="px-3 pb-3 space-y-3">
-      <ul className="space-y-1">
+      <ul className="divide-y divide-border border border-border rounded-panel bg-card">
         {ingredients.map((ing) => (
-          <li key={ing.id} className="flex items-center gap-2 text-sm">
-            <span className="flex-1 min-w-0 truncate text-foreground">{lib.foodsById.get(ing.food_id)?.name ?? 'Missing food'}</span>
+          <li key={ing.id} className="flex items-center gap-2 pl-3 min-h-12">
+            <span className="flex-1 min-w-0 truncate text-body text-foreground">{lib.foodsById.get(ing.food_id)?.name ?? 'Missing food'}</span>
             <label className="sr-only" htmlFor={`ing-${ing.id}`}>
               Grams of {lib.foodsById.get(ing.food_id)?.name}
             </label>
@@ -220,33 +216,32 @@ function RecipeEditor({ recipe, lib, onChanged }) {
               inputMode="decimal"
               defaultValue={ing.grams}
               onBlur={(e) => setIngredient(ing, e.target.value)}
-              className="w-24 px-2 py-2 bg-background border border-border rounded-lg text-right text-foreground min-h-[40px]"
+              className={`${controlClasses()} !w-24 text-right`}
             />
-            <span className="text-xs text-muted">g</span>
-            <button type="button" onClick={() => removeIngredient(ing)} className="min-w-[40px] min-h-[40px] rounded-full text-muted hover:text-red-300" aria-label="Remove ingredient">
-              ✕
-            </button>
+            <span className="type-data text-muted">g</span>
+            <IconButton name="close" label="Remove ingredient" onClick={() => removeIngredient(ing)} />
           </li>
         ))}
+        {ingredients.length === 0 && <li className="px-3 py-3 text-body-sm text-muted">No ingredients yet.</li>}
       </ul>
       <form onSubmit={addIngredient} className="space-y-2">
         {pick ? (
-          <p className="text-xs text-foreground">
-            Adding <b>{pick.name}</b>{' '}
-            <button type="button" onClick={() => setPick(null)} className="text-accent">
-              change
-            </button>
+          <p className="flex items-center gap-2 text-body text-foreground">
+            <span className="min-w-0 truncate">
+              Adding <b className="font-semibold">{pick.name}</b>
+            </span>
+            <Button size="sm" variant="ghost" onClick={() => setPick(null)}>
+              Change
+            </Button>
           </p>
         ) : (
           <>
             <input aria-label="Find an ingredient" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Add an ingredient…" className={input} />
             {matches.length > 0 && (
-              <ul className="rounded-xl border border-border divide-y divide-border">
+              <ul className="rounded-panel border border-border bg-card divide-y divide-border">
                 {matches.map((m) => (
                   <li key={m.id}>
-                    <button type="button" onClick={() => setPick(m)} className="w-full text-left px-3 py-2 text-sm text-foreground min-h-[44px] hover:bg-surface-2">
-                      {m.name}
-                    </button>
+                    <ListRow onClick={() => setPick(m)} title={m.name} trailing={<Icon name="plus" size={18} className="text-muted" />} />
                   </li>
                 ))}
               </ul>
@@ -256,25 +251,17 @@ function RecipeEditor({ recipe, lib, onChanged }) {
         {pick && (
           <div className="flex gap-2">
             <input aria-label="Grams" type="number" inputMode="decimal" value={grams} onChange={(e) => setGrams(e.target.value)} placeholder="Grams (raw)" className={input} />
-            <button type="submit" className="px-4 rounded-xl bg-accent text-on-accent text-sm font-bold min-h-[44px]">
-              Add
-            </button>
+            <Button type="submit">Add</Button>
           </div>
         )}
       </form>
       <div className="grid grid-cols-2 gap-2">
-        <label className="text-xs text-muted space-y-1">
-          <span className="block">Portions</span>
-          <input type="number" inputMode="decimal" value={portions} onChange={(e) => setPortions(e.target.value)} className={input} />
-        </label>
-        <label className="text-xs text-muted space-y-1">
-          <span className="block">Cooked weight (g), optional</span>
-          <input type="number" inputMode="decimal" value={cooked} onChange={(e) => setCooked(e.target.value)} className={input} />
-        </label>
+        <Input label="Portions" type="number" inputMode="decimal" value={portions} onChange={(e) => setPortions(e.target.value)} />
+        <Input label="Cooked g, optional" type="number" inputMode="decimal" value={cooked} onChange={(e) => setCooked(e.target.value)} />
       </div>
-      <button type="button" onClick={saveRecipe} className="w-full min-h-[44px] rounded-xl bg-surface-2 border border-border text-foreground text-sm font-bold">
+      <Button variant="secondary" full onClick={saveRecipe}>
         Save portions
-      </button>
+      </Button>
     </div>
   )
 }
@@ -315,11 +302,11 @@ function Foods({ lib, onChanged }) {
   if (editing) {
     const set = (k) => (e) => setEditing((f) => ({ ...f, [k]: e.target.value }))
     return (
-      <form onSubmit={save} className={`${card} space-y-3`} aria-label={editing.id ? 'Edit food' : 'New food'}>
-        <p className="text-sm font-bold text-foreground">{editing.id ? 'Edit food' : 'New food'}</p>
+      <Panel label={editing.id ? 'Edit food' : 'New food'}>
+      <form onSubmit={save} className="space-y-3" aria-label={editing.id ? 'Edit food' : 'New food'}>
         <input aria-label="Name" value={editing.name} onChange={set('name')} placeholder="Name" className={input} />
         <input aria-label="Other names" value={editing.aliases} onChange={set('aliases')} placeholder="Other names, comma-separated" className={input} />
-        <p className="text-xs text-muted">Per 100 g as eaten</p>
+        <Label as="p">Per 100 g as eaten</Label>
         <div className="grid grid-cols-2 gap-2">
           <input aria-label="kcal per 100 g" type="number" inputMode="decimal" value={editing.kcal_per_100g} onChange={set('kcal_per_100g')} placeholder="kcal" className={input} />
           <input aria-label="Protein per 100 g" type="number" inputMode="decimal" value={editing.protein_g} onChange={set('protein_g')} placeholder="Protein g" className={input} />
@@ -329,50 +316,48 @@ function Foods({ lib, onChanged }) {
           <input aria-label="Portion label" value={editing.portion_label} onChange={set('portion_label')} placeholder="e.g. 1 wrap" className={input} />
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <button type="button" onClick={() => setEditing(null)} className="min-h-[48px] rounded-xl bg-surface-2 text-foreground text-sm font-bold">
+          <Button variant="secondary" onClick={() => setEditing(null)}>
             Cancel
-          </button>
-          <button type="submit" className="min-h-[48px] rounded-xl bg-accent text-on-accent text-sm font-extrabold">
-            Save
-          </button>
+          </Button>
+          <Button type="submit">Save</Button>
         </div>
       </form>
+      </Panel>
     )
   }
 
   return (
-    <section className={`${card} space-y-3`} aria-label="Foods">
-      <div className="flex gap-2">
+    <Panel label="Foods" meta={`${lib.foods.length} foods`} flush>
+      <div className="flex gap-2 p-3 lg:p-4 border-b border-border">
         <input aria-label="Search foods" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={`Search ${lib.foods.length} foods`} className={input} />
-        <button type="button" onClick={() => setEditing({ ...EMPTY_FOOD, name: query })} className="px-4 rounded-xl bg-accent text-on-accent text-sm font-bold min-h-[44px] shrink-0">
-          ＋ New
-        </button>
+        <Button icon="plus" onClick={() => setEditing({ ...EMPTY_FOOD, name: query })}>
+          New
+        </Button>
       </div>
-      <ul className="divide-y divide-border">
+      <ListRows as="ul">
         {list.map(({ row: f }) => (
           <li key={f.id}>
-            <button
-              type="button"
+            <ListRow
               onClick={() => setEditing({ ...EMPTY_FOOD, ...Object.fromEntries(Object.entries(f).map(([k, v]) => [k, v == null ? '' : v])), aliases: (f.aliases || []).join(', ') })}
-              className="w-full flex items-center gap-3 py-2 min-h-[48px] text-left"
-            >
-              <span className="flex-1 min-w-0">
-                <span className="block text-sm text-foreground truncate">
-                  {f.name}
-                  {f.estimated && <span className="ml-2 text-xs text-orange-300 font-bold uppercase">estimated</span>}
+              title={
+                <span className="flex items-center gap-2 min-w-0">
+                  <span className="truncate">{f.name}</span>
+                  {f.estimated && <Badge label="estimated" tone="warn" />}
                 </span>
-                <span className="block text-xs text-muted truncate">{(f.aliases || []).join(', ')}</span>
-              </span>
-              <span className="text-xs text-muted tabular-nums text-right shrink-0">
-                {round1(f.kcal_per_100g)} kcal
-                <br />
-                {round1(f.protein_g)} g P / 100 g
-              </span>
-            </button>
+              }
+              subtitle={(f.aliases || []).join(', ') || undefined}
+              trailing={
+                <span className="type-data text-muted text-right whitespace-nowrap">
+                  {round1(f.kcal_per_100g)} kcal
+                  <br />
+                  {round1(f.protein_g)} g P / 100 g
+                </span>
+              }
+            />
           </li>
         ))}
-      </ul>
-    </section>
+      </ListRows>
+    </Panel>
   )
 }
 
@@ -414,42 +399,52 @@ function Pantry() {
   const shown = items.filter((i) => showFinished || !i.finished)
 
   return (
-    <section className={`${card} space-y-3`} aria-label="Pantry">
-      <p className="text-xs text-muted">What is at home. The coach (Phase 4) suggests meals from it; from Phase 2 you can also say "bought 2 kg beans for 3,000".</p>
-      <form onSubmit={add} className="grid grid-cols-2 gap-2">
-        <input aria-label="Item" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Item, e.g. brown beans" className={`${input} col-span-2`} />
-        <input aria-label="Quantity" type="number" inputMode="decimal" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} placeholder="Qty" className={input} />
-        <input aria-label="Unit" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} placeholder="kg, crates…" className={input} />
-        <input aria-label="Cost in naira" type="number" inputMode="numeric" value={form.cost_naira} onChange={(e) => setForm({ ...form, cost_naira: e.target.value })} placeholder="₦ cost" className={input} />
-        <button type="submit" className="rounded-xl bg-accent text-on-accent text-sm font-bold min-h-[44px]">
-          Add
-        </button>
-      </form>
-      <ul className="divide-y divide-border">
+    <Panel label="Pantry" meta={`${items.filter((i) => !i.finished).length} at home`} flush>
+      <div className="p-3 lg:p-4 space-y-3 border-b border-border">
+        <p className="text-body-sm text-muted">What is at home. The coach (Phase 4) suggests meals from it; from Phase 2 you can also say "bought 2 kg beans for 3,000".</p>
+        <form onSubmit={add} className="grid grid-cols-2 gap-2">
+          <input aria-label="Item" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Item, e.g. brown beans" className={`${input} col-span-2`} />
+          <input aria-label="Quantity" type="number" inputMode="decimal" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} placeholder="Qty" className={input} />
+          <input aria-label="Unit" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} placeholder="kg, crates…" className={input} />
+          <input aria-label="Cost in naira" type="number" inputMode="numeric" value={form.cost_naira} onChange={(e) => setForm({ ...form, cost_naira: e.target.value })} placeholder="Cost in naira" className={input} />
+          <Button type="submit">Add</Button>
+        </form>
+      </div>
+      <ListRows as="ul">
         {shown.map((i) => (
-          <li key={i.id} className="flex items-center gap-3 py-2">
-            <span className={`flex-1 min-w-0 text-sm truncate ${i.finished ? 'text-muted line-through' : 'text-foreground'}`}>
-              {i.name}
-              {i.quantity != null && (
-                <span className="text-muted">
-                  {' '}
-                  · {round1(i.quantity)} {i.unit || ''}
-                </span>
-              )}
-            </span>
-            {i.cost_naira != null && <span className="text-xs text-muted money">{formatNaira(i.cost_naira)}</span>}
-            <button type="button" onClick={() => toggle(i)} className="px-3 min-h-[44px] rounded-xl bg-surface-2 text-xs font-bold text-foreground">
-              {i.finished ? 'Restock' : 'Finished'}
-            </button>
-          </li>
+          <ListRow
+            key={i.id}
+            as="li"
+            title={
+              <span className={i.finished ? 'text-muted line-through' : ''}>
+                {i.name}
+                {i.quantity != null && (
+                  <span className="text-muted">
+                    {' '}
+                    · {round1(i.quantity)} {i.unit || ''}
+                  </span>
+                )}
+              </span>
+            }
+            trailing={
+              <>
+                {i.cost_naira != null && <Money amount={i.cost_naira} tone="muted" className="text-body-sm" />}
+                <Button size="sm" variant="secondary" onClick={() => toggle(i)}>
+                  {i.finished ? 'Restock' : 'Finished'}
+                </Button>
+              </>
+            }
+          />
         ))}
-        {shown.length === 0 && <li className="py-3 text-sm text-muted">Nothing in the pantry list.</li>}
-      </ul>
+        {shown.length === 0 && <li className="px-3 py-3 text-body-sm text-muted">Nothing in the pantry list.</li>}
+      </ListRows>
       {items.some((i) => i.finished) && (
-        <button type="button" onClick={() => setShowFinished((s) => !s)} className="text-xs text-accent font-bold min-h-[44px]">
-          {showFinished ? 'Hide finished' : 'Show finished'}
-        </button>
+        <div className="px-3 py-1 border-t border-border">
+          <Button size="sm" variant="ghost" onClick={() => setShowFinished((s) => !s)}>
+            {showFinished ? 'Hide finished' : 'Show finished'}
+          </Button>
+        </div>
       )}
-    </section>
+    </Panel>
   )
 }

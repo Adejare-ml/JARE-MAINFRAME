@@ -9,6 +9,7 @@ import { mealTypeFor, itemsForStorage, sumCalories, LIMITS, newItem } from '../.
 import { isValidDate } from '../../lib/normalize'
 import Sheet from '../ui/Sheet'
 import MealReview, { searchDishes } from './MealReview'
+import Icon from '../ui/Icon'
 
 /**
  * From a plate to a logged meal.
@@ -384,7 +385,6 @@ export default function MealCapture({ isOpen, onClose, onLogged, initialMode = '
       onDrop={onDrop}
     >
       <label className={`${bigButton} bg-accent text-on-accent border-accent cursor-pointer hover:bg-accent/90`}>
-        <span className="text-2xl" aria-hidden="true">📷</span>
         <span>
           <span className="block font-extrabold text-sm">Take a photo</span>
           <span className="block text-xs opacity-80">Opens the camera on a phone</span>
@@ -403,7 +403,6 @@ export default function MealCapture({ isOpen, onClose, onLogged, initialMode = '
       </label>
 
       <label className={`${bigButton} bg-surface-2 border-border text-foreground cursor-pointer hover:bg-surface-2`}>
-        <span className="text-2xl" aria-hidden="true">🖼️</span>
         <span>
           <span className="block font-bold text-sm">Choose a photo</span>
           <span className="block text-xs text-muted">Or drop one here, or paste it</span>
@@ -421,7 +420,6 @@ export default function MealCapture({ isOpen, onClose, onLogged, initialMode = '
 
       {webcamPossible && (
         <button type="button" onClick={startWebcam} className={`${bigButton} bg-surface-2 border-border text-foreground hover:bg-surface-2`}>
-          <span className="text-2xl" aria-hidden="true">🎥</span>
           <span>
             <span className="block font-bold text-sm">Use the webcam</span>
             <span className="block text-xs text-muted">Hold the plate up to it</span>
@@ -431,10 +429,10 @@ export default function MealCapture({ isOpen, onClose, onLogged, initialMode = '
 
       <div className="grid grid-cols-2 gap-2 pt-1">
         <button type="button" onClick={() => setStep(STEPS.TEXT)} className="p-3 rounded-2xl bg-surface-2 border border-border text-foreground text-sm font-bold min-h-[48px] hover:bg-surface-2">
-          ✍️ Describe it
+          Describe it
         </button>
         <button type="button" onClick={() => setStep(STEPS.PICK)} className="p-3 rounded-2xl bg-surface-2 border border-border text-foreground text-sm font-bold min-h-[48px] hover:bg-surface-2">
-          📋 Pick from list
+          Pick from list
         </button>
       </div>
 
@@ -458,7 +456,7 @@ export default function MealCapture({ isOpen, onClose, onLogged, initialMode = '
   const renderWebcam = () => (
     <div className="space-y-3">
       {/* muted: no audio track is requested, and a silent video needs no captions. */}
-      <video ref={videoRef} autoPlay playsInline muted className="w-full rounded-2xl bg-black aspect-[4/3] object-cover" />
+      <video ref={videoRef} autoPlay playsInline muted className="w-full rounded-2xl bg-surface-2 aspect-[4/3] object-cover" />
       <div className="flex gap-2">
         <button
           type="button"
@@ -471,7 +469,7 @@ export default function MealCapture({ isOpen, onClose, onLogged, initialMode = '
           Back
         </button>
         <button type="button" onClick={snapWebcam} className="flex-[2] bg-accent text-on-accent rounded-xl font-extrabold text-sm min-h-[48px]">
-          📷 Take the picture
+          Take the picture
         </button>
       </div>
     </div>
@@ -480,14 +478,14 @@ export default function MealCapture({ isOpen, onClose, onLogged, initialMode = '
   const renderWorking = () => (
     <div className="space-y-4 text-center">
       {photo?.previewUrl ? (
-        <img src={photo.previewUrl} alt="Your plate, as it will be sent" className="w-full max-h-64 object-contain rounded-2xl bg-black" />
+        <img src={photo.previewUrl} alt="Your plate, as it will be sent" className="w-full max-h-64 object-contain rounded-2xl bg-surface-2" />
       ) : (
-        <div className="h-32 rounded-2xl bg-surface-2 flex items-center justify-center text-4xl" aria-hidden="true">
-          ✍️
+        <div className="h-32 rounded-2xl bg-surface-2 flex items-center justify-center text-muted" aria-hidden="true">
+          <Icon name="edit" size={32} />
         </div>
       )}
       {photo?.quality && (
-        <p className={`text-xs ${photo.quality.corrected ? 'text-orange-300' : 'text-muted-dim'}`}>
+        <p className={`text-xs ${photo.quality.corrected ? 'text-warn' : 'text-muted-dim'}`}>
           {photo.quality.note}
           {photo.bytes ? ` · ${Math.round(photo.bytes / 1024)} KB` : ''}
         </p>
@@ -504,15 +502,15 @@ export default function MealCapture({ isOpen, onClose, onLogged, initialMode = '
 
   const renderProblem = () => (
     <div className="space-y-4">
-      {photo?.previewUrl && <img src={photo.previewUrl} alt="Your plate; the model could not read it" className="w-full max-h-48 object-contain rounded-2xl bg-black" />}
-      <div className="rounded-2xl bg-orange-500/10 border border-orange-500/20 p-4">
-        <p className="text-sm font-bold text-orange-200">{problem?.title}</p>
-        <p className="text-xs text-orange-200/80 mt-1 leading-relaxed">{problem?.detail}</p>
+      {photo?.previewUrl && <img src={photo.previewUrl} alt="Your plate; the model could not read it" className="w-full max-h-48 object-contain rounded-2xl bg-surface-2" />}
+      <div className="rounded-2xl bg-surface-2 border border-warn p-4">
+        <p className="text-sm font-bold text-warn">{problem?.title}</p>
+        <p className="text-xs text-warn/80 mt-1 leading-relaxed">{problem?.detail}</p>
       </div>
       <div className="grid grid-cols-2 gap-2">
         {problem?.retake && (
           <button type="button" onClick={() => { setPhoto(null); setStep(STEPS.CHOOSE) }} className="p-3 rounded-xl bg-accent text-on-accent font-extrabold text-sm min-h-[48px]">
-            📷 Try another photo
+            Try another photo
           </button>
         )}
         {problem?.useAnyway && photo && (
@@ -526,10 +524,10 @@ export default function MealCapture({ isOpen, onClose, onLogged, initialMode = '
           </button>
         )}
         <button type="button" onClick={() => setStep(STEPS.TEXT)} className="p-3 rounded-xl bg-surface-2 border border-border text-foreground font-bold text-sm min-h-[48px]">
-          ✍️ Describe it
+          Describe it
         </button>
         <button type="button" onClick={() => setStep(STEPS.PICK)} className="p-3 rounded-xl bg-surface-2 border border-border text-foreground font-bold text-sm min-h-[48px]">
-          📋 Pick from list
+          Pick from list
         </button>
       </div>
     </div>
@@ -622,7 +620,7 @@ export default function MealCapture({ isOpen, onClose, onLogged, initialMode = '
     <div className="space-y-5">
       {photo?.thumbnail && (
         <div className="flex items-center gap-3">
-          <img src={photo.thumbnail} alt="" className="w-14 h-14 rounded-xl object-cover bg-black" />
+          <img src={photo.thumbnail} alt="" className="w-14 h-14 rounded-xl object-cover bg-surface-2" />
           <p className="text-xs text-muted-dim">
             {analysis?.provider ? `Read by ${analysis.provider}${analysis.model ? ` (${analysis.model})` : ''}.` : ''} The photo itself is not stored.
           </p>
@@ -648,11 +646,11 @@ export default function MealCapture({ isOpen, onClose, onLogged, initialMode = '
         className="w-full bg-accent text-on-accent rounded-xl font-extrabold text-base py-4 hover:bg-accent/90 transition-all shadow-lg shadow-accent/20 disabled:opacity-50 min-h-[48px] flex items-center justify-center gap-2"
       >
         {justLogged ? (
-          <span className="inline-block text-xl animate-check-pop" aria-hidden="true">✓</span>
+          <span className="inline-flex animate-check-pop"><Icon name="check" size={20} /></span>
         ) : logging ? (
-          <span className="inline-block w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+          <span className="inline-block w-5 h-5 border-2 border-on-accent border-t-transparent rounded-full animate-spin" />
         ) : (
-          `Log ${sumCalories(items).toLocaleString()} kcal ✓`
+          `Log ${sumCalories(items).toLocaleString()} kcal`
         )}
       </button>
     </div>
@@ -689,7 +687,7 @@ export default function MealCapture({ isOpen, onClose, onLogged, initialMode = '
           className="w-9 h-9 rounded-full bg-surface-2 hover:bg-surface-2 text-muted hover:text-foreground flex items-center justify-center font-bold text-sm min-h-[48px] min-w-[48px]"
           aria-label="Close"
         >
-          ✕
+          <Icon name="close" size={18} />
         </button>
       </div>
       <div className="p-6 flex-1 overflow-y-auto">{body()}</div>
