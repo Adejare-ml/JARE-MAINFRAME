@@ -1,6 +1,12 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { formatNaira } from '../lib/formatters'
+import PageHeader from '../components/ui/PageHeader'
+import Panel from '../components/ui/Panel'
+import ListRow, { ListRows } from '../components/ui/ListRow'
+import Money from '../components/ui/Money'
+import Button from '../components/ui/Button'
+import StatusDot from '../components/ui/StatusDot'
+import { Textarea } from '../components/ui/Field'
 
 /**
  * Minimal by design -- the citation-gated dispatch table this calls
@@ -8,7 +14,7 @@ import { formatNaira } from '../lib/formatters'
  * prose, so there is no summary to render, only the shape it returned.
  */
 function AnswerValue({ value }) {
-  if (typeof value === 'number') return <>{formatNaira(value)}</>
+  if (typeof value === 'number') return <Money amount={value} />
   if (typeof value === 'boolean') return <>{value ? 'Yes' : 'No'}</>
   if (value == null) return <>—</>
   return <>{String(value)}</>
@@ -47,51 +53,52 @@ export default function Ask() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold text-foreground">Ask 💬</h1>
-        <p className="text-muted text-sm mt-1">
-          Ask a question about your own money. Answers come from real numbers, never a guess.
-        </p>
-      </div>
+    <div className="space-y-3 pb-6">
+      <PageHeader title="Ask" meta="Answers from real numbers" />
 
-      <form onSubmit={ask} className="bg-card rounded-2xl p-6 border border-border space-y-4">
-        <textarea
-          value={question}
-          onChange={(e) => setQuestion(e.target.value)}
-          placeholder="e.g. How much have I spent on transport this month?"
-          rows={3}
-          className="w-full bg-background rounded-xl p-4 text-foreground placeholder:text-muted-dim border border-border focus:outline-none focus:ring-2 focus:ring-accent/50 resize-none"
-        />
-        <button
-          type="submit"
-          disabled={asking || !question.trim()}
-          className="px-5 py-2.5 bg-accent text-on-accent rounded-xl text-sm font-medium min-h-[48px] disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {asking ? 'Asking…' : 'Ask'}
-        </button>
-      </form>
+      <Panel label="Question">
+        <form onSubmit={ask} className="space-y-3">
+          <p className="text-body-sm text-muted">
+            Ask a question about your own money. Answers come from real numbers, never a guess.
+          </p>
+          <Textarea
+            aria-label="Question"
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            placeholder="e.g. How much have I spent on transport this month?"
+            rows={3}
+          />
+          <Button type="submit" icon="ask" loading={asking} disabled={!question.trim()}>
+            {asking ? 'Asking…' : 'Ask'}
+          </Button>
+        </form>
+      </Panel>
 
       {error && (
-        <section className="bg-card rounded-2xl p-6 border border-red-500/20">
-          <p className="text-sm text-red-400">{error}</p>
-        </section>
+        <Panel label="No answer" tone="danger">
+          <p role="alert" className="flex items-start gap-2 text-body-sm text-foreground">
+            <StatusDot status="danger" className="mt-1.5" />
+            <span>{error}</span>
+          </p>
+        </Panel>
       )}
 
       {answer && (
-        <section className="bg-card rounded-2xl p-6 border border-border">
-          <h2 className="text-sm font-semibold text-muted uppercase tracking-wider mb-4">Answer</h2>
-          <dl className="space-y-2">
+        <Panel label="Answer" flush>
+          <ListRows label="Answer">
             {Object.entries(answer).map(([key, value]) => (
-              <div key={key} className="flex items-center justify-between">
-                <dt className="text-sm text-muted capitalize">{key.replace(/([A-Z])/g, ' $1')}</dt>
-                <dd className="text-foreground font-medium">
-                  <AnswerValue value={value} />
-                </dd>
-              </div>
+              <ListRow
+                key={key}
+                title={<span className="capitalize">{key.replace(/([A-Z])/g, ' $1')}</span>}
+                trailing={
+                  <span className="text-foreground font-medium">
+                    <AnswerValue value={value} />
+                  </span>
+                }
+              />
             ))}
-          </dl>
-        </section>
+          </ListRows>
+        </Panel>
       )}
     </div>
   )
