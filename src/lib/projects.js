@@ -9,9 +9,10 @@
 
 import { startOfMonth, toDateOnly } from './queries.js'
 
+/** `icon` is a glyph name for <Icon> (src/components/ui/Icon.jsx), never an emoji. */
 export const TYPES = [
-  { value: 'coding', label: 'Coding', icon: '💻' },
-  { value: 'hands-on', label: 'Hands-on', icon: '🔨' },
+  { value: 'coding', label: 'Coding', icon: 'laptop' },
+  { value: 'hands-on', label: 'Hands-on', icon: 'repair' },
 ]
 
 export const STATUSES = [

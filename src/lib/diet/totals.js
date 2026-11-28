@@ -19,7 +19,9 @@ export const TIME_ZONE = 'Africa/Lagos'
 export const SLOTS = ['breakfast', 'lunch', 'dinner', 'snacks']
 
 export const SLOT_LABELS = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snacks: 'Snacks' }
-export const SLOT_ICONS = { breakfast: '🌅', lunch: '☀️', dinner: '🌙', snacks: '🍊' }
+// Text only (no emoji): the slot is named, not pictured. Kept as an export so
+// older imports still resolve.
+export const SLOT_ICONS = SLOT_LABELS
 
 const dayFormat = new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit' })
 const timeFormat = new Intl.DateTimeFormat('en-GB', { timeZone: TIME_ZONE, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })

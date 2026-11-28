@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { hasColumn } from '../../lib/schema'
+import Panel from '../ui/Panel'
 
 /**
  * A few sentences about the week that just closed, written by
@@ -60,17 +61,14 @@ export default function WeekRecap({ weekStart }) {
   if (sentences.length === 0) return null
 
   return (
-    <section className="bg-card rounded-3xl p-6 border border-white/5 space-y-2.5">
-      <h2 className="text-xs font-semibold text-muted uppercase tracking-wider flex items-center gap-1.5">
-        <span aria-hidden="true">💭</span> Last week, in a few words
-      </h2>
+    <Panel label="Last week, in a few words">
       <ul className="space-y-1.5">
         {sentences.map((s, i) => (
-          <li key={i} className="text-sm text-white/80 leading-relaxed">
+          <li key={i} className="text-body text-foreground">
             {s.sentence}
           </li>
         ))}
       </ul>
-    </section>
+    </Panel>
   )
 }

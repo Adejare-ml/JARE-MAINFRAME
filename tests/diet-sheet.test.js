@@ -49,6 +49,16 @@ describe('sheetRows', () => {
   it('is empty for a day with nothing logged', () => {
     expect(sheetRows([])).toEqual([])
   })
+
+  it('marks the items of a sealed photo meal as locked, and only those (054)', () => {
+    const at = '2026-11-10T12:00:00Z'
+    const rows = sheetRows([
+      { id: 'p', eaten_at: at, meal_slot: 'lunch', source: 'photo', status: 'confirmed', meal_items: [{ id: 'a', name: 'Rice', grams: 300, kcal: 390 }] },
+      { id: 'o', eaten_at: at, meal_slot: 'lunch', source: 'photo', status: 'auto', meal_items: [{ id: 'b', name: 'Stew', grams: 100, kcal: 140 }] },
+      { id: 't', eaten_at: at, meal_slot: 'lunch', source: 'text', status: 'confirmed', meal_items: [{ id: 'c', name: 'Bread', grams: 50, kcal: 130 }] },
+    ])
+    expect(Object.fromEntries(rows.map((r) => [r.item_id, r.locked]))).toEqual({ a: true, b: false, c: false })
+  })
 })
 
 describe('sheetTotals', () => {

@@ -1,10 +1,24 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { toast } from '../lib/toast'
-import { formatNaira, formatDate } from '../lib/formatters'
+import { formatDate } from '../lib/formatters'
 import ErrorState from '../components/ui/ErrorState'
 import EmptyState from '../components/ui/EmptyState'
 import Sheet from '../components/ui/Sheet'
+import PageHeader from '../components/ui/PageHeader'
+import Panel from '../components/ui/Panel'
+import Button from '../components/ui/Button'
+import IconButton from '../components/ui/IconButton'
+import Icon from '../components/ui/Icon'
+import Badge from '../components/ui/Badge'
+import Money from '../components/ui/Money'
+import Stat from '../components/ui/Stat'
+import Readout from '../components/ui/Readout'
+import ProgressBar from '../components/ui/ProgressBar'
+import Segmented from '../components/ui/Segmented'
+import StatusDot from '../components/ui/StatusDot'
+import Label from '../components/ui/Label'
+import { Input } from '../components/ui/Field'
 import { DebtsSkeleton } from '../components/ui/PageSkeleton'
 import { openQuickLog } from '../components/ui/QuickLog'
 import { confirmBuzz } from '../lib/haptics'
@@ -212,10 +226,10 @@ export default function Debts() {
       if (error) throw error
 
       confirmBuzz()
-      toast.success(editing ? 'Updated ✓' : 'Added ✓')
+      toast.success(editing ? 'Updated' : 'Added')
       fetchDebts()
 
-      // A brief checkmark before the sheet closes, rather than it vanishing
+      // A brief check glyph before the sheet closes, rather than it vanishing
       // the instant the request resolves.
       setJustSaved(true)
       setTimeout(() => {
@@ -239,7 +253,7 @@ export default function Debts() {
     if (error) toast.error('Failed to update: ' + error.message)
     else {
       if (!debt.settled) confirmBuzz()
-      toast.success(debt.settled ? 'Reopened' : 'Marked settled ✓')
+      toast.success(debt.settled ? 'Reopened' : 'Marked settled')
       fetchDebts()
     }
   }
@@ -260,306 +274,245 @@ export default function Debts() {
 
   if (pageError) {
     return (
-      <div className="space-y-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-white">Debts 🤝</h1>
+      <div className="space-y-3 pb-6">
+        <PageHeader title="Debts" meta="Loans, ajo and esusu" />
         <ErrorState message={pageError} onRetry={fetchDebts} />
       </div>
     )
   }
 
   const rotating = isRotating(form.kind)
+  const setField = (patch) => setForm({ ...form, ...patch })
+  const tabMeta = TABS.find((t) => t.value === tab) || TABS[0]
 
   return (
-    <div className="space-y-6 pb-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-white">Debts 🤝</h1>
-          <p className="text-muted text-sm mt-0.5">Loans, ajo and esusu</p>
-        </div>
-        <button
-          onClick={openAdd}
-          className="px-4 py-2.5 bg-accent text-black rounded-xl text-sm font-bold min-h-[48px] flex-shrink-0"
-        >
-          + New
-        </button>
-      </div>
+    <div className="space-y-3 pb-6">
+      <PageHeader
+        title="Debts"
+        meta="Loans, ajo and esusu"
+        actions={
+          <Button size="sm" icon="plus" onClick={openAdd}>
+            New
+          </Button>
+        }
+      />
 
       {/* Totals */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="bg-card rounded-2xl p-4 border border-white/5">
-          <p className="text-[10px] text-muted uppercase tracking-wider mb-1">I owe</p>
-          <p className="text-lg font-bold text-red-400 tabular-nums money">{formatNaira(totals.iOwe)}</p>
+      <Panel label="Totals">
+        <div className="grid grid-cols-3 gap-3">
+          <Stat label="I owe" value={<Money amount={totals.iOwe} kobo={false} />} />
+          <Stat label="Owed to me" value={<Money amount={totals.owedToMe} kobo={false} tone={totals.owedToMe > 0 ? 'positive' : 'default'} />} />
+          <Stat label="In cycles" value={<Money amount={totals.inCycles} kobo={false} />} />
         </div>
-        <div className="bg-card rounded-2xl p-4 border border-white/5">
-          <p className="text-[10px] text-muted uppercase tracking-wider mb-1">Owed to me</p>
-          <p className="text-lg font-bold text-accent tabular-nums money">{formatNaira(totals.owedToMe)}</p>
-        </div>
-        <div className="bg-card rounded-2xl p-4 border border-white/5">
-          <p className="text-[10px] text-muted uppercase tracking-wider mb-1">In cycles</p>
-          <p className="text-lg font-bold text-blue-400 tabular-nums money">{formatNaira(totals.inCycles)}</p>
-        </div>
-      </div>
+      </Panel>
 
       {/* In what order, and when the last loan is gone. Renders nothing
           while nothing is owed. */}
       <PayoffPlan debts={debts} paidByDebt={paidByDebt} />
 
       {/* Tabs */}
-      <div role="tablist" aria-label="Debts filters" className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-        {[
-          { id: 'all', label: 'All' },
-          { id: 'i_owe', label: 'I owe' },
-          { id: 'owed_to_me', label: 'Owed to me' },
-          { id: 'rotating', label: 'Ajo / Esusu' },
-        ].map(t => (
-          <button
-            key={t.id}
-            id={`tab-${t.id}`}
-            role="tab"
-            aria-selected={tab === t.id}
-            aria-controls="debts-tabpanel"
-            onClick={() => setTab(t.id)}
-            className={`px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap min-h-[48px] transition-all ${
-              tab === t.id
-                ? 'bg-accent text-black'
-                : 'bg-card text-muted hover:text-white border border-white/5'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <Segmented
+        tabs
+        full
+        idPrefix="debts"
+        label="Debts filters"
+        options={TABS}
+        value={tab}
+        onChange={setTab}
+      />
 
       {/* List */}
-      {visible.length === 0 ? (
-        <div id="debts-tabpanel" role="tabpanel" aria-labelledby={`tab-${tab}`} className="bg-card rounded-3xl border border-white/5">
-          <EmptyState
-            icon="🤝"
-            title={tab === 'all' ? 'Nothing here yet' : 'Nothing in this tab'}
-            message={
-              tab === 'all'
-                ? "Track a loan, or an ajo cycle so you know which round you're in and when the pot reaches you"
-                : 'Try a different tab, or add a debt'
-            }
-            actionLabel="+ New debt"
-            onAction={openAdd}
-          />
-        </div>
-      ) : (
-        <div id="debts-tabpanel" role="tabpanel" aria-labelledby={`tab-${tab}`} className="space-y-3">
-          {visible.map(debt => {
-            const cycle = cycleStatus(debt)
-            const paid = paidByDebt[debt.id]
-            const payments = linkedPayments(linkedRows, debt)
-            const progress = repaymentProgress(debt, paid)
-            const dueIn = daysUntil(debt.due_date)
-            const payoutIn = daysUntil(debt.payout_date)
-            const kindMeta = KINDS.find(k => k.value === debt.kind)
+      <div id={`debts-panel-${tab}`} role="tabpanel" aria-labelledby={`debts-tab-${tab}`}>
+        <Panel
+          label={tabMeta.title || tabMeta.label}
+          meta={visible.length > 0 ? `${visible.length} ${visible.length === 1 ? 'entry' : 'entries'}` : null}
+          flush
+        >
+          {visible.length === 0 ? (
+            <EmptyState
+              title={tab === 'all' ? 'Nothing here yet' : 'Nothing in this tab'}
+              message={
+                tab === 'all'
+                  ? "Track a loan, or an ajo cycle so you know which round you're in and when the pot reaches you"
+                  : 'Try a different tab, or add a debt'
+              }
+              actionLabel="New debt"
+              onAction={openAdd}
+            />
+          ) : (
+            <ul className="divide-y divide-border">
+              {visible.map((debt) => {
+                const cycle = cycleStatus(debt)
+                const paid = paidByDebt[debt.id]
+                const payments = linkedPayments(linkedRows, debt)
+                const progress = repaymentProgress(debt, paid)
+                const dueIn = daysUntil(debt.due_date)
+                const payoutIn = daysUntil(debt.payout_date)
+                const kindMeta = KINDS.find((k) => k.value === debt.kind)
 
-            return (
-              <div
-                key={debt.id}
-                className={`bg-card rounded-2xl p-5 border transition-all ${
-                  debt.settled ? 'border-white/5 opacity-50' : 'border-white/10'
-                }`}
-              >
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span aria-hidden="true">{kindMeta?.icon}</span>
-                      <h3 className="text-sm font-bold text-white truncate">{debt.counterparty}</h3>
-                      {debt.settled && (
-                        <span className="text-[9px] bg-white/5 text-muted px-1.5 py-0.5 rounded-full uppercase font-bold">
-                          Settled
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[10px] text-muted mt-0.5">
-                      {kindMeta?.label}
-                      {!isRotating(debt.kind) &&
-                        ` · ${DIRECTIONS.find(d => d.value === debt.direction)?.label}`}
-                    </p>
-                  </div>
-
-                  <div className="flex gap-1 flex-shrink-0">
-                    <button
-                      onClick={() => openEdit(debt)}
-                      aria-label={`Edit ${debt.counterparty}`}
-                      className="w-11 h-11 flex items-center justify-center rounded-xl hover:bg-white/5 text-muted hover:text-white"
-                    >
-                      ✏️
-                    </button>
-                    <button
-                      onClick={() => setConfirmDeleteId(debt.id)}
-                      aria-label={`Delete ${debt.counterparty}`}
-                      className="w-11 h-11 flex items-center justify-center rounded-xl hover:bg-red-500/10 text-muted hover:text-red-400"
-                    >
-                      🗑️
-                    </button>
-                  </div>
-                </div>
-
-                {/* Rotating savings: the part the ledger cannot tell you */}
-                {cycle ? (
-                  <div className="space-y-2">
-                    <div className="flex items-baseline justify-between">
-                      <p className="text-sm text-white font-semibold">
-                        Round {cycle.position} of {cycle.size}
-                      </p>
-                      <p className="text-xs text-muted tabular-nums">
-                        <span className="money">{formatNaira(cycle.contributed)}</span> in
-                      </p>
-                    </div>
-                    <div className="h-2 bg-white/5 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-blue-400 rounded-full"
-                        style={{ width: `${(cycle.position / cycle.size) * 100}%` }}
-                      />
-                    </div>
-                    <p className="text-[11px] text-muted">
-                      {cycle.roundsLeft === 0
-                        ? 'Final round'
-                        : `${cycle.roundsLeft} round${cycle.roundsLeft === 1 ? '' : 's'} to go`}
-                      {debt.contribution && (
-                        <>
-                          {' · '}
-                          <span className="money">{formatNaira(debt.contribution)}</span> each
-                        </>
-                      )}
-                      {cycle.expectedPot && (
-                        <>
-                          {' · pot '}
-                          <span className="money">{formatNaira(cycle.expectedPot)}</span>
-                        </>
-                      )}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <div className="flex items-baseline justify-between">
-                      <p className="text-lg font-bold text-white tabular-nums money">
-                        {formatNaira(outstanding(debt, paid))}
-                      </p>
-                      {Number(debt.principal) > 0 && (
-                        <p className="text-xs text-muted tabular-nums">
-                          of <span className="money">{formatNaira(debt.principal)}</span>
+                return (
+                  <li key={debt.id} className="px-3 py-3 lg:px-4 space-y-3">
+                    <div className="flex items-start gap-3">
+                      <span aria-hidden="true" className="inline-flex items-center justify-center w-7 h-7 mt-0.5 rounded-chip bg-surface-2 text-muted shrink-0">
+                        <Icon name={kindMeta?.icon || 'debt'} size={16} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <h3 className={`text-heading truncate ${debt.settled ? 'text-muted' : 'text-foreground'}`}>{debt.counterparty}</h3>
+                          {debt.settled && <Badge label="Settled" />}
+                        </div>
+                        <p className="text-body-sm text-muted">
+                          {kindMeta?.label}
+                          {!isRotating(debt.kind) && ` · ${DIRECTIONS.find((d) => d.value === debt.direction)?.label}`}
                         </p>
-                      )}
-                    </div>
-                    {progress != null && (
-                      <div className="h-2 bg-white/5 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full ${
-                            debt.direction === 'i_owe' ? 'bg-red-400' : 'bg-accent'
-                          }`}
-                          style={{ width: `${progress * 100}%` }}
-                        />
                       </div>
-                    )}
-                    {payments.length > 0 && (
-                      <p className="text-[11px] text-muted">
-                        🤝 {payments.length} payment{payments.length === 1 ? '' : 's'} from the ledger ·{' '}
-                        <span className="money">
-                          {formatNaira(payments.reduce((sum, row) => sum + (Number(row.amount) || 0), 0))}
-                        </span>
-                        {Number(debt.amount_paid) > 0 && (
-                          <>
-                            {' · '}
-                            <span className="money">{formatNaira(debt.amount_paid)}</span> before tracking
-                          </>
-                        )}
-                      </p>
-                    )}
-                    {!debt.settled && debt.monthly_payment > 0 && (() => {
-                      const payoff = payoffProjection(debt, debt.monthly_payment, undefined, paid)
-                      if (!payoff) return null
-                      return (
-                        <p className="text-[11px] text-muted">
-                          {payoff.monthsRemaining === 0 ? (
-                            'Paid off'
-                          ) : (
+                      <div className="flex -mr-3 -my-1.5 shrink-0">
+                        <IconButton name="edit" label={`Edit ${debt.counterparty}`} onClick={() => openEdit(debt)} />
+                        <IconButton name="trash" label={`Delete ${debt.counterparty}`} onClick={() => setConfirmDeleteId(debt.id)} />
+                      </div>
+                    </div>
+
+                    {/* Rotating savings: the part the ledger cannot tell you */}
+                    {cycle ? (
+                      <div className="space-y-2">
+                        <div className="flex items-baseline justify-between gap-3">
+                          <p className="text-heading text-foreground">
+                            Round {cycle.position} of {cycle.size}
+                          </p>
+                          <p className="text-body-sm text-muted whitespace-nowrap">
+                            <Money amount={cycle.contributed} /> in
+                          </p>
+                        </div>
+                        <ProgressBar value={cycle.position} max={cycle.size} label={`Round ${cycle.position} of ${cycle.size}`} />
+                        <p className="text-body-sm text-muted">
+                          {cycle.roundsLeft === 0
+                            ? 'Final round'
+                            : `${cycle.roundsLeft} round${cycle.roundsLeft === 1 ? '' : 's'} to go`}
+                          {debt.contribution && (
                             <>
-                              Paid off in {payoff.monthsRemaining} month{payoff.monthsRemaining === 1 ? '' : 's'} at{' '}
-                              <span className="money">{formatNaira(debt.monthly_payment)}</span>/mo ·{' '}
-                              {formatDate(payoff.payoffDate)}
+                              {' · '}
+                              <Money amount={debt.contribution} tone="muted" /> each
+                            </>
+                          )}
+                          {cycle.expectedPot && (
+                            <>
+                              {' · pot '}
+                              <Money amount={cycle.expectedPot} tone="muted" />
                             </>
                           )}
                         </p>
-                      )
-                    })()}
-                  </div>
-                )}
-
-                {/* Dates */}
-                {(debt.due_date || debt.payout_date) && (
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 pt-3 border-t border-white/5">
-                    {debt.due_date && (
-                      <p className={`text-[11px] ${dueIn < 0 ? 'text-red-400' : 'text-muted'}`}>
-                        Due {formatDate(debt.due_date)}
-                        {dueIn != null && !debt.settled && (
-                          <span className="ml-1">
-                            ({dueIn < 0 ? `${Math.abs(dueIn)}d overdue` : dueIn === 0 ? 'today' : `in ${dueIn}d`})
-                          </span>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <Readout
+                          label="Outstanding"
+                          value={outstanding(debt, paid)}
+                          tone={debt.settled ? 'muted' : 'default'}
+                          sub={
+                            Number(debt.principal) > 0 ? (
+                              <>
+                                of <Money amount={debt.principal} tone="muted" />
+                              </>
+                            ) : null
+                          }
+                        />
+                        {progress != null && (
+                          <ProgressBar value={progress * 100} label={`${Math.round(progress * 100)}% repaid`} />
                         )}
-                      </p>
-                    )}
-                    {debt.payout_date && (
-                      <p className="text-[11px] text-blue-400">
-                        Payout {formatDate(debt.payout_date)}
-                        {payoutIn != null && payoutIn >= 0 && !debt.settled && (
-                          <span className="ml-1">(in {payoutIn}d)</span>
+                        {payments.length > 0 && (
+                          <p className="text-body-sm text-muted">
+                            {payments.length} payment{payments.length === 1 ? '' : 's'} from the ledger ·{' '}
+                            <Money
+                              amount={payments.reduce((sum, row) => sum + (Number(row.amount) || 0), 0)}
+                              tone="muted"
+                            />
+                            {Number(debt.amount_paid) > 0 && (
+                              <>
+                                {' · '}
+                                <Money amount={debt.amount_paid} tone="muted" /> before tracking
+                              </>
+                            )}
+                          </p>
                         )}
-                      </p>
+                        {!debt.settled && debt.monthly_payment > 0 && (() => {
+                          const payoff = payoffProjection(debt, debt.monthly_payment, undefined, paid)
+                          if (!payoff) return null
+                          return (
+                            <p className="text-body-sm text-muted">
+                              {payoff.monthsRemaining === 0 ? (
+                                'Paid off'
+                              ) : (
+                                <>
+                                  Paid off in {payoff.monthsRemaining} month{payoff.monthsRemaining === 1 ? '' : 's'} at{' '}
+                                  <Money amount={debt.monthly_payment} tone="muted" />/mo ·{' '}
+                                  {formatDate(payoff.payoffDate)}
+                                </>
+                              )}
+                            </p>
+                          )
+                        })()}
+                      </div>
                     )}
-                  </div>
-                )}
 
-                {debt.notes && <p className="text-[11px] text-muted mt-2 italic">{debt.notes}</p>}
+                    {/* Dates */}
+                    {(debt.due_date || debt.payout_date) && (
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 pt-2.5 border-t border-border">
+                        {debt.due_date && (
+                          <p className={`type-data flex items-center gap-2 ${dueIn < 0 && !debt.settled ? 'text-danger' : 'text-muted'}`}>
+                            {dueIn < 0 && !debt.settled && <StatusDot status="danger" />}
+                            Due {formatDate(debt.due_date)}
+                            {dueIn != null && !debt.settled && (
+                              <span>
+                                ({dueIn < 0 ? `${Math.abs(dueIn)}d overdue` : dueIn === 0 ? 'today' : `in ${dueIn}d`})
+                              </span>
+                            )}
+                          </p>
+                        )}
+                        {debt.payout_date && (
+                          <p className="type-data text-muted">
+                            Payout {formatDate(debt.payout_date)}
+                            {payoutIn != null && payoutIn >= 0 && !debt.settled && <span> (in {payoutIn}d)</span>}
+                          </p>
+                        )}
+                      </div>
+                    )}
 
-                <div className="mt-3 flex gap-2">
-                  {/* A repayment is an ordinary QuickLog entry with the
-                      category and note filled in and the row linked back
-                      here. Loans only: a rotating cycle pays by round. */}
-                  {linkLive && !debt.settled && !isRotating(debt.kind) && (
-                    <button
-                      onClick={() => openQuickLog(repayingType(debt), { debt })}
-                      className="flex-1 py-2.5 text-xs font-bold rounded-xl bg-accent/15 hover:bg-accent/25 text-accent min-h-[44px] transition-colors"
-                    >
-                      {debt.direction === 'owed_to_me' ? 'Log a repayment' : 'Log payment'}
-                    </button>
-                  )}
-                  <button
-                    onClick={() => toggleSettled(debt)}
-                    className="flex-1 py-2.5 text-xs font-semibold rounded-xl bg-white/5 hover:bg-white/10 text-muted hover:text-white min-h-[44px] transition-colors"
-                  >
-                    {debt.settled ? 'Reopen' : 'Mark settled'}
-                  </button>
-                </div>
+                    {debt.notes && <p className="text-body-sm text-muted">{debt.notes}</p>}
 
-                {confirmDeleteId === debt.id && (
-                  <div className="mt-3 p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
-                    <p className="text-xs text-red-400 mb-2">Delete this permanently?</p>
                     <div className="flex gap-2">
-                      <button
-                        onClick={() => handleDelete(debt.id)}
-                        className="flex-1 py-2.5 bg-red-500 text-white text-xs font-bold rounded-lg min-h-[44px]"
-                      >
-                        Delete
-                      </button>
-                      <button
-                        onClick={() => setConfirmDeleteId(null)}
-                        className="flex-1 py-2.5 bg-white/5 text-muted text-xs font-bold rounded-lg min-h-[44px]"
-                      >
-                        Cancel
-                      </button>
+                      {/* A repayment is an ordinary QuickLog entry with the
+                          category and note filled in and the row linked back
+                          here. Loans only: a rotating cycle pays by round. */}
+                      {linkLive && !debt.settled && !isRotating(debt.kind) && (
+                        <Button size="sm" variant="secondary" icon="plus" className="flex-1" onClick={() => openQuickLog(repayingType(debt), { debt })}>
+                          {debt.direction === 'owed_to_me' ? 'Log a repayment' : 'Log payment'}
+                        </Button>
+                      )}
+                      <Button size="sm" variant="secondary" className="flex-1" onClick={() => toggleSettled(debt)}>
+                        {debt.settled ? 'Reopen' : 'Mark settled'}
+                      </Button>
                     </div>
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
+
+                    {confirmDeleteId === debt.id && (
+                      <div role="alert" className="pt-3 border-t border-border space-y-2">
+                        <p className="text-body-sm text-danger">Delete this permanently?</p>
+                        <div className="flex gap-2">
+                          <Button variant="danger" className="flex-1" onClick={() => handleDelete(debt.id)}>
+                            Delete
+                          </Button>
+                          <Button variant="secondary" className="flex-1" onClick={() => setConfirmDeleteId(null)}>
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </Panel>
+      </div>
 
       {/* Add / Edit */}
       <Sheet
@@ -568,247 +521,173 @@ export default function Debts() {
         title={editing ? 'Edit debt' : 'New debt'}
         desktopCenter
       >
-        <form
-          onSubmit={handleSave}
-          className={`p-6 space-y-4 overflow-y-auto ${shake ? 'animate-shake' : ''}`}
-        >
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-white">{editing ? 'Edit' : 'New'}</h2>
-              <button
-                type="button"
-                onClick={() => setShowModal(false)}
-                aria-label="Close"
-                className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-white/10 text-muted hover:text-white"
-              >
-                ✕
-              </button>
-            </div>
+        <form onSubmit={handleSave} className={`p-4 space-y-4 overflow-y-auto ${shake ? 'animate-shake' : ''}`}>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-title text-foreground">{editing ? 'Edit debt' : 'New debt'}</h2>
+            <IconButton name="close" label="Close" className="-mr-3" onClick={() => setShowModal(false)} />
+          </div>
 
-            {formError && (
-              <p role="alert" className="text-xs text-red-400 font-medium">
-                {formError}
-              </p>
-            )}
+          {formError && (
+            <p role="alert" className="text-body-sm text-danger">
+              {formError}
+            </p>
+          )}
 
-            {/* Kind */}
-            <div>
-              <label className="block text-xs text-muted font-semibold mb-2">Type</label>
-              <div className="grid grid-cols-3 gap-2">
-                {KINDS.map(k => (
-                  <button
-                    key={k.value}
-                    type="button"
-                    onClick={() => setForm({ ...form, kind: k.value })}
-                    className={`px-3 py-3 rounded-xl border text-xs font-semibold min-h-[48px] transition-all ${
-                      form.kind === k.value
-                        ? 'border-accent bg-accent/10 text-accent'
-                        : 'border-white/10 bg-background text-muted'
-                    }`}
-                  >
-                    {k.icon} {k.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+          {/* Kind */}
+          <div className="space-y-1.5">
+            <Label as="p">Type</Label>
+            <Segmented
+              full
+              label="Type"
+              options={KINDS.map((k) => ({ value: k.value, label: k.label }))}
+              value={form.kind}
+              onChange={(kind) => setField({ kind })}
+            />
+          </div>
 
-            {/* Direction — a rotating cycle has no single direction */}
-            {!rotating && (
-              <div>
-                <label className="block text-xs text-muted font-semibold mb-2">Direction</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {DIRECTIONS.map(d => (
-                    <button
-                      key={d.value}
-                      type="button"
-                      onClick={() => setForm({ ...form, direction: d.value })}
-                      className={`px-3 py-3 rounded-xl border text-xs font-semibold min-h-[48px] transition-all ${
-                        form.direction === d.value
-                          ? 'border-accent bg-accent/10 text-accent'
-                          : 'border-white/10 bg-background text-muted'
-                      }`}
-                    >
-                      {d.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div>
-              <label className="block text-xs text-muted font-semibold mb-1">
-                {rotating ? 'Group or organiser' : 'Who'}
-              </label>
-              <input
-                value={form.counterparty}
-                onChange={(e) => setForm({ ...form, counterparty: e.target.value })}
-                placeholder={rotating ? 'Office ajo' : 'Name'}
-                required
-                className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+          {/* Direction: a rotating cycle has no single direction */}
+          {!rotating && (
+            <div className="space-y-1.5">
+              <Label as="p">Direction</Label>
+              <Segmented
+                full
+                label="Direction"
+                options={DIRECTIONS.map((d) => ({ value: d.value, label: d.label }))}
+                value={form.direction}
+                onChange={(direction) => setField({ direction })}
               />
             </div>
+          )}
 
-            {hasColumn('debts.match_payee') && (
-              <div>
-                <label className="block text-xs text-muted font-semibold mb-1">
-                  Payee on bank alerts <span className="font-normal">(optional)</span>
-                </label>
-                <input
-                  value={form.match_payee}
-                  onChange={(e) => setForm({ ...form, match_payee: e.target.value })}
-                  placeholder={rotating ? 'As the alert names the group' : 'e.g. OKash'}
-                  className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
-                />
-                <p className="text-[11px] text-muted mt-1">
-                  Every {rotating ? 'contribution' : 'repayment'} the bank reports to this payee is linked here on arrival and counts as paid.
-                </p>
-              </div>
-            )}
+          <Input
+            label={rotating ? 'Group or organiser' : 'Who'}
+            value={form.counterparty}
+            onChange={(e) => setField({ counterparty: e.target.value })}
+            placeholder={rotating ? 'Office ajo' : 'Name'}
+            required
+          />
 
-            {rotating ? (
-              <>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs text-muted font-semibold mb-1">Rounds in cycle</label>
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      min="1"
-                      value={form.cycle_size}
-                      onChange={(e) => setForm({ ...form, cycle_size: e.target.value })}
-                      placeholder="12"
-                      className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-muted font-semibold mb-1">Current round</label>
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      min="1"
-                      value={form.cycle_position}
-                      onChange={(e) => setForm({ ...form, cycle_position: e.target.value })}
-                      placeholder="4"
-                      className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
-                    />
-                  </div>
-                </div>
+          {hasColumn('debts.match_payee') && (
+            <Input
+              label="Payee on bank alerts (optional)"
+              value={form.match_payee}
+              onChange={(e) => setField({ match_payee: e.target.value })}
+              placeholder={rotating ? 'As the alert names the group' : 'e.g. OKash'}
+              hint={`Every ${rotating ? 'contribution' : 'repayment'} the bank reports to this payee is linked here on arrival and counts as paid.`}
+            />
+          )}
 
-                <div>
-                  <label className="block text-xs text-muted font-semibold mb-1">Contribution per round (₦)</label>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    value={form.contribution}
-                    onChange={(e) => setForm({ ...form, contribution: e.target.value })}
-                    placeholder="20000"
-                    className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs text-muted font-semibold mb-1">Your payout date</label>
-                  <input
-                    type="date"
-                    value={form.payout_date}
-                    onChange={(e) => setForm({ ...form, payout_date: e.target.value })}
-                    className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-accent min-h-[48px]"
-                  />
-                </div>
-              </>
-            ) : (
+          {rotating ? (
+            <>
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-muted font-semibold mb-1">Amount (₦)</label>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    value={form.principal}
-                    onChange={(e) => setForm({ ...form, principal: e.target.value })}
-                    placeholder="50000"
-                    className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-muted font-semibold mb-1">
-                    {linkLive ? 'Paid before tracking (₦)' : 'Paid so far (₦)'}
-                  </label>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    value={form.amount_paid}
-                    onChange={(e) => setForm({ ...form, amount_paid: e.target.value })}
-                    placeholder="0"
-                    className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
-                  />
-                  {linkLive && (
-                    <p className="text-[10px] text-muted-dim mt-1">
-                      Payments logged from the card are added on top of this.
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Optional, and only for a real balance -- a rotating cycle pays
-                by round, not by a monthly amount toward a total. */}
-            {!rotating && hasColumn('debts.monthly_payment') && (
-              <div>
-                <label className="block text-xs text-muted font-semibold mb-1">
-                  Planned monthly payment (₦, optional)
-                </label>
-                <input
+                <Input
+                  label="Rounds in cycle"
                   type="number"
-                  inputMode="decimal"
-                  value={form.monthly_payment}
-                  onChange={(e) => setForm({ ...form, monthly_payment: e.target.value })}
-                  placeholder="10000"
-                  className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+                  inputMode="numeric"
+                  min="1"
+                  value={form.cycle_size}
+                  onChange={(e) => setField({ cycle_size: e.target.value })}
+                  placeholder="12"
                 />
-                <p className="text-[10px] text-muted-dim mt-1">
-                  Set this to see a projected payoff date on the card below.
-                </p>
+                <Input
+                  label="Current round"
+                  type="number"
+                  inputMode="numeric"
+                  min="1"
+                  value={form.cycle_position}
+                  onChange={(e) => setField({ cycle_position: e.target.value })}
+                  placeholder="4"
+                />
               </div>
-            )}
 
-            <div>
-              <label className="block text-xs text-muted font-semibold mb-1">
-                {rotating ? 'Next contribution due' : 'Due date'}
-              </label>
-              <input
+              <Input
+                label="Contribution per round (naira)"
+                type="number"
+                inputMode="decimal"
+                value={form.contribution}
+                onChange={(e) => setField({ contribution: e.target.value })}
+                placeholder="20000"
+              />
+
+              <Input
+                label="Your payout date"
                 type="date"
-                value={form.due_date}
-                onChange={(e) => setForm({ ...form, due_date: e.target.value })}
-                className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-accent min-h-[48px]"
+                value={form.payout_date}
+                onChange={(e) => setField({ payout_date: e.target.value })}
+              />
+            </>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 items-start">
+              <Input
+                label="Amount (naira)"
+                type="number"
+                inputMode="decimal"
+                value={form.principal}
+                onChange={(e) => setField({ principal: e.target.value })}
+                placeholder="50000"
+              />
+              <Input
+                label={linkLive ? 'Paid before tracking' : 'Paid so far'}
+                type="number"
+                inputMode="decimal"
+                value={form.amount_paid}
+                onChange={(e) => setField({ amount_paid: e.target.value })}
+                placeholder="0"
+                hint={linkLive ? 'Payments logged from the card are added on top of this.' : undefined}
               />
             </div>
+          )}
 
-            <div>
-              <label className="block text-xs text-muted font-semibold mb-1">Notes</label>
-              <input
-                value={form.notes}
-                onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                placeholder="Optional"
-                className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
-              />
-            </div>
+          {/* Optional, and only for a real balance -- a rotating cycle pays
+              by round, not by a monthly amount toward a total. */}
+          {!rotating && hasColumn('debts.monthly_payment') && (
+            <Input
+              label="Planned monthly payment (optional)"
+              type="number"
+              inputMode="decimal"
+              value={form.monthly_payment}
+              onChange={(e) => setField({ monthly_payment: e.target.value })}
+              placeholder="10000"
+              hint="Set this to see a projected payoff date on the card below."
+            />
+          )}
 
-            <button
-              type="submit"
-              disabled={saving || justSaved}
-              className="w-full py-3.5 bg-accent text-black font-bold text-sm rounded-xl min-h-[48px] disabled:opacity-50 flex items-center justify-center"
-            >
-              {justSaved ? (
-                <span className="inline-block text-lg animate-check-pop" aria-hidden="true">✓</span>
-              ) : saving ? (
-                'Saving…'
-              ) : editing ? (
-                'Save changes'
-              ) : (
-                'Add'
-              )}
-            </button>
+          <Input
+            label={rotating ? 'Next contribution due' : 'Due date'}
+            type="date"
+            value={form.due_date}
+            onChange={(e) => setField({ due_date: e.target.value })}
+          />
+
+          <Input
+            label="Notes"
+            value={form.notes}
+            onChange={(e) => setField({ notes: e.target.value })}
+            placeholder="Optional"
+          />
+
+          <Button type="submit" full loading={saving} disabled={justSaved}>
+            {justSaved ? (
+              <span className="inline-flex animate-check-pop" aria-label="Saved">
+                <Icon name="check" size={20} />
+              </span>
+            ) : editing ? (
+              'Save changes'
+            ) : (
+              'Add'
+            )}
+          </Button>
         </form>
       </Sheet>
     </div>
   )
 }
+
+/** The list filters; ids name the Segmented tab and its panel. `title` is the
+ * full name the list panel shows when the tab label is shortened to fit 360px. */
+const TABS = [
+  { value: 'all', label: 'All' },
+  { value: 'i_owe', label: 'I owe' },
+  { value: 'owed_to_me', label: 'Lent', title: 'Owed to me' },
+  { value: 'rotating', label: 'Cycles', title: 'Ajo and esusu' },
+]

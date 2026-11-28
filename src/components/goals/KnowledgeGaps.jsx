@@ -1,5 +1,9 @@
 import { useState } from 'react'
 import { formatDate } from '../../lib/formatters'
+import Panel from '../ui/Panel'
+import ListRow, { ListRows } from '../ui/ListRow'
+import Button from '../ui/Button'
+import { Input } from '../ui/Field'
 
 /**
  * Things you leaned on an agent for and could not have written yourself.
@@ -35,109 +39,99 @@ export default function KnowledgeGaps({ gaps, onLog, onResolve, busy }) {
   }
 
   return (
-    <section className="bg-card rounded-3xl p-6 border border-white/5 space-y-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-bold text-white">Gaps</h2>
-          <p className="text-xs text-muted mt-1">
-            Things you took on trust. The planner works from these before it works from
-            the code.
-          </p>
-        </div>
-        {!adding && (
-          <button
-            type="button"
-            onClick={() => setAdding(true)}
-            className="px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-xs font-bold text-muted hover:text-white min-h-[44px] flex-shrink-0"
-          >
+    <Panel
+      label="Gaps"
+      meta={open.length > 0 ? `${open.length} open` : null}
+      action={
+        !adding && (
+          <Button size="sm" variant="secondary" icon="plus" onClick={() => setAdding(true)}>
             Log one
-          </button>
-        )}
-      </div>
+          </Button>
+        )
+      }
+      flush
+    >
+      <p className="p-3 lg:px-4 text-body-sm text-muted">
+        Things you took on trust. The planner works from these before it works from the code.
+      </p>
 
       {adding && (
-        <form onSubmit={submit} className="space-y-2">
-          <input
+        <form onSubmit={submit} className="px-3 pb-3 lg:px-4 space-y-3">
+          <Input
             autoFocus
+            label="What did you not understand?"
             type="text"
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
             placeholder="PostgREST upsert semantics"
-            aria-label="What did you not understand?"
             maxLength={120}
-            className="w-full px-4 py-3 bg-background border border-accent rounded-xl text-white text-sm placeholder-hint focus:outline-none min-h-[48px]"
           />
-          <input
+          <Input
+            label="What happened?"
             type="text"
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="Took the onConflict line without knowing what it arbitrates"
-            aria-label="What happened?"
             maxLength={300}
-            className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
           />
           <div className="flex gap-2">
-            <button
-              type="submit"
-              disabled={busy || !topic.trim()}
-              className="flex-1 py-3 bg-accent text-black font-bold text-sm rounded-xl min-h-[48px] disabled:opacity-50"
-            >
+            <Button type="submit" className="flex-1" disabled={busy || !topic.trim()}>
               Log it
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="secondary"
               onClick={() => {
                 setAdding(false)
                 setTopic('')
                 setNote('')
               }}
-              className="px-5 py-3 bg-white/5 text-muted text-sm font-bold rounded-xl min-h-[48px]"
             >
               Cancel
-            </button>
+            </Button>
           </div>
         </form>
       )}
 
       {open.length === 0 && !adding && (
-        <p className="text-xs text-muted py-2">
+        <p className="px-3 pb-3 lg:px-4 text-body-sm text-muted-dim">
           Nothing logged. Until there is, the planner has only the code to go on.
         </p>
       )}
 
-      <ul className="space-y-2">
-        {open.map((gap) => (
-          <li
-            key={gap.id}
-            className="flex items-start gap-3 bg-background/50 border border-white/5 rounded-2xl p-4"
-          >
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm text-white">{gap.topic}</span>
-              {gap.note && <span className="block text-[11px] text-muted mt-0.5">{gap.note}</span>}
-              <span className="block text-[10px] text-muted-dim mt-0.5">
-                {gap.source === 'agent' ? 'From an agent' : 'Noticed yourself'} ·{' '}
-                {formatDate(String(gap.created_at || '').slice(0, 10))}
-              </span>
-            </span>
-            <button
-              type="button"
-              onClick={() => onResolve(gap)}
-              disabled={busy}
-              aria-label={`Mark "${gap.topic}" understood`}
-              className="px-3 py-2 text-[11px] font-bold text-muted hover:text-accent rounded-lg min-h-[44px] flex-shrink-0 disabled:opacity-50"
-            >
-              I get it now
-            </button>
-          </li>
-        ))}
-      </ul>
+      {open.length > 0 && (
+        <div className="border-t border-border">
+          <ListRows as="ul">
+            {open.map((gap) => (
+              <ListRow
+                key={gap.id}
+                as="li"
+                wrap
+                title={gap.topic}
+                subtitle={gap.note}
+                meta={`${gap.source === 'agent' ? 'From an agent' : 'Noticed yourself'} · ${formatDate(String(gap.created_at || '').slice(0, 10))}`}
+                trailing={
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => onResolve(gap)}
+                    disabled={busy}
+                    aria-label={`Mark "${gap.topic}" understood`}
+                  >
+                    I get it now
+                  </Button>
+                }
+              />
+            ))}
+          </ListRows>
+        </div>
+      )}
 
       {closed.length > 0 && (
-        <p className="text-[11px] text-muted-dim pt-1">
-          {closed.length} closed — {closed.slice(0, 3).map((g) => g.topic).join(', ')}
+        <p className="px-3 py-3 lg:px-4 border-t border-border text-body-sm text-muted-dim">
+          {closed.length} closed: {closed.slice(0, 3).map((g) => g.topic).join(', ')}
           {closed.length > 3 && ` and ${closed.length - 3} more`}
         </p>
       )}
-    </section>
+    </Panel>
   )
 }

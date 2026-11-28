@@ -8,6 +8,12 @@ import { localDay, addDays } from '../../lib/diet/totals'
 import { toNumber, round1 } from '../../lib/diet/nutrition'
 import { SkeletonRows } from '../ui/Skeleton'
 import ErrorState from '../ui/ErrorState'
+import Panel from '../ui/Panel'
+import Stat from '../ui/Stat'
+import Button from '../ui/Button'
+import IconButton from '../ui/IconButton'
+import ListRow, { ListRows } from '../ui/ListRow'
+import { controlClasses } from '../ui/Field'
 
 /** Weigh-ins shown on the trend. Weekly for a year is 52; a few spare. */
 const HISTORY = 60
@@ -61,7 +67,7 @@ export default function WeightTab({ onChanged }) {
       return
     }
     confirmBuzz()
-    toast.success(`${round1(w)} kg logged ✓`)
+    toast.success(`${round1(w)} kg logged`)
     setKg('')
     load()
     onChanged?.()
@@ -81,100 +87,96 @@ export default function WeightTab({ onChanged }) {
   const line = buildSparkline(ascending.map((e) => ({ date: e.logged_at, total: Number(e.weight_kg) })), { width: 320, height: 96 })
 
   return (
-    <div className="space-y-6">
-      <section className="bg-card rounded-3xl p-6 border border-white/10 space-y-4" aria-label="Log a weigh-in">
-        <div>
-          <p className="text-xs font-semibold text-muted uppercase tracking-wider">Weigh-in</p>
-          <p className="text-[11px] text-muted mt-1">
+    <div className="space-y-3">
+      <Panel label="Weigh-in" aria-label="Log a weigh-in">
+        <div className="space-y-3">
+          <p className="text-body-sm text-muted">
             {latest
               ? daysSince >= 7
                 ? `Last weigh-in ${daysSince} days ago. Time for this week's.`
                 : `Last weigh-in ${daysSince === 0 ? 'today' : `${daysSince} day${daysSince === 1 ? '' : 's'} ago`}. Next one in ${7 - daysSince} day${7 - daysSince === 1 ? '' : 's'}.`
               : 'Once a week, same morning, before breakfast.'}
           </p>
+          <form onSubmit={save} className="grid grid-cols-[minmax(0,4fr)_minmax(0,6fr)_auto] gap-2">
+            <label htmlFor="weight-kg" className="sr-only">
+              Weight in kg
+            </label>
+            <input
+              id="weight-kg"
+              type="number"
+              inputMode="decimal"
+              step="0.1"
+              value={kg}
+              onChange={(e) => setKg(e.target.value)}
+              placeholder="kg"
+              className={`${controlClasses()} min-w-0`}
+            />
+            <label htmlFor="weight-day" className="sr-only">
+              Date
+            </label>
+            <input id="weight-day" type="date" value={day} max={today} onChange={(e) => setDay(e.target.value)} className={`${controlClasses()} min-w-0`} />
+            <Button type="submit" loading={saving}>
+              Log
+            </Button>
+          </form>
         </div>
-        <form onSubmit={save} className="grid grid-cols-[1fr_1fr_auto] gap-2">
-          <label htmlFor="weight-kg" className="sr-only">
-            Weight in kg
-          </label>
-          <input
-            id="weight-kg"
-            type="number"
-            inputMode="decimal"
-            step="0.1"
-            value={kg}
-            onChange={(e) => setKg(e.target.value)}
-            placeholder="kg"
-            className="min-w-0 px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm min-h-[48px]"
-          />
-          <label htmlFor="weight-day" className="sr-only">
-            Date
-          </label>
-          <input id="weight-day" type="date" value={day} max={today} onChange={(e) => setDay(e.target.value)} className="min-w-0 px-3 py-3 bg-background border border-white/10 rounded-xl text-white text-sm min-h-[48px]" />
-          <button type="submit" disabled={saving} className="px-5 bg-accent text-black rounded-xl font-bold text-sm min-h-[48px] disabled:opacity-50">
-            {saving ? '…' : 'Log'}
-          </button>
-        </form>
-      </section>
+      </Panel>
 
-      <section className="bg-card rounded-3xl p-6 border border-white/5 space-y-4" aria-label="Trend">
-        <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">Trend</h2>
-        {loading ? (
-          <SkeletonRows count={3} />
-        ) : error ? (
-          <ErrorState message={error} onRetry={load} />
-        ) : entries.length < 2 ? (
-          <p className="text-xs text-muted-dim">{entries.length === 0 ? 'No weigh-ins yet.' : 'One weigh-in so far. The line appears with the second.'}</p>
-        ) : (
-          <>
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <Stat label="Now" value={`${round1(latest.weight_kg)} kg`} />
-              <Stat label="7 days" value={weekAgo ? signed(round1(latest.weight_kg - weekAgo.weight_kg)) : '–'} />
-              <Stat label="Since start" value={signed(round1(latest.weight_kg - first.weight_kg))} />
-            </div>
-            <svg viewBox="0 0 320 96" className="w-full h-24" preserveAspectRatio="none" role="img" aria-label={`Weight from ${round1(first.weight_kg)} kg to ${round1(latest.weight_kg)} kg`}>
-              <path d={line.path} fill="none" stroke="var(--color-accent)" strokeWidth="2" strokeLinejoin="round" />
-              {line.coords.map((c) => (
-                <circle key={c.date} cx={c.x} cy={c.y} r="2.5" fill="var(--color-accent)" />
-              ))}
-            </svg>
-            <div className="flex justify-between text-[10px] text-muted-dim">
-              <span>
-                {formatDate(first.logged_at)} · {round1(line.min)}–{round1(line.max)} kg
-              </span>
-              <span>{formatDate(latest.logged_at)}</span>
-            </div>
-          </>
-        )}
-        {entries.length > 0 && (
-          <ul className="divide-y divide-white/5">
-            {entries.slice(0, 12).map((e) => (
-              <li key={e.id} className="flex items-center justify-between py-2 text-sm">
-                <span className="text-muted">{formatDate(e.logged_at)}</span>
-                <span className="flex items-center gap-2">
-                  <span className="text-white font-bold tabular-nums">{round1(e.weight_kg)} kg</span>
-                  <button type="button" onClick={() => remove(e.id)} className="min-w-[44px] min-h-[44px] rounded-full text-muted hover:text-red-300" aria-label={`Delete weigh-in of ${formatDate(e.logged_at)}`}>
-                    ✕
-                  </button>
+      <Panel label="Trend" meta={entries.length ? `${entries.length} weigh-in${entries.length === 1 ? '' : 's'}` : undefined} flush>
+        <div className="p-3 lg:p-4 space-y-3">
+          {loading ? (
+            <SkeletonRows count={3} />
+          ) : error ? (
+            <ErrorState message={error} onRetry={load} />
+          ) : entries.length < 2 ? (
+            <p className="text-body-sm text-muted">{entries.length === 0 ? 'No weigh-ins yet.' : 'One weigh-in so far. The line appears with the second.'}</p>
+          ) : (
+            <>
+              <div className="grid grid-cols-3 gap-3">
+                <Stat label="Now" value={`${round1(latest.weight_kg)} kg`} />
+                <Stat label="7 days" value={weekAgo ? signed(round1(latest.weight_kg - weekAgo.weight_kg)) : '\u2013'} />
+                <Stat label="Since start" value={signed(round1(latest.weight_kg - first.weight_kg))} />
+              </div>
+              <svg viewBox="0 0 320 96" className="w-full h-24" preserveAspectRatio="none" role="img" aria-label={`Weight from ${round1(first.weight_kg)} kg to ${round1(latest.weight_kg)} kg`}>
+                <path d={line.path} fill="none" stroke="var(--color-foreground)" strokeWidth="1.75" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+                {line.coords.map((c) => (
+                  <circle key={c.date} cx={c.x} cy={c.y} r="2.5" fill="var(--color-foreground)" />
+                ))}
+              </svg>
+              <div className="flex justify-between gap-3 type-data text-muted-dim">
+                <span>
+                  {formatDate(first.logged_at)} · {round1(line.min)}–{round1(line.max)} kg
                 </span>
-              </li>
-            ))}
-          </ul>
+                <span>{formatDate(latest.logged_at)}</span>
+              </div>
+            </>
+          )}
+        </div>
+        {entries.length > 0 && (
+          <div className="border-t border-border">
+            <ListRows as="ul" label="Weigh-ins">
+              {entries.slice(0, 12).map((e) => (
+                <ListRow
+                  key={e.id}
+                  as="li"
+                  title={<span className="text-muted">{formatDate(e.logged_at)}</span>}
+                  trailing={
+                    <>
+                      <span className="font-medium text-foreground tabular-nums whitespace-nowrap">{round1(e.weight_kg)} kg</span>
+                      <IconButton name="close" label={`Delete weigh-in of ${formatDate(e.logged_at)}`} onClick={() => remove(e.id)} className="-mr-3" />
+                    </>
+                  }
+                />
+              ))}
+            </ListRows>
+          </div>
         )}
-      </section>
+      </Panel>
     </div>
   )
 }
 
+/** A kg change with its sign; a real minus sign (U+2212) for a loss. */
 function signed(n) {
-  return `${n > 0 ? '+' : ''}${n} kg`
-}
-
-function Stat({ label, value }) {
-  return (
-    <div className="rounded-2xl bg-background/50 border border-white/5 p-3">
-      <p className="text-[10px] text-muted uppercase tracking-wider">{label}</p>
-      <p className="text-sm font-extrabold text-white tabular-nums">{value}</p>
-    </div>
-  )
+  return `${n > 0 ? '+' : n < 0 ? '\u2212' : ''}${Math.abs(n)} kg`
 }

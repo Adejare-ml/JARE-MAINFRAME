@@ -1,26 +1,27 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { toast } from '../../lib/toast'
+import StatusDot from './StatusDot'
+import Icon from './Icon'
+
+/** Matches --dur-state: the exit runs, then the toast unmounts. */
+const EXIT_MS = 180
 
 export default function ToastContainer() {
   const [toasts, setToasts] = useState([])
 
-  useEffect(() => {
-    const unsubscribe = toast.subscribe((newToast) => {
-      setToasts(prev => [...prev, newToast])
-
-      if (newToast.duration > 0) {
-        setTimeout(() => {
-          setToasts(prev => prev.filter(t => t.id !== newToast.id))
-        }, newToast.duration)
-      }
-    })
-
-    return unsubscribe
+  // Mark leaving (the exit transition runs), then drop it.
+  const removeToast = useCallback((id) => {
+    setToasts((prev) => prev.map((t) => (t.id === id ? { ...t, leaving: true } : t)))
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), EXIT_MS)
   }, [])
 
-  const removeToast = (id) => {
-    setToasts(prev => prev.filter(t => t.id !== id))
-  }
+  useEffect(() => {
+    const unsubscribe = toast.subscribe((newToast) => {
+      setToasts((prev) => [...prev, newToast])
+      if (newToast.duration > 0) setTimeout(() => removeToast(newToast.id), newToast.duration)
+    })
+    return unsubscribe
+  }, [removeToast])
 
   if (toasts.length === 0) return null
 
@@ -34,46 +35,42 @@ export default function ToastContainer() {
       aria-live="polite"
       className="fixed bottom-36 lg:bottom-8 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 w-full max-w-sm px-4 pointer-events-none"
     >
-      {toasts.map(t => {
-        // Contrast independently checked (WCAG relative-luminance formula,
-        // this app's single dark theme): white text on accent green is
-        // 9.2:1 and on red-600 6.5:1, both comfortably clear of the 4.5:1
-        // floor. red-500, the shade this used before, measured only 3.8:1 --
-        // an error message read the worst of any text in the app.
-        const bg = t.type === 'success' ? 'bg-accent/90 text-black border-emerald-400' :
-                   t.type === 'error' ? 'bg-red-600/90 text-white border-red-400' :
-                   'bg-card/90 text-white border-white/20'
-
+      {toasts.map((t) => {
+        // Type is carried by a leading dot plus the words, never by the
+        // card's own fill: every toast is a plain card.
+        const dot = t.type === 'error' ? 'danger' : t.type === 'success' ? 'accent' : 'muted'
         return (
           <div
             key={t.id}
-            className={`pointer-events-auto flex items-center justify-between gap-3 px-4 py-3 rounded-xl border backdrop-blur-md shadow-lg text-sm font-medium transition-all duration-300 animate-slide-up ${bg}`}
+            data-leaving={t.leaving ? 'true' : undefined}
+            className={`toast pointer-events-auto flex items-center justify-between gap-2 pl-3 pr-1 min-h-12 rounded-control border bg-card text-body-sm text-foreground ${
+              t.type === 'error' ? 'border-danger' : 'border-border-strong'
+            }`}
           >
-            <span className="flex items-center gap-2 min-w-0">
-              {/* The category colour of what was just logged -- a dot, never
-                  the toast's own background, so a category that happens to
-                  map to red cannot read as an error. */}
-              {t.color && <span className={`w-2 h-2 rounded-full flex-shrink-0 ${t.color}`} aria-hidden="true" />}
-              <span className="truncate">{t.message}</span>
+            <span className="flex items-center gap-2.5 min-w-0 py-2">
+              <StatusDot status={dot} />
+              <span className="min-w-0">{t.message}</span>
             </span>
-            <span className="flex items-center gap-1 flex-shrink-0">
+            <span className="flex items-center shrink-0">
               {t.action && (
                 <button
+                  type="button"
                   onClick={() => {
                     t.action.onClick()
                     removeToast(t.id)
                   }}
-                  className="text-xs font-bold underline underline-offset-2 px-1 min-h-[24px]"
+                  className="px-3 min-h-12 text-body-sm font-semibold text-accent"
                 >
                   {t.action.label}
                 </button>
               )}
               <button
+                type="button"
                 onClick={() => removeToast(t.id)}
                 aria-label="Dismiss notification"
-                className="text-xs opacity-70 hover:opacity-100 p-1 min-w-[24px] min-h-[24px] flex items-center justify-center"
+                className="w-12 h-12 flex items-center justify-center text-muted hover:text-foreground"
               >
-                ✕
+                <Icon name="close" size={16} />
               </button>
             </span>
           </div>

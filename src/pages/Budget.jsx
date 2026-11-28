@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import WalletCard from '../components/ui/WalletCard'
 import CategoryBreakdown from '../components/ui/CategoryBreakdown'
 import ErrorState from '../components/ui/ErrorState'
 import EmptyState from '../components/ui/EmptyState'
@@ -9,13 +8,24 @@ import NetWorthSparkline from '../components/ui/NetWorthSparkline'
 import MonthRecap from '../components/ui/MonthRecap'
 import { BudgetSkeleton } from '../components/ui/PageSkeleton'
 import { openQuickLog } from '../components/ui/QuickLog'
-import { formatNaira, timeAgo, formatDate } from '../lib/formatters'
-import { getCategoryIcon } from '../lib/constants'
+import { timeAgo, formatDate } from '../lib/formatters'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
-import ProgressRing from '../components/ui/ProgressRing'
 import { summarizeMonth, runway, safeToSpend, budgetPace, categoryAverages } from '../lib/summary'
 import { excludeRefunded } from '../lib/refunds'
 import { buildMonthRecap } from '../lib/monthRecap'
+import Icon from '../components/ui/Icon'
+import PageHeader from '../components/ui/PageHeader'
+import Panel from '../components/ui/Panel'
+import ListRow, { ListRows } from '../components/ui/ListRow'
+import Money from '../components/ui/Money'
+import Readout from '../components/ui/Readout'
+import Stat from '../components/ui/Stat'
+import Button from '../components/ui/Button'
+import IconButton from '../components/ui/IconButton'
+import ProgressBar from '../components/ui/ProgressBar'
+import StatusDot from '../components/ui/StatusDot'
+import CategoryMark from '../components/ui/CategoryMark'
+import Provenance from '../components/ui/Provenance'
 import {
   transactionListColumns,
   transactionSummaryColumns,
@@ -173,7 +183,8 @@ export default function Budget() {
 
   if (pageError) {
     return (
-      <div className="p-4 md:p-8 max-w-2xl mx-auto">
+      <div className="space-y-3 pb-6">
+        <PageHeader title="Budget" />
         <ErrorState message={pageError} onRetry={fetchWalletsAndData} />
       </div>
     )
@@ -187,21 +198,20 @@ export default function Budget() {
   // form; point there instead of maintaining a second, worse one.
   if (wallets.length === 0) {
     return (
-      <div className="p-4 md:p-8 max-w-2xl mx-auto space-y-6 text-center">
-        <span className="text-5xl block" aria-hidden="true">👛</span>
-        <div>
-          <h1 className="text-2xl font-bold text-white mb-2">No wallets yet</h1>
-          <p className="text-muted text-sm max-w-sm mx-auto">
-            Add your bank accounts, Opay and cash in Settings — each with its slug (gtbank,
-            opay, stanbic), which is how the morning import files bank alerts to it.
-          </p>
-        </div>
-        <Link
-          to="/settings"
-          className="inline-block px-6 py-3 bg-accent text-black font-bold text-sm rounded-xl min-h-[48px] leading-6"
-        >
-          Set up wallets →
-        </Link>
+      <div className="space-y-3 pb-6">
+        <PageHeader title="Budget" />
+        <Panel>
+          <div className="text-center py-8 px-2">
+            <p className="text-heading text-foreground">No wallets yet</p>
+            <p className="text-body-sm text-muted max-w-sm mx-auto mt-1">
+              Add your bank accounts, Opay and cash in Settings, each with its slug (gtbank,
+              opay, stanbic), which is how the morning import files bank alerts to it.
+            </p>
+            <div className="mt-5">
+              <Button to="/settings">Set up wallets</Button>
+            </div>
+          </div>
+        </Panel>
       </div>
     )
   }
@@ -301,194 +311,161 @@ export default function Budget() {
   }
 
   return (
-    <div className="p-4 md:p-8 space-y-8 max-w-5xl mx-auto">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">Budget 💰</h1>
-          <p className="text-muted text-sm mt-0.5">
-            <Link to="/repairs" className="text-accent hover:underline">
-              Repairs & maintenance →
-            </Link>
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => openQuickLog('debit')}
-            className="bg-card hover:bg-card/80 border border-white/10 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors min-h-[48px]"
-          >
-            + Log Transaction
-          </button>
-          <button
-            onClick={() => openQuickLog('transfer')}
-            className="bg-card hover:bg-card/80 border border-white/10 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors min-h-[48px]"
-          >
-            ⇄ Transfer
-          </button>
-          <button
-            onClick={() => openQuickLog('credit')}
-            className="bg-accent/10 hover:bg-accent/20 text-accent border border-accent/20 px-4 py-2 rounded-xl text-sm font-medium transition-colors min-h-[48px]"
-          >
-            + Income
-          </button>
-        </div>
+    <div className="space-y-3 pb-6">
+      <PageHeader
+        title="Budget"
+        meta={`Updated ${latestLastUpdated ? timeAgo(latestLastUpdated) : 'just now'}`}
+        actions={
+          <Button size="sm" variant="ghost" icon="repair" to="/repairs">
+            Repairs
+          </Button>
+        }
+      />
+
+      <div className="grid grid-cols-3 gap-2">
+        <Button size="sm" variant="secondary" icon="plus" onClick={() => openQuickLog('debit')}>
+          Log
+        </Button>
+        <Button size="sm" variant="secondary" icon="repeat" onClick={() => openQuickLog('transfer')}>
+          Transfer
+        </Button>
+        <Button size="sm" variant="secondary" icon="arrowIn" onClick={() => openQuickLog('credit')}>
+          Income
+        </Button>
       </div>
 
-      {/* ── Layered Net Worth Card ── */}
-      <div className="bg-card rounded-3xl p-6 md:p-8 border border-white/5 relative overflow-hidden group">
-        <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
-          <span className="text-8xl">💰</span>
-        </div>
-        <p className="text-muted font-medium mb-2">TOTAL NET WORTH</p>
-        <h2 className="text-4xl md:text-5xl font-bold text-white mb-4 money">
-          {formatNaira(totalNetWorth)}
-        </h2>
-
-        <div className="mb-4">
+      {/* Net worth: the page's one display figure, the trend under it and
+          the three layers it is made of. */}
+      <Panel label="Total net worth">
+        <Readout size="display" value={totalNetWorth} tone={totalNetWorth < 0 ? 'danger' : 'default'} />
+        <div className="mt-3">
           <NetWorthSparkline snapshots={netWorthHistory} />
         </div>
-
-        {/* Layered breakdown */}
         {hasSavingsOrInvestments && (
-          <div className="grid grid-cols-3 gap-3 pt-4 border-t border-white/5">
-            <div className="bg-background/40 p-3 rounded-2xl border border-white/5">
-              <p className="text-[10px] text-muted uppercase tracking-wider mb-1">💳 Liquid</p>
-              <p className="text-sm font-bold text-white money">{formatNaira(liquidBalance)}</p>
-            </div>
-            <div className="bg-background/40 p-3 rounded-2xl border border-white/5">
-              <p className="text-[10px] text-muted uppercase tracking-wider mb-1">🐖 Savings</p>
-              <p className="text-sm font-bold text-blue-400 money">{formatNaira(savingsBalance)}</p>
-            </div>
-            <div className="bg-background/40 p-3 rounded-2xl border border-white/5">
-              <p className="text-[10px] text-muted uppercase tracking-wider mb-1">📈 Invested</p>
-              <p className="text-sm font-bold text-purple-400 money">{formatNaira(investmentBalance)}</p>
-            </div>
+          <div className="grid grid-cols-3 gap-3 mt-3 pt-3 border-t border-border">
+            <Stat label="Liquid" value={<Money amount={liquidBalance} kobo={false} />} />
+            <Stat label="Savings" value={<Money amount={savingsBalance} kobo={false} />} />
+            <Stat label="Invested" value={<Money amount={investmentBalance} kobo={false} />} />
           </div>
         )}
+      </Panel>
 
-        <p className="text-xs text-muted mt-3">
-          Last updated: {latestLastUpdated ? timeAgo(latestLastUpdated) : 'Just now'}
-        </p>
-      </div>
+      {/* Wallets */}
+      <Panel label="Wallets" meta={`${activeWallets.length} active`} flush>
+        <ListRows>
+          {activeWallets.map((w) => (
+            <ListRow
+              key={w.id}
+              leading={
+                <span aria-hidden="true" className="inline-flex items-center justify-center w-7 h-7 rounded-chip bg-surface-2 text-muted">
+                  <Icon name={WALLET_GLYPH[w.type] || 'budget'} size={16} />
+                </span>
+              }
+              title={w.name}
+              subtitle={<span className="capitalize">{w.type}</span>}
+              trailing={<Money amount={Number(w.balance) || 0} />}
+            />
+          ))}
+        </ListRows>
+      </Panel>
 
-      {/* Wallets List */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {activeWallets.map((wallet) => (
-          <WalletCard
-            key={wallet.id}
-            name={wallet.name}
-            type={wallet.type}
-            balance={wallet.balance}
-            color={wallet.color}
-          />
-        ))}
-      </div>
-
-      {/* This Month Summary Card */}
-      <div className="bg-card rounded-3xl p-6 border border-white/5">
-        <div className="flex items-center justify-between gap-3 mb-6">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => goToMonth(-1)}
-              aria-label="Previous month"
-              className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 text-muted hover:text-white flex items-center justify-center min-h-[44px] min-w-[44px]"
-            >
-              ‹
-            </button>
-            <h3 className="text-lg font-bold text-white uppercase">{isCurrent ? 'This month' : monthLabel}</h3>
-            <button
-              type="button"
-              onClick={() => goToMonth(1)}
-              disabled={isCurrent}
-              aria-label="Next month"
-              className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 text-muted hover:text-white flex items-center justify-center min-h-[44px] min-w-[44px] disabled:opacity-30"
-            >
-              ›
-            </button>
+      {/* The month: safe to spend against the target, then income, spending
+          and what was moved aside. Arrows step through past months. */}
+      <Panel
+        label={isCurrent ? 'This month' : monthLabel}
+        action={
+          <div className="flex items-center -mr-2">
+            {!isCurrent && (
+              <Button size="sm" variant="ghost" onClick={() => setSearchParams({})}>
+                This month
+              </Button>
+            )}
+            <IconButton name="chevL" label="Previous month" onClick={() => goToMonth(-1)} />
+            <IconButton name="chevR" label="Next month" onClick={() => goToMonth(1)} disabled={isCurrent} />
           </div>
-          {!isCurrent && (
-            <button type="button" onClick={() => setSearchParams({})} className="text-xs font-semibold text-accent min-h-[44px] px-1">
-              This month →
-            </button>
-          )}
-        </div>
-
+        }
+      >
         {!isCurrent && percentOfBudget != null && (
-          <p className="text-xs text-muted mb-6">
-            {percentOfBudget}% of the <span className="money">{formatNaira(budgetTarget)}</span> budget
-            {percentOfBudget > 100 && <span className="text-red-400 font-semibold"> · over</span>}
+          <p className="flex items-center gap-2 text-body-sm text-muted mb-3">
+            {percentOfBudget > 100 && <StatusDot status="danger" />}
+            <span>
+              {percentOfBudget}% of the <Money amount={budgetTarget} tone="muted" /> budget
+              {percentOfBudget > 100 && <span className="text-danger font-semibold"> · over</span>}
+            </span>
           </p>
         )}
 
         {isCurrent && (
-        <div className="flex items-center gap-5 mb-6">
-          {percentOfBudget != null && (
-            <ProgressRing
-              value={percentOfBudget / 100}
-              size={72}
-              strokeWidth={7}
-              color={percentOfBudget >= 100 ? '#ef4444' : pace && !pace.onTrack ? '#f59e0b' : 'var(--color-accent)'}
-            >
-              <span className="text-xs font-bold text-white">{percentOfBudget}%</span>
-            </ProgressRing>
-          )}
-          <div>
-            <p className="text-xs text-muted mb-1">Safe to spend</p>
-            <p className="text-3xl font-bold text-white money">{formatNaira(safeToSpendThisMonth)}</p>
+          <div className="mb-3 pb-3 border-b border-border">
+            <Readout
+              label="Safe to spend"
+              value={safeToSpendThisMonth}
+              tone={safeToSpendThisMonth < 0 ? 'danger' : 'default'}
+            />
+            {percentOfBudget != null && (
+              <div className="mt-2 space-y-1.5">
+                <ProgressBar
+                  value={percentOfBudget}
+                  tone={percentOfBudget >= 100 ? 'danger' : pace && !pace.onTrack ? 'warn' : 'accent'}
+                  label="Share of this month's budget spent"
+                />
+                <p className="type-data text-muted">
+                  {percentOfBudget}% of <Money amount={budgetTarget} kobo={false} tone="muted" className="font-normal" />
+                </p>
+              </div>
+            )}
             {percentOfBudget >= 100 && (
-              <p className="text-xs text-red-400 font-semibold mt-1">
-                <span className="money">{formatNaira(thisMonthSpent - budgetTarget)}</span> over budget
+              <p className="flex items-center gap-2 mt-2 text-body-sm text-danger">
+                <StatusDot status="danger" />
+                <span>
+                  <Money amount={thisMonthSpent - budgetTarget} tone="danger" /> over budget
+                </span>
               </p>
             )}
             {pace && !pace.onTrack && percentOfBudget < 100 && (
-              <p className="text-xs text-amber-400 font-semibold mt-1">
-                <span className="money">{formatNaira(pace.aheadBy)}</span> ahead of pace for today
+              <p className="flex items-center gap-2 mt-2 text-body-sm text-warn">
+                <StatusDot status="warn" />
+                <span>
+                  <Money amount={pace.aheadBy} tone="warn" /> ahead of pace for today
+                </span>
               </p>
             )}
           </div>
-        </div>
         )}
 
-        <div className="grid grid-cols-3 gap-4">
-          <div>
-            <p className="text-xs text-muted mb-1">Income</p>
-            <p className="text-lg font-bold text-accent money">{formatNaira(thisMonthIncome)}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted mb-1">Spent</p>
-            {/* red-400, not red-500: 500 measured only 4.6:1 against this
-                card background, a thin margin above the 4.5:1 floor for
-                text this size; 400 measures 6.3:1. */}
-            <p className="text-lg font-bold text-red-400 money">{formatNaira(thisMonthSpent)}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted mb-1">{isCurrent ? 'Liquid Balance' : 'Net'}</p>
-            <p className={`text-lg font-bold money ${!isCurrent && thisMonthIncome - thisMonthSpent < 0 ? 'text-red-400' : 'text-white'}`}>
-              {formatNaira(isCurrent ? thisMonthRemaining : thisMonthIncome - thisMonthSpent)}
-            </p>
-          </div>
+        <div className="grid grid-cols-3 gap-3">
+          <Stat label="Income" value={<Money amount={thisMonthIncome} kobo={false} tone={thisMonthIncome > 0 ? 'positive' : 'default'} />} />
+          <Stat label="Spent" value={<Money amount={thisMonthSpent} kobo={false} />} />
+          <Stat
+            label={isCurrent ? 'Liquid' : 'Net'}
+            value={
+              <Money
+                amount={isCurrent ? thisMonthRemaining : thisMonthIncome - thisMonthSpent}
+                kobo={false}
+                tone={!isCurrent && thisMonthIncome - thisMonthSpent < 0 ? 'danger' : 'default'}
+              />
+            }
+          />
         </div>
 
         {(monthSummary.movedAside > 0 || (isCurrent && monthRunway?.daysOfRunway != null)) && (
-          <div className="flex flex-wrap gap-x-6 gap-y-1 mt-5 pt-4 border-t border-white/5">
+          <div className="space-y-1 mt-3 pt-3 border-t border-border">
             {monthSummary.movedAside > 0 && (
-              <p className="text-xs text-muted">
-                Moved to savings / cash:{' '}
-                <span className="text-blue-400 font-semibold money">{formatNaira(monthSummary.movedAside)}</span>
+              <p className="text-body-sm text-muted">
+                Moved to savings / cash: <Money amount={monthSummary.movedAside} className="text-foreground" />
               </p>
             )}
             {isCurrent && monthRunway?.daysOfRunway != null && (
-              <p className="text-xs text-muted">
-                At <span className="money">{formatNaira(monthRunway.dailyBurn)}</span>/day, liquid lasts{' '}
-                <span className="text-white font-semibold">
+              <p className="text-body-sm text-muted">
+                At <Money amount={monthRunway.dailyBurn} tone="muted" />/day, liquid lasts{' '}
+                <span className="text-foreground font-semibold">
                   {monthRunway.capped ? '90+' : monthRunway.daysOfRunway} days
                 </span>
               </p>
             )}
           </div>
         )}
-      </div>
+      </Panel>
 
       {/* Month in review */}
       <MonthRecap sentences={recapSentences} />
@@ -501,51 +478,49 @@ export default function Budget() {
       />
 
       {/* Last 5 Transactions */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-white">LAST 5 TRANSACTIONS</h3>
-          <Link to="/transactions" className="text-sm text-accent hover:underline min-h-[48px] flex items-center">
-            See all →
-          </Link>
-        </div>
-        
+      <Panel
+        label="Last 5 transactions"
+        flush
+        action={
+          <Button size="sm" variant="ghost" to="/transactions">
+            See all
+          </Button>
+        }
+      >
         {last5Transactions.length === 0 ? (
-          <div className="bg-card rounded-2xl border border-white/5">
-            <EmptyState
-              icon="💳"
-              title="No transactions yet"
-              message="Log one to start seeing your spending here"
-              actionLabel="Log a transaction"
-              onAction={() => openQuickLog('debit')}
-            />
-          </div>
+          <EmptyState
+            title="No transactions yet"
+            message="Log one to start seeing your spending here"
+            actionLabel="Log a transaction"
+            onAction={() => openQuickLog('debit')}
+          />
         ) : (
-          <div className="bg-card rounded-2xl border border-white/5 overflow-hidden">
-            {last5Transactions.map((t, idx) => (
-              <div 
-                key={t.id} 
-                className={`flex items-center justify-between p-4 ${
-                  idx !== last5Transactions.length - 1 ? 'border-b border-white/5' : ''
-                }`}
-              >
-                <div className="flex items-center gap-4">
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl bg-gray-500/20`}>
-                    <span className="opacity-80">{getCategoryIcon(t.category)}</span>
-                  </div>
-                  <div>
-                    <p className="text-white font-medium">{t.description || t.category}</p>
-                    <p className="text-xs text-muted">{formatDate(t.transaction_date)}</p>
-                  </div>
-                </div>
-                <div className={`font-bold money ${t.type === 'credit' ? 'text-accent' : 'text-white'}`}>
-                  {t.type === 'credit' ? '+' : '-'}{formatNaira(t.amount)}
-                </div>
-              </div>
-            ))}
-          </div>
+          <ListRows>
+            {last5Transactions.map((t) => {
+              const isCredit = t.type === 'credit'
+              return (
+                <ListRow
+                  key={t.id}
+                  leading={<CategoryMark category={t.category} />}
+                  title={t.description || t.category}
+                  subtitle={`${t.category} · ${formatDate(t.transaction_date)}`}
+                  meta={<Provenance source={t.source} at={t.transaction_time} />}
+                  trailing={
+                    <Money
+                      amount={isCredit ? Number(t.amount) : -Number(t.amount)}
+                      sign={isCredit}
+                      tone={isCredit ? 'positive' : 'default'}
+                    />
+                  }
+                />
+              )
+            })}
+          </ListRows>
         )}
-      </div>
-
+      </Panel>
     </div>
   )
 }
+
+/** A wallet's type as a glyph (the same mapping Daily HQ uses). */
+const WALLET_GLYPH = { bank: 'bank', mobile: 'phone', cash: 'cash', savings: 'vault', investment: 'chart' }

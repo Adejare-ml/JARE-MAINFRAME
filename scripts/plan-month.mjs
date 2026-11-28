@@ -91,7 +91,7 @@ const missingVars = [
   .map(([name]) => name)
 
 if (missingVars.length > 0) {
-  console.error(`❌ Missing required environment variables: ${missingVars.join(', ')}`)
+  console.error(`Missing required environment variables: ${missingVars.join(', ')}`)
   process.exit(1)
 }
 
@@ -117,7 +117,7 @@ function listRepoFiles() {
       .split('\n')
       .filter(Boolean)
   } catch (err) {
-    console.warn(`⚠️  Could not list repository files: ${err.message}`)
+    console.warn(`Could not list repository files: ${err.message}`)
     return []
   }
 }
@@ -128,7 +128,7 @@ function listRepoFiles() {
 
 async function main() {
   OWNER_USER_ID = await resolveOwnerUserId(supabase, OWNER_USER_ID)
-  console.log(`🗓️  Planning ${monthStart}`)
+  console.log(`Planning ${monthStart}`)
 
   // Inside main() so that a missing key goes through the catch below and is
   // recorded as a failed run: an exit before recordRun left Settings → System
@@ -183,7 +183,7 @@ async function main() {
 
   // Gaps are additive, not load-bearing: a missing table means 011 has not run
   // for that half, and a plan from the repository alone is still worth having.
-  if (gapsRes.error) console.warn(`⚠️  Knowledge gaps unavailable: ${gapsRes.error.message}`)
+  if (gapsRes.error) console.warn(`Knowledge gaps unavailable: ${gapsRes.error.message}`)
   const gaps = gapsRes.error ? [] : gapsRes.data || []
 
   // Only coding goals. A savings goal decomposes perfectly well without a
@@ -231,7 +231,7 @@ async function main() {
     // and "the model proposed six and two were kept" is the single most useful
     // line in this log.
     for (const { item, reason } of rejected) {
-      console.log(`   ✗ week ${item.week ?? '?'}: ${reason}`)
+      console.log(`   skipped week ${item.week ?? '?'}: ${reason}`)
     }
 
     if (accepted.length === 0) {
@@ -277,13 +277,13 @@ async function main() {
     // The focus text and the cited gap are the owner's plan, and the log is
     // public with the repository: week number and evidence kind only.
     for (const item of accepted) {
-      console.log(`   ✓ week ${item.week}: drafted from ${item.kind}`)
+      console.log(`   week ${item.week}: drafted from ${item.kind}`)
     }
     console.log(`   ${answer.provider} proposed ${accepted.length + rejected.length}, ${accepted.length} kept\n`)
   }
 
   console.log('─'.repeat(64))
-  console.log(`✅ ${written} week(s) drafted`)
+  console.log(`${written} week(s) drafted`)
   runSummary = `${written} week(s) drafted for ${goals.length} goal(s)`
   if (written > 0) {
     console.log('   These are proposals. They appear on /goals for you to approve or')
@@ -305,7 +305,7 @@ async function main() {
 main()
   .then(() => recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: process.exitCode !== 1, summary: runSummary }))
   .catch(async (err) => {
-    console.error('❌ Month planning failed:', err?.message || err)
+    console.error('Month planning failed:', err?.message || err)
     await recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: false, summary: err?.message || String(err) })
     process.exit(1)
   })

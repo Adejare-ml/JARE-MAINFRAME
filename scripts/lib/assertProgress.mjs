@@ -20,8 +20,8 @@ export function assertProgress(checks) {
   if (failed.length === 0) return
 
   console.log('─'.repeat(64))
-  console.log('🚨 This run finished without throwing, but did not do its job:')
-  for (const { reason } of failed) console.log(`   ✗ ${reason}`)
+  console.log('This run finished without throwing, but did not do its job:')
+  for (const { reason } of failed) console.log(`   - ${reason}`)
 
   // Not process.exit(): the caller has already awaited its writes by the time
   // this runs, but a hard exit here would still skip anything after this call

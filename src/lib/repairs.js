@@ -6,10 +6,11 @@
  * is what is still ahead -- an estimate for a repair already done is history.
  */
 
+/** `tone` is the StatusDot beside the word: urgent is a fault, soon needs attention, someday is neutral. */
 export const PRIORITIES = [
-  { value: 'urgent', label: 'Urgent', icon: '🔥' },
-  { value: 'soon', label: 'Soon', icon: '📅' },
-  { value: 'someday', label: 'Someday', icon: '🌱' },
+  { value: 'urgent', label: 'Urgent', tone: 'danger' },
+  { value: 'soon', label: 'Soon', tone: 'warn' },
+  { value: 'someday', label: 'Someday', tone: 'muted' },
 ]
 
 export const STATUSES = [

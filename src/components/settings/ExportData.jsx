@@ -2,6 +2,9 @@ import { useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { toast } from '../../lib/toast'
 import { EXPORT_TABLES, toCsv, columnsFor, fetchAll, buildBundle, filenameFor } from '../../lib/export'
+import Panel from '../ui/Panel'
+import Button from '../ui/Button'
+import { Select } from '../ui/Field'
 
 /**
  * The way out. One table as a spreadsheet, or everything as one JSON file
@@ -72,52 +75,36 @@ export default function ExportData() {
   }
 
   return (
-    <section className="bg-card rounded-3xl p-6 border border-white/10 space-y-4">
-      <h2 className="text-xs font-semibold text-muted uppercase tracking-wider border-b border-white/5 pb-3">Export</h2>
-
-      <div className="flex flex-col sm:flex-row sm:items-end gap-3">
-        <div className="flex-1">
-          <label htmlFor="export-table" className="block text-xs text-muted font-semibold mb-1">
-            One table as a spreadsheet
-          </label>
-          <select
-            id="export-table"
-            value={table}
-            onChange={(e) => setTable(e.target.value)}
-            className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-accent min-h-[48px]"
-          >
-            {EXPORT_TABLES.map((t) => (
-              <option key={t.name} value={t.name}>
-                {t.name.replace(/_/g, ' ')}
-              </option>
-            ))}
-          </select>
+    <Panel id="export" label="Export" className="scroll-mt-16">
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+          <div className="flex-1 min-w-0">
+            <Select id="export-table" label="One table as a spreadsheet" value={table} onChange={(e) => setTable(e.target.value)}>
+              {EXPORT_TABLES.map((t) => (
+                <option key={t.name} value={t.name}>
+                  {t.name.replace(/_/g, ' ')}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <Button variant="secondary" icon="export" onClick={exportCsv} disabled={busy !== null} loading={busy === 'csv'}>
+            {busy === 'csv' ? 'Exporting…' : 'Download CSV'}
+          </Button>
         </div>
-        <button
-          onClick={exportCsv}
-          disabled={busy !== null}
-          className="px-5 py-3 bg-white/5 hover:bg-white/10 text-white text-sm font-bold rounded-xl min-h-[48px] disabled:opacity-50"
-        >
-          {busy === 'csv' ? 'Exporting…' : 'Download CSV'}
-        </button>
-      </div>
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-white/5">
-        <div>
-          <p className="text-sm text-white font-semibold">Everything, as one file</p>
-          <p className="text-[11px] text-muted-dim mt-0.5">
-            Every table you own, including bank email bodies and meal photos. The Gmail connection and your phones&apos; push
-            subscriptions are never exported.
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 border-t border-border">
+          <div className="min-w-0">
+            <p className="text-heading text-foreground">Everything, as one file</p>
+            <p className="text-body-sm text-muted mt-0.5">
+              Every table you own, including bank email bodies and meal photos. The Gmail connection and your phones&apos;
+              push subscriptions are never exported.
+            </p>
+          </div>
+          <Button icon="export" onClick={exportJson} disabled={busy !== null} loading={busy === 'json'} className="shrink-0">
+            {busy === 'json' ? 'Exporting…' : 'Download JSON'}
+          </Button>
         </div>
-        <button
-          onClick={exportJson}
-          disabled={busy !== null}
-          className="px-5 py-3 bg-accent text-black text-sm font-bold rounded-xl min-h-[48px] disabled:opacity-50 flex-shrink-0"
-        >
-          {busy === 'json' ? 'Exporting…' : 'Download JSON'}
-        </button>
       </div>
-    </section>
+    </Panel>
   )
 }

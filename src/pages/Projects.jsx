@@ -6,6 +6,20 @@ import ErrorState from '../components/ui/ErrorState'
 import EmptyState from '../components/ui/EmptyState'
 import Sheet from '../components/ui/Sheet'
 import { ProjectsSkeleton } from '../components/ui/PageSkeleton'
+import PageHeader from '../components/ui/PageHeader'
+import Panel from '../components/ui/Panel'
+import Stat from '../components/ui/Stat'
+import ListRow, { ListRows } from '../components/ui/ListRow'
+import Button from '../components/ui/Button'
+import IconButton from '../components/ui/IconButton'
+import Badge from '../components/ui/Badge'
+import Segmented from '../components/ui/Segmented'
+import StatusDot from '../components/ui/StatusDot'
+import ProgressBar from '../components/ui/ProgressBar'
+import Label from '../components/ui/Label'
+import Icon from '../components/ui/Icon'
+import { Field, Input, controlClasses } from '../components/ui/Field'
+import TaskCheck from '../components/daily/TaskCheck'
 import { confirmBuzz } from '../lib/haptics'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import { hasColumn } from '../lib/schema'
@@ -32,7 +46,7 @@ const TABS = [
   { id: 'all', label: 'All' },
   { id: 'active', label: 'Active' },
   { id: 'complete', label: 'Complete' },
-  { id: 'carried', label: 'Carried Over' },
+  { id: 'carried', label: 'Carried' },
 ]
 
 const EMPTY_FORM = {
@@ -203,7 +217,7 @@ export default function Projects() {
       }
 
       confirmBuzz()
-      toast.success(editing ? 'Updated ✓' : 'Added ✓')
+      toast.success(editing ? 'Updated' : 'Added')
       fetchProjects()
       setJustSaved(true)
       setTimeout(() => {
@@ -230,7 +244,7 @@ export default function Projects() {
     if (error) toast.error('Failed to update: ' + error.message)
     else {
       if (status === 'complete') confirmBuzz()
-      toast.success(status === 'complete' ? 'Marked complete ✓' : 'Reopened')
+      toast.success(status === 'complete' ? 'Marked complete' : 'Reopened')
       fetchProjects()
     }
   }
@@ -279,398 +293,333 @@ export default function Projects() {
 
   if (!available) {
     return (
-      <div className="space-y-6 pb-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-white">Projects 🛠️</h1>
-        <div className="rounded-2xl bg-orange-500/10 border border-orange-500/20 p-5 text-sm text-orange-300 leading-relaxed">
-          Run <code className="font-mono">supabase/migrations/026_projects.sql</code> in the Supabase SQL editor to switch this
-          page on.
-        </div>
+      <div className="space-y-3 pb-6">
+        <PageHeader title="Projects" />
+        <Panel label="Setup needed" tone="warn">
+          <p className="flex items-start gap-2 text-body-sm text-foreground">
+            <StatusDot status="warn" className="mt-1.5" />
+            <span>
+              Run <code className="type-data">supabase/migrations/026_projects.sql</code> in the Supabase SQL editor to switch
+              this page on.
+            </span>
+          </p>
+        </Panel>
       </div>
     )
   }
 
   if (pageError) {
     return (
-      <div className="space-y-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-white">Projects 🛠️</h1>
+      <div className="space-y-3">
+        <PageHeader title="Projects" />
         <ErrorState message={pageError} onRetry={fetchProjects} />
       </div>
     )
   }
 
   const monthLabel = new Date(thisMonth + 'T00:00:00').toLocaleDateString('en-NG', { month: 'long', year: 'numeric' })
+  const todayDate = toDateOnly(new Date())
 
   return (
-    <div className="space-y-6 pb-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-white">Projects 🛠️</h1>
-          <p className="text-muted text-sm mt-0.5">Monthly project tracker with milestones</p>
-        </div>
-        <button
-          onClick={openAdd}
-          className="px-4 py-2.5 bg-accent text-black rounded-xl text-sm font-bold min-h-[48px] flex-shrink-0"
-        >
-          + New
-        </button>
-      </div>
+    <div className="space-y-3 pb-6">
+      <PageHeader
+        title="Projects"
+        meta="Milestones by month"
+        actions={
+          <Button icon="plus" onClick={openAdd}>
+            New
+          </Button>
+        }
+      />
 
       {candidates.length > 0 && (
-        <div className="bg-accent/10 border border-accent/20 rounded-2xl p-4 flex items-center justify-between gap-3">
-          <p className="text-sm text-white">
-            {candidates.length} unfinished project{candidates.length === 1 ? '' : 's'} from{' '}
-            {candidates.length === 1 ? 'last month' : 'earlier months'}
-          </p>
-          <button
-            onClick={carryOver}
-            disabled={carrying}
-            className="px-4 py-2 bg-accent text-black rounded-xl text-xs font-bold min-h-[44px] flex-shrink-0 disabled:opacity-50"
-          >
-            {carrying ? 'Carrying…' : 'Carry over'}
-          </button>
-        </div>
+        <Panel label="Carry over" tone="warn">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-body-sm text-foreground min-w-0">
+              {candidates.length} unfinished project{candidates.length === 1 ? '' : 's'} from{' '}
+              {candidates.length === 1 ? 'last month' : 'earlier months'}
+            </p>
+            <Button size="sm" onClick={carryOver} loading={carrying}>
+              {carrying ? 'Carrying…' : 'Carry over'}
+            </Button>
+          </div>
+        </Panel>
       )}
 
-      {/* This month */}
-      <section className="bg-card rounded-2xl p-5 border border-white/5">
-        <h2 className="text-xs font-semibold text-muted uppercase tracking-wider mb-4">{monthLabel}</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[
-            ['Total', counts.total, 'text-white'],
-            ['Active', counts.active, 'text-accent'],
-            ['Coding', counts.coding, 'text-blue-400'],
-            ['Hands-on', counts.handsOn, 'text-orange-400'],
-          ].map(([label, value, color]) => (
-            <div key={label} className="text-center">
-              <p className={`text-2xl font-bold tabular-nums ${color}`}>{value}</p>
-              <p className="text-xs text-muted mt-1">{label}</p>
-            </div>
-          ))}
+      <Panel label={monthLabel} meta="This month">
+        <div className="grid grid-cols-4 gap-3">
+          <Stat label="Total" value={counts.total} />
+          <Stat label="Active" value={counts.active} />
+          <Stat label="Coding" value={counts.coding} />
+          <Stat label="Hands-on" value={counts.handsOn} />
         </div>
-      </section>
+      </Panel>
 
-      {/* Tabs */}
-      <div role="tablist" aria-label="Project views" className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            role="tab"
-            aria-selected={tab === t.id}
-            aria-controls={`tabpanel-${t.id}`}
-            id={`tab-${t.id}`}
-            onClick={() => setTab(t.id)}
-            className={`px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap min-h-[48px] transition-all ${
-              tab === t.id ? 'bg-accent text-black' : 'bg-card text-muted hover:text-white border border-white/5'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <Segmented
+        tabs
+        full
+        idPrefix="projects"
+        label="Project views"
+        options={TABS.map((t) => ({ value: t.id, label: t.label }))}
+        value={tab}
+        onChange={setTab}
+      />
 
-      {/* List */}
-      <div role="tabpanel" id={`tabpanel-${tab}`} aria-labelledby={`tab-${tab}`}>
+      <div role="tabpanel" id={`projects-panel-${tab}`} aria-labelledby={`projects-tab-${tab}`} className="space-y-3">
         {visible.length === 0 ? (
-        <div className="bg-card rounded-3xl border border-white/5">
-          <EmptyState
-            icon="🛠️"
-            title={tab === 'all' ? 'No projects yet' : 'Nothing in this tab'}
-            message={
-              tab === 'all'
-                ? 'Name the thing you are building this month, break it into milestones, and tick them off as you go'
-                : 'Try a different tab, or start a project'
-            }
-            actionLabel="+ New project"
-            onAction={openAdd}
-          />
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {visible.map((project) => {
+          <Panel>
+            <EmptyState
+              title={tab === 'all' ? 'No projects yet' : 'Nothing in this tab'}
+              message={
+                tab === 'all'
+                  ? 'Name the thing you are building this month, break it into milestones, and tick them off as you go'
+                  : 'Try a different tab, or start a project'
+              }
+              actionLabel="New project"
+              onAction={openAdd}
+            />
+          </Panel>
+        ) : (
+          visible.map((project) => {
             const rows = byProject.get(project.id) || []
             const progress = milestoneProgress(rows)
             const typeMeta = TYPES.find((t) => t.value === project.type)
             const isComplete = project.status === 'complete'
 
             return (
-              <div
+              <Panel
                 key={project.id}
-                className={`bg-card rounded-2xl p-5 border transition-all ${
-                  isComplete ? 'border-white/5 opacity-60' : 'border-white/10'
-                }`}
+                flush
+                label={
+                  <span className="inline-flex items-center gap-2">
+                    <Icon name={typeMeta?.icon || 'project'} size={16} />
+                    {typeMeta?.label || 'Project'}
+                  </span>
+                }
+                meta={monthKey(project.month)}
               >
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span aria-hidden="true">{typeMeta?.icon || '🛠️'}</span>
-                      <h3 className="text-sm font-bold text-white truncate">{project.name}</h3>
-                      {isComplete && (
-                        <span className="text-[9px] bg-white/5 text-muted px-1.5 py-0.5 rounded-full uppercase font-bold">
-                          Complete
-                        </span>
-                      )}
-                      {project.carried_from && (
-                        <span className="text-[9px] bg-orange-500/15 text-orange-300 px-1.5 py-0.5 rounded-full uppercase font-bold">
-                          From {monthKey(project.carried_from)}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[10px] text-muted mt-0.5">
-                      {typeMeta?.label || 'Project'} · {monthKey(project.month)}
-                      {project.stack && ` · ${project.stack}`}
-                    </p>
+                <div className="flex items-start justify-between gap-2 pl-3 pr-1 pt-2">
+                  <div className="min-w-0 py-1.5">
+                    <h3 className={`text-heading truncate ${isComplete ? 'text-muted' : 'text-foreground'}`}>{project.name}</h3>
+                    {(isComplete || project.carried_from) && (
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                        {isComplete && <Badge label="Complete" tone="accent" />}
+                        {project.carried_from && <Badge label={`From ${monthKey(project.carried_from)}`} tone="warn" />}
+                      </div>
+                    )}
+                    {project.stack && <p className="type-data text-muted-dim mt-1 truncate">{project.stack}</p>}
+                    {project.description && <p className="text-body-sm text-muted mt-1">{project.description}</p>}
                   </div>
-                  <div className="flex gap-1 flex-shrink-0">
-                    <button
-                      onClick={() => openEdit(project)}
-                      aria-label={`Edit ${project.name}`}
-                      className="w-11 h-11 flex items-center justify-center rounded-xl hover:bg-white/5 text-muted hover:text-white"
-                    >
-                      ✏️
-                    </button>
-                    <button
-                      onClick={() => setConfirmDeleteId(project.id)}
-                      aria-label={`Delete ${project.name}`}
-                      className="w-11 h-11 flex items-center justify-center rounded-xl hover:bg-red-500/10 text-muted hover:text-red-400"
-                    >
-                      🗑️
-                    </button>
+                  <div className="flex shrink-0">
+                    <IconButton name="edit" label={`Edit ${project.name}`} onClick={() => openEdit(project)} />
+                    <IconButton name="trash" label={`Delete ${project.name}`} onClick={() => setConfirmDeleteId(project.id)} />
                   </div>
                 </div>
 
-                {project.description && <p className="text-xs text-muted mb-3">{project.description}</p>}
-
                 {rows.length > 0 && (
-                  <div className="space-y-2">
-                    <div className="flex items-baseline justify-between">
-                      <p className="text-xs text-muted">
-                        {progress.done} of {progress.total} milestone{progress.total === 1 ? '' : 's'}
-                      </p>
-                      <p className="text-xs text-muted tabular-nums">{Math.round(progress.share * 100)}%</p>
+                  <>
+                    <div className="px-3 pt-2 pb-3 space-y-2">
+                      <div className="flex items-baseline justify-between type-data text-muted">
+                        <span>
+                          {progress.done} of {progress.total} milestone{progress.total === 1 ? '' : 's'}
+                        </span>
+                        <span>{Math.round(progress.share * 100)}%</span>
+                      </div>
+                      <ProgressBar value={progress.share * 100} label={`${project.name} milestones`} />
                     </div>
-                    <div className="h-2 bg-white/5 rounded-full overflow-hidden">
-                      <div className="h-full bg-accent rounded-full" style={{ width: `${progress.share * 100}%` }} />
+                    <div className="border-t border-border">
+                      <ListRows label={`${project.name} milestones`}>
+                        {rows.map((m) => {
+                          const overdue = !m.completed && m.due_date && m.due_date < todayDate
+                          return (
+                            <ListRow
+                              key={m.id}
+                              onClick={() => toggleMilestone(m)}
+                              label={`${m.title}, ${m.completed ? 'done' : 'not done'}`}
+                              leading={<TaskCheck locked done={Boolean(m.completed)} />}
+                              title={<span className={m.completed ? 'text-muted line-through' : ''}>{m.title}</span>}
+                              meta={
+                                m.due_date && (
+                                  <span className={overdue ? 'text-danger' : ''}>
+                                    {overdue ? 'Overdue · ' : 'Due '}
+                                    {formatDate(m.due_date)}
+                                  </span>
+                                )
+                              }
+                            />
+                          )
+                        })}
+                      </ListRows>
                     </div>
-                    <ul className="space-y-1 pt-1">
-                      {rows.map((m) => (
-                        <li key={m.id}>
-                          <button
-                            type="button"
-                            onClick={() => toggleMilestone(m)}
-                            aria-pressed={m.completed}
-                            className="w-full flex items-center gap-2.5 py-1.5 text-left min-h-[40px]"
-                          >
-                            <span
-                              className={`w-5 h-5 shrink-0 rounded-md border-2 flex items-center justify-center text-[10px] font-black ${
-                                m.completed ? 'bg-accent border-accent text-black' : 'border-white/20 text-transparent'
-                              }`}
-                              aria-hidden="true"
-                            >
-                              ✓
-                            </span>
-                            <span className={`text-sm flex-1 min-w-0 truncate ${m.completed ? 'text-muted line-through' : 'text-white'}`}>
-                              {m.title}
-                            </span>
-                            {m.due_date && (
-                              <span
-                                className={`text-[11px] shrink-0 ${
-                                  !m.completed && m.due_date < toDateOnly(new Date()) ? 'text-red-400' : 'text-muted'
-                                }`}
-                              >
-                                {formatDate(m.due_date)}
-                              </span>
-                            )}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                  </>
                 )}
 
                 {project.done_criteria && (
-                  <p className="text-[11px] text-muted mt-3 pt-3 border-t border-white/5">
+                  <p className="text-body-sm text-muted px-3 py-3 border-t border-border">
                     <span className="text-muted-dim">Done when:</span> {project.done_criteria}
                   </p>
                 )}
 
-                <button
-                  onClick={() => setStatus(project, isComplete ? 'active' : 'complete')}
-                  className="mt-3 w-full py-2.5 text-xs font-semibold rounded-xl bg-white/5 hover:bg-white/10 text-muted hover:text-white min-h-[44px] transition-colors"
-                >
-                  {isComplete ? 'Reopen' : 'Mark complete'}
-                </button>
+                <div className="p-3 border-t border-border space-y-3">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    full
+                    icon={isComplete ? 'undo' : 'check'}
+                    onClick={() => setStatus(project, isComplete ? 'active' : 'complete')}
+                  >
+                    {isComplete ? 'Reopen' : 'Mark complete'}
+                  </Button>
 
-                {confirmDeleteId === project.id && (
-                  <div className="mt-3 p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
-                    <p className="text-xs text-red-400 mb-2">Delete this project and its milestones?</p>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleDelete(project.id)}
-                        className="flex-1 py-2.5 bg-red-500 text-white text-xs font-bold rounded-lg min-h-[44px]"
-                      >
-                        Delete
-                      </button>
-                      <button
-                        onClick={() => setConfirmDeleteId(null)}
-                        className="flex-1 py-2.5 bg-white/5 text-muted text-xs font-bold rounded-lg min-h-[44px]"
-                      >
-                        Cancel
-                      </button>
+                  {confirmDeleteId === project.id && (
+                    <div role="alert" className="space-y-2">
+                      <p className="flex items-center gap-2 text-body-sm text-danger">
+                        <StatusDot status="danger" />
+                        Delete this project and its milestones?
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button variant="danger" size="sm" icon="trash" onClick={() => handleDelete(project.id)}>
+                          Delete
+                        </Button>
+                        <Button variant="secondary" size="sm" onClick={() => setConfirmDeleteId(null)}>
+                          Cancel
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              </Panel>
             )
-          })}
-        </div>
-      )}
+          })
+        )}
       </div>
 
       {/* Add / Edit */}
       <Sheet isOpen={showModal} onClose={() => setShowModal(false)} title={editing ? 'Edit project' : 'New project'} desktopCenter>
-        <form onSubmit={handleSave} className={`p-6 space-y-4 overflow-y-auto ${shake ? 'animate-shake' : ''}`}>
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-white">{editing ? 'Edit' : 'New'}</h2>
-            <button
-              type="button"
-              onClick={() => setShowModal(false)}
-              aria-label="Close"
-              className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-white/10 text-muted hover:text-white"
-            >
-              ✕
-            </button>
+        <form onSubmit={handleSave} className={`p-4 space-y-4 overflow-y-auto ${shake ? 'animate-shake' : ''}`}>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-title text-foreground">{editing ? 'Edit project' : 'New project'}</h2>
+            <IconButton name="close" label="Close" onClick={() => setShowModal(false)} className="-mr-3" />
           </div>
 
           {formError && (
-            <p role="alert" className="text-xs text-red-400 font-medium">
+            <p role="alert" className="flex items-center gap-2 text-body-sm text-danger">
+              <StatusDot status="danger" />
               {formError}
             </p>
           )}
 
-          <div>
-            <label className="block text-xs text-muted font-semibold mb-2">Type</label>
-            <div className="grid grid-cols-2 gap-2">
-              {TYPES.map((t) => (
-                <button
-                  key={t.value}
-                  type="button"
-                  onClick={() => setForm({ ...form, type: t.value })}
-                  className={`px-3 py-3 rounded-xl border text-xs font-semibold min-h-[48px] transition-all ${
-                    form.type === t.value ? 'border-accent bg-accent/10 text-accent' : 'border-white/10 bg-background text-muted'
-                  }`}
-                >
-                  {t.icon} {t.label}
-                </button>
-              ))}
-            </div>
-          </div>
+          <Field label="Type">
+            {() => (
+              <Segmented
+                full
+                label="Project type"
+                options={TYPES.map((t) => ({
+                  value: t.value,
+                  label: (
+                    <span className="inline-flex items-center gap-2">
+                      <Icon name={t.icon} size={16} />
+                      {t.label}
+                    </span>
+                  ),
+                }))}
+                value={form.type}
+                onChange={(type) => setForm({ ...form, type })}
+              />
+            )}
+          </Field>
 
-          <div>
-            <label className="block text-xs text-muted font-semibold mb-1">Name</label>
-            <input
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder="What are you building?"
-              required
-              className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
-            />
-          </div>
+          <Input
+            label="Name"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            placeholder="What are you building?"
+            required
+          />
 
-          <div>
-            <label className="block text-xs text-muted font-semibold mb-1">Description</label>
-            <input
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              placeholder="Optional"
-              className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
-            />
-          </div>
+          <Input
+            label="Description"
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+            placeholder="Optional"
+          />
 
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-muted font-semibold mb-1">{form.type === 'coding' ? 'Stack' : 'Materials'}</label>
-              <input
-                value={form.stack}
-                onChange={(e) => setForm({ ...form, stack: e.target.value })}
-                placeholder={form.type === 'coding' ? 'React, Supabase' : 'Optional'}
-                className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-muted font-semibold mb-1">Done when</label>
-              <input
-                value={form.done_criteria}
-                onChange={(e) => setForm({ ...form, done_criteria: e.target.value })}
-                placeholder="It ships"
-                className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
-              />
-            </div>
+            <Input
+              label={form.type === 'coding' ? 'Stack' : 'Materials'}
+              value={form.stack}
+              onChange={(e) => setForm({ ...form, stack: e.target.value })}
+              placeholder={form.type === 'coding' ? 'React, Supabase' : 'Optional'}
+            />
+            <Input
+              label="Done when"
+              value={form.done_criteria}
+              onChange={(e) => setForm({ ...form, done_criteria: e.target.value })}
+              placeholder="It ships"
+            />
           </div>
 
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="block text-xs text-muted font-semibold">Milestones</label>
-              <button
-                type="button"
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label as="p">Milestones</Label>
+              <Button
+                variant="ghost"
+                size="sm"
+                icon="plus"
                 onClick={() => setForm((f) => ({ ...f, milestones: [...f.milestones, newMilestone()] }))}
-                className="text-xs font-semibold text-accent min-h-[32px] px-2"
               >
-                + Add
-              </button>
+                Add
+              </Button>
             </div>
             {form.milestones.length === 0 ? (
-              <p className="text-[11px] text-muted-dim">Break it into steps you can tick off.</p>
+              <p className="text-body-sm text-muted-dim">Break it into steps you can tick off.</p>
             ) : (
-              <div className="space-y-2">
+              <div className="divide-y divide-border border border-border rounded-control">
                 {form.milestones.map((m) => (
-                  <div key={m.key} className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setMilestone(m.key, { completed: !m.completed })}
-                      aria-pressed={m.completed}
-                      aria-label={m.completed ? 'Mark not done' : 'Mark done'}
-                      className={`w-6 h-6 shrink-0 rounded-md border-2 flex items-center justify-center text-[10px] font-black ${
-                        m.completed ? 'bg-accent border-accent text-black' : 'border-white/20 text-transparent'
-                      }`}
-                    >
-                      ✓
-                    </button>
-                    <input
-                      value={m.title}
-                      onChange={(e) => setMilestone(m.key, { title: e.target.value })}
-                      placeholder="Milestone"
-                      className="flex-1 min-w-0 px-3 py-2.5 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[44px]"
-                    />
-                    <input
-                      type="date"
-                      value={m.due_date}
-                      onChange={(e) => setMilestone(m.key, { due_date: e.target.value })}
-                      aria-label="Due date"
-                      className="w-32 px-2 py-2.5 bg-background border border-white/10 rounded-xl text-white text-xs focus:outline-none focus:border-accent min-h-[44px]"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setForm((f) => ({ ...f, milestones: f.milestones.filter((x) => x.key !== m.key) }))}
-                      aria-label="Remove milestone"
-                      className="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg text-muted hover:text-red-400 hover:bg-red-500/10"
-                    >
-                      ✕
-                    </button>
+                  <div key={m.key} className="px-3 py-2 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <TaskCheck
+                        done={m.completed}
+                        onClick={() => setMilestone(m.key, { completed: !m.completed })}
+                        label={m.completed ? 'Mark not done' : 'Mark done'}
+                      />
+                      <input
+                        value={m.title}
+                        onChange={(e) => setMilestone(m.key, { title: e.target.value })}
+                        placeholder="Milestone"
+                        aria-label="Milestone"
+                        className={`${controlClasses()} flex-1 min-w-0`}
+                      />
+                      <IconButton
+                        name="close"
+                        label="Remove milestone"
+                        onClick={() => setForm((f) => ({ ...f, milestones: f.milestones.filter((x) => x.key !== m.key) }))}
+                        className="-mr-3"
+                      />
+                    </div>
+                    <div className="pl-9 pr-9">
+                      <input
+                        type="date"
+                        value={m.due_date}
+                        onChange={(e) => setMilestone(m.key, { due_date: e.target.value })}
+                        aria-label="Due date"
+                        className={controlClasses()}
+                      />
+                    </div>
                   </div>
                 ))}
               </div>
             )}
           </div>
 
-          <button
-            type="submit"
-            disabled={saving || justSaved}
-            className="w-full py-3.5 bg-accent text-black font-bold text-sm rounded-xl min-h-[48px] disabled:opacity-50 flex items-center justify-center"
-          >
+          <Button type="submit" full loading={saving} disabled={justSaved}>
             {justSaved ? (
-              <span className="inline-block text-lg animate-check-pop" aria-hidden="true">
-                ✓
-              </span>
+              <>
+                <span className="inline-flex animate-check-pop" aria-hidden="true">
+                  <Icon name="check" size={20} />
+                </span>
+                <span className="sr-only">Saved</span>
+              </>
             ) : saving ? (
               'Saving…'
             ) : editing ? (
@@ -678,7 +627,7 @@ export default function Projects() {
             ) : (
               'Add'
             )}
-          </button>
+          </Button>
         </form>
       </Sheet>
     </div>

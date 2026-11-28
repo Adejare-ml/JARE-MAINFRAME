@@ -39,6 +39,8 @@ jobs:
           # Uncategorized/LOW on every run without anything saying so.
           OLLAMA_API_KEY: ${{ secrets.OLLAMA_KEY || secrets.OLLAMA_API_KEY }}
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_KEY || secrets.NVIDIA_API_KEY }}
+          # The last-resort provider (scripts/llm.mjs), the same secret the Diet jobs use.
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           # Same optional overrides as the sync workflow, so a model swapped
           # there is swapped here too.
           OLLAMA_BASE_URL: ${{ vars.OLLAMA_BASE_URL }}

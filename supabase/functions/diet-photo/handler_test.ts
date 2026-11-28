@@ -104,8 +104,8 @@ Deno.test('GET reports which keys are set, never their values', async () => {
   assertEquals(body, { ok: true, service: 'diet-photo', providers: { anthropic: true, nvidia: true }, worker: true })
 })
 
-Deno.test('analyze: two models, merged with median grams, logged as auto, every estimate stored', async () => {
-  const { handler, user, calls } = setup()
+Deno.test('analyze: two models, merged with median grams, logged, sealed by the service role, every estimate stored', async () => {
+  const { handler, user, admin, calls } = setup()
   const body = await (await handler(post({ action: 'analyze', photo_path: PHOTO, note: 'mama put', localTime: '13:10' }))).json()
   assertEquals(body.ok, true)
   assertEquals(body.meal_id, 'meal-1')
@@ -122,6 +122,14 @@ Deno.test('analyze: two models, merged with median grams, logged as auto, every 
   const est = user.writes.find((w) => w.table === 'meal_estimates')!.value as Row[]
   assertEquals(est.map((e) => [e.model_key, e.status]), [['claude', 'ok'], ['nvidia', 'ok']])
   assert(user.writes.some((w) => w.table === 'meal_logs' && (w.value as Row).photo_path === PHOTO))
+  // 054: the reading is final. Nothing is flagged for the owner to check,
+  // and the service role (not the owner) seals the meal.
+  assert(((rpc.value as Row).p_items as Row[]).every((i) => i.flagged === false && i.flag_reason === null))
+  const seal = admin.writes.find((w) => w.table === 'meal_logs' && w.op === 'update')!
+  assertEquals(seal.value, { status: 'confirmed', needs_review: false })
+  assertEquals(seal.filters, { id: 'meal-1' })
+  assertEquals(body.sealed, true)
+  assert(!user.writes.some((w) => w.table === 'meal_logs' && (w.value as Row).status === 'confirmed'))
 })
 
 Deno.test('analyze: refuses a photo path in someone else\'s folder', async () => {

@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
-import { formatNaira, formatDate } from '../../lib/formatters'
+import { formatDate } from '../../lib/formatters'
+import Panel from '../ui/Panel'
+import ListRow, { ListRows } from '../ui/ListRow'
+import Money from '../ui/Money'
+import StatusDot from '../ui/StatusDot'
 import { excludeVoided, daysAgo, transactionRecurrenceColumns, toDateOnly } from '../../lib/queries'
 import { daysUntil } from '../../lib/debts'
 import { detectRecurring } from '../../lib/recurring'
@@ -55,32 +59,18 @@ export default function UpcomingBills() {
   if (dueSoon.length === 0) return null
 
   return (
-    <section className="bg-card rounded-3xl p-6 border border-white/5 space-y-3">
-      <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">
-        Upcoming Bills
-      </h2>
-      <div className="space-y-2">
+    <Panel label="Upcoming bills" meta={`${dueSoon.length} due`} flush>
+      <ListRows>
         {dueSoon.map((c) => (
-          <div
+          <ListRow
             key={c.key}
-            className={`flex items-center justify-between p-3 rounded-2xl border text-xs ${
-              c.overdue
-                ? 'bg-orange-500/10 border-orange-500/20'
-                : 'bg-background/40 border-white/5'
-            }`}
-          >
-            <div className="min-w-0">
-              <p className="font-bold text-white truncate">{c.label}</p>
-              <p className={`mt-0.5 ${c.overdue ? 'text-orange-300' : 'text-muted'}`}>
-                {c.overdue ? 'Expected' : 'Due'} {formatDate(c.nextExpected)} · {c.interval}
-              </p>
-            </div>
-            <span className="flex-shrink-0 font-bold text-white tabular-nums ml-3 money">
-              {formatNaira(c.amount)}
-            </span>
-          </div>
+            leading={<StatusDot status={c.overdue ? 'warn' : 'muted'} />}
+            title={c.label}
+            subtitle={`${c.overdue ? 'Expected' : 'Due'} ${formatDate(c.nextExpected)} · ${c.interval}`}
+            trailing={<Money amount={c.amount} />}
+          />
         ))}
-      </div>
-    </section>
+      </ListRows>
+    </Panel>
   )
 }

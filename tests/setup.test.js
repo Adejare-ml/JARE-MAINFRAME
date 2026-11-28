@@ -26,7 +26,7 @@ describe('setupGaps', () => {
     const [row] = setupGaps({ subscriberCount: 0 })
     expect(row.id).toBe('push')
     expect(row.text).toMatch(/No phone is subscribed/)
-    expect(row.to).toBe('/settings')
+    expect(row.to).toBe('/settings#reminders')
   })
 
   it('names the backup step from the job report or from a job that never ran', () => {

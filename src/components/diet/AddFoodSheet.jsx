@@ -6,9 +6,16 @@ import { confirmBuzz } from '../../lib/haptics'
 import { searchFoods, portionOptions } from '../../lib/diet/foods'
 import { sumNutrition, toNumber, round1 } from '../../lib/diet/nutrition'
 import { mealVerdict } from '../../lib/diet/verdict'
-import { SLOTS, SLOT_LABELS, SLOT_ICONS, slotForHour, localDay, localTime, localHour } from '../../lib/diet/totals'
+import { SLOTS, SLOT_LABELS, slotForHour, localDay, localTime, localHour } from '../../lib/diet/totals'
 import { priceItems, logMeal } from './api'
 import VerdictBadge from './VerdictBadge'
+import { SheetBox, Choice } from './parts'
+import Button, { buttonClasses } from '../ui/Button'
+import IconButton from '../ui/IconButton'
+import Icon from '../ui/Icon'
+import ListRow from '../ui/ListRow'
+import Segmented from '../ui/Segmented'
+import { Input, controlClasses } from '../ui/Field'
 // Phase 2: type or say it, then review what was read.
 import DescribeFood from './DescribeFood'
 import ParsedReview from './ParsedReview'
@@ -136,7 +143,7 @@ export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onL
         const { error } = await supabase.from('saved_meals').insert({ name, items: refs, meal_slot: slot, sort_order: lib.saved.length })
         if (error) throw error.code === '23505' ? new Error(`There is already a saved meal called "${name}"`) : error
         if (mode === 'save') {
-          toast.success(`Saved "${name}" ✓`)
+          toast.success(`Saved "${name}"`)
           onLogged?.()
           onClose()
           return
@@ -146,7 +153,7 @@ export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onL
       const at = /^\d{2}:\d{2}$/.test(time) ? new Date(`${day}T${time}:00+01:00`) : new Date()
       const res = await logMeal({ items: priced, slot, source: 'manual', at, settings: lib.settings, todayLogs })
       confirmBuzz()
-      toast.success(`${Number(res.kcal ?? totals.kcal).toLocaleString()} kcal logged ✓`)
+      toast.success(`${Number(res.kcal ?? totals.kcal).toLocaleString()} kcal logged`)
       onLogged?.(res)
       onClose()
     } catch (err) {
@@ -156,17 +163,14 @@ export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onL
     }
   }
 
-  const input =
-    'w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]'
+  const input = controlClasses()
 
   return (
     <Sheet isOpen={isOpen} onClose={onClose} title={mode === 'save' ? 'New saved meal' : 'Add food'} desktopCenter>
-      <div className="px-5 pb-5 pt-1 overflow-y-auto space-y-4">
+      <div className="px-4 pb-4 pt-1 overflow-y-auto space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-white">{mode === 'save' ? 'New saved meal' : 'Add food'}</h2>
-          <button type="button" onClick={onClose} className="w-12 h-12 -mr-2 rounded-full text-muted hover:text-white" aria-label="Close">
-            ✕
-          </button>
+          <h2 className="text-title text-foreground">{mode === 'save' ? 'New saved meal' : 'Add food'}</h2>
+          <IconButton name="close" label="Close" onClick={onClose} className="-mr-3" />
         </div>
 
         {/* Phase 3: a photo being read, or an 'auto' photo meal to check.
@@ -193,8 +197,8 @@ export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onL
             camera on a phone; on a desktop it is a file picker. */}
         {!photo && !parsed && mode === 'log' && basket.length === 0 && !picking && !custom && (
           photosReady ? (
-            <label className="flex items-center justify-center gap-2 bg-accent text-black font-extrabold text-sm rounded-xl min-h-[52px] cursor-pointer hover:bg-accent/90">
-              <span aria-hidden="true">📷</span> Snap the plate
+            <label className={`${buttonClasses({ variant: 'primary', full: true })} cursor-pointer has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent`}>
+              <Icon name="camera" size={18} /> Snap the plate
               <input
                 type="file"
                 accept="image/*"
@@ -208,7 +212,7 @@ export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onL
               />
             </label>
           ) : (
-            <p className="text-[11px] text-orange-300">Run supabase/migrations/052_diet_photos.sql to log meals from a photo.</p>
+            <p className="text-body-sm text-warn">Run supabase/migrations/052_diet_photos.sql to log meals from a photo.</p>
           )
         )}
 
@@ -235,35 +239,28 @@ export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onL
 
         {/* What is in the meal so far */}
         {!photo && !parsed && priced.length > 0 && (
-          <section aria-label="This meal" className="rounded-2xl bg-background/60 border border-white/10 p-3 space-y-2">
-            <ul className="space-y-1">
+          <SheetBox label="This meal" meta={`${priced.length} item${priced.length === 1 ? '' : 's'}`}>
+            <ul className="divide-y divide-border">
               {priced.map((item, i) => (
-                <li key={basket[i]?.key ?? i} className="flex items-center gap-2 text-sm">
-                  <span className="flex-1 min-w-0 truncate text-white">
+                <li key={basket[i]?.key ?? i} className="flex items-center gap-2 pl-3 min-h-12">
+                  <span className="flex-1 min-w-0 truncate text-body text-foreground">
                     {item.name}
                     <span className="text-muted"> · {item.recipe_id ? `${item.portions} portion${item.portions === 1 ? '' : 's'}` : `${round1(item.grams)} g`}</span>
                   </span>
-                  <span className="tabular-nums text-white">{item.kcal}</span>
-                  <span className="tabular-nums text-muted w-14 text-right">{round1(item.protein_g)} g P</span>
-                  <button
-                    type="button"
-                    onClick={() => setBasket((b) => b.filter((_, j) => j !== i))}
-                    className="w-10 h-10 rounded-full text-muted hover:text-red-300"
-                    aria-label={`Remove ${item.name}`}
-                  >
-                    ✕
-                  </button>
+                  <span className="tabular-nums text-body font-medium text-foreground">{item.kcal}</span>
+                  <span className="tabular-nums type-data text-muted w-14 text-right">{round1(item.protein_g)} g P</span>
+                  <IconButton name="close" label={`Remove ${item.name}`} onClick={() => setBasket((b) => b.filter((_, j) => j !== i))} />
                 </li>
               ))}
             </ul>
-            <div className="flex items-center justify-between border-t border-white/5 pt-2">
-              <span className="text-sm font-bold text-white tabular-nums">
+            <div className="flex items-center justify-between gap-3 border-t border-border px-3 min-h-12">
+              <span className="text-heading text-foreground tabular-nums">
                 {totals.kcal.toLocaleString()} kcal · {totals.protein_g} g protein
               </span>
               {mode === 'log' && <VerdictBadge verdict={preview.verdict} />}
             </div>
-            {mode === 'log' && preview.reason && <p className="text-[11px] text-muted leading-relaxed">{preview.reason}</p>}
-          </section>
+            {mode === 'log' && preview.reason && <p className="px-3 pb-3 text-body-sm text-muted">{preview.reason}</p>}
+          </SheetBox>
         )}
 
         {/* Find a food */}
@@ -282,94 +279,75 @@ export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onL
               className={input}
               autoComplete="off"
             />
-            <ul className="max-h-64 overflow-y-auto divide-y divide-white/5 rounded-2xl border border-white/5" aria-label="Foods and recipes">
+            <ul className="max-h-64 overflow-y-auto divide-y divide-border rounded-panel border border-border bg-card" aria-label="Foods and recipes">
               {results.map((r) => {
                 const portion = r.kind === 'recipe' ? lib.portions.get(r.id) : null
                 return (
                   <li key={`${r.kind}-${r.id}`}>
-                    <button type="button" onClick={() => pick(r)} className="w-full flex items-center gap-3 px-3 py-2 min-h-[48px] text-left hover:bg-white/5">
-                      <span aria-hidden="true">{r.kind === 'recipe' ? '🍲' : '🥘'}</span>
-                      <span className="flex-1 min-w-0">
-                        <span className="block text-sm text-white truncate">{r.name}</span>
-                        <span className="block text-[11px] text-muted">
-                          {r.kind === 'recipe'
-                            ? portion
-                              ? `${portion.kcal} kcal · ${portion.protein_g} g protein a portion`
-                              : 'No ingredients yet'
-                            : `${Math.round(r.row.kcal_per_100g)} kcal / 100 g${r.row.portion_label ? ` · ${r.row.portion_label} ≈ ${Math.round(r.row.typical_portion_g)} g` : ''}`}
-                        </span>
-                      </span>
-                    </button>
+                    <ListRow
+                      onClick={() => pick(r)}
+                      title={r.name}
+                      subtitle={
+                        r.kind === 'recipe'
+                          ? portion
+                            ? `Recipe · ${portion.kcal} kcal · ${portion.protein_g} g protein a portion`
+                            : 'Recipe · no ingredients yet'
+                          : `${Math.round(r.row.kcal_per_100g)} kcal / 100 g${r.row.portion_label ? ` · ${r.row.portion_label} ≈ ${Math.round(r.row.typical_portion_g)} g` : ''}`
+                      }
+                      trailing={<Icon name="chevR" size={18} className="text-muted" />}
+                    />
                   </li>
                 )
               })}
-              {results.length === 0 && <li className="px-3 py-3 text-sm text-muted">Nothing matches. Add it as a custom item below.</li>}
+              {results.length === 0 && <li className="px-3 py-3 text-body-sm text-muted">Nothing matches. Add it as a custom item below.</li>}
             </ul>
             {mode === 'log' && (
-              <button type="button" onClick={() => setCustom({ name: query })} className="text-xs font-bold text-accent min-h-[48px]">
-                + Custom item (not in the list)
-              </button>
+              <Button variant="ghost" size="sm" icon="plus" onClick={() => setCustom({ name: query })}>
+                Custom item (not in the list)
+              </Button>
             )}
           </div>
         )}
 
         {/* How much */}
         {picking && (
-          <section className="rounded-2xl border border-accent/30 bg-accent/5 p-4 space-y-3" aria-label={`How much ${picking.name}`}>
-            <p className="text-sm font-bold text-white">{picking.name}</p>
+          <SheetBox label={picking.kind === 'recipe' ? 'How many portions' : 'How much'} ariaLabel={`How much ${picking.name}`} padded>
+            <p className="text-heading text-foreground">{picking.name}</p>
             <div className="flex flex-wrap gap-2">
               {picking.kind === 'recipe'
                 ? PORTION_STEPS.map((p) => (
-                    <button
-                      key={p}
-                      type="button"
-                      onClick={() => setAmount(String(p))}
-                      className={`px-3 min-h-[44px] rounded-xl border text-xs font-bold ${toNumber(amount) === p ? 'border-accent bg-accent/10 text-accent' : 'border-white/10 text-muted'}`}
-                    >
+                    <Choice key={p} selected={toNumber(amount) === p} onClick={() => setAmount(String(p))}>
                       {p} portion{p === 1 ? '' : 's'}
-                    </button>
+                    </Choice>
                   ))
                 : portionOptions(picking.row).map((o) => (
-                    <button
-                      key={o.label}
-                      type="button"
-                      onClick={() => setAmount(String(o.grams))}
-                      className={`px-3 min-h-[44px] rounded-xl border text-xs font-bold ${toNumber(amount) === o.grams ? 'border-accent bg-accent/10 text-accent' : 'border-white/10 text-muted'}`}
-                    >
+                    <Choice key={o.label} selected={toNumber(amount) === o.grams} onClick={() => setAmount(String(o.grams))}>
                       {o.label}
-                    </button>
+                    </Choice>
                   ))}
             </div>
-            <div className="flex gap-2 items-center">
-              <label htmlFor="diet-amount" className="text-xs text-muted shrink-0">
-                {picking.kind === 'recipe' ? 'Portions' : 'Grams'}
-              </label>
-              <input
-                id="diet-amount"
-                type="number"
-                inputMode="decimal"
-                min="0"
-                step={picking.kind === 'recipe' ? '0.25' : '5'}
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                className={input}
-              />
-            </div>
+            <Input
+              id="diet-amount"
+              label={picking.kind === 'recipe' ? 'Portions' : 'Grams'}
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step={picking.kind === 'recipe' ? '0.25' : '5'}
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
             <div className="grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => setPicking(null)} className="min-h-[48px] rounded-xl bg-white/5 text-white text-sm font-bold">
+              <Button variant="secondary" onClick={() => setPicking(null)}>
                 Back
-              </button>
-              <button type="button" onClick={addPicked} className="min-h-[48px] rounded-xl bg-accent text-black text-sm font-extrabold">
-                Add
-              </button>
+              </Button>
+              <Button onClick={addPicked}>Add</Button>
             </div>
-          </section>
+          </SheetBox>
         )}
 
         {/* Not in the list */}
         {custom && (
-          <section className="rounded-2xl border border-white/10 p-4 space-y-2" aria-label="Custom item">
-            <p className="text-sm font-bold text-white">Custom item</p>
+          <SheetBox label="Custom item" padded>
             <input aria-label="Name" value={custom.name} onChange={(e) => setCustom({ ...custom, name: e.target.value })} placeholder="Name, e.g. mama put stew" className={input} />
             <div className="grid grid-cols-2 gap-2">
               <input aria-label="Grams" type="number" inputMode="decimal" value={custom.grams ?? ''} onChange={(e) => setCustom({ ...custom, grams: e.target.value })} placeholder="Grams" className={input} />
@@ -378,61 +356,35 @@ export default function AddFoodSheet({ isOpen, onClose, lib, todayLogs = [], onL
               <input aria-label="Fat (g)" type="number" inputMode="decimal" value={custom.fat_g ?? ''} onChange={(e) => setCustom({ ...custom, fat_g: e.target.value })} placeholder="Fat g" className={input} />
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => setCustom(null)} className="min-h-[48px] rounded-xl bg-white/5 text-white text-sm font-bold">
+              <Button variant="secondary" onClick={() => setCustom(null)}>
                 Back
-              </button>
-              <button type="button" onClick={addCustom} className="min-h-[48px] rounded-xl bg-accent text-black text-sm font-extrabold">
-                Add
-              </button>
+              </Button>
+              <Button onClick={addCustom}>Add</Button>
             </div>
-          </section>
+          </SheetBox>
         )}
 
         {/* Which meal, when, and whether to keep it */}
         {!photo && !parsed && basket.length > 0 && !picking && !custom && (
           <div className="space-y-3">
-            <div className="grid grid-cols-4 gap-1" role="radiogroup" aria-label="Meal">
-              {SLOTS.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  role="radio"
-                  aria-checked={slot === s}
-                  onClick={() => setSlot(s)}
-                  className={`min-h-[48px] rounded-xl border text-[11px] font-bold ${slot === s ? 'border-accent bg-accent/10 text-accent' : 'border-white/10 text-muted'}`}
-                >
-                  <span aria-hidden="true">{SLOT_ICONS[s]}</span> {SLOT_LABELS[s]}
-                </button>
-              ))}
-            </div>
+            <Segmented label="Meal" full options={SLOTS.map((s) => ({ value: s, label: SLOT_LABELS[s] }))} value={slot} onChange={setSlot} />
+            {mode === 'log' && <Input id="diet-time" label="Time" type="time" value={time} onChange={(e) => setTime(e.target.value)} />}
             {mode === 'log' && (
-              <div className="flex items-center gap-2">
-                <label htmlFor="diet-time" className="text-xs text-muted shrink-0">
-                  Time
-                </label>
-                <input id="diet-time" type="time" value={time} onChange={(e) => setTime(e.target.value)} className={input} />
-              </div>
-            )}
-            {mode === 'log' && (
-              <label className="flex items-center gap-3 text-sm text-white min-h-[48px]">
-                <input type="checkbox" checked={saveAs} onChange={(e) => setSaveAs(e.target.checked)} className="w-5 h-5 accent-[var(--color-accent)]" />
+              <label className="flex items-center gap-3 text-body text-foreground min-h-12">
+                <input type="checkbox" checked={saveAs} onChange={(e) => setSaveAs(e.target.checked)} className="w-5 h-5 accent-accent" />
                 Also save it for one-tap logging
               </label>
             )}
             {saveAs && (
               <input aria-label="Saved meal name" value={saveName} onChange={(e) => setSaveName(e.target.value)} placeholder='Name, e.g. "Beans container"' className={input} />
             )}
-            <button
-              type="button"
-              onClick={submit}
-              disabled={busy}
-              className="w-full min-h-[52px] rounded-xl bg-accent text-black font-extrabold text-sm disabled:opacity-60"
-            >
+            <Button full onClick={submit} loading={busy}>
               {busy ? 'Saving…' : mode === 'save' ? 'Save meal' : `Log ${totals.kcal.toLocaleString()} kcal`}
-            </button>
+            </Button>
           </div>
         )}
       </div>
     </Sheet>
   )
 }
+

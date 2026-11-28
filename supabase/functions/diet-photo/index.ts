@@ -7,22 +7,25 @@
 //
 // Secrets, set once with `supabase secrets set`:
 //
-//   ANTHROPIC_API_KEY        Claude (claude-sonnet-5-5); one of the two cloud keys is required
+//   ANTHROPIC_API_KEY        Claude (claude-opus-5-5); one of the two cloud keys is required
 //   NVIDIA_API_KEY           NVIDIA API catalog (build.nvidia.com)
 //   DIET_WORKER_TOKEN        a long random string the laptop worker sends; worker actions are off without it
 //   NVIDIA_VISION_MODEL      optional; diet_settings.nvidia_vision_model wins when set
-//   DIET_PHOTO_CLAUDE_MODEL  optional, default claude-sonnet-5-5
+//   DIET_PHOTO_CLAUDE_MODEL  optional, default claude-opus-5-5
 //   NVIDIA_BASE_URL          default https://integrate.api.nvidia.com/v1
 //   ALLOWED_ORIGIN           default https://jare-mainframe.pages.dev
 //
-// Time: the build spec wants a photo logged in under 30 seconds, so both cloud
-// models run at once with a 25-second limit each and no SDK-level retries;
-// the handler's one retry on an invalid answer is the only second attempt.
+// Time: both cloud models run at once with a 60-second limit each and no
+// SDK-level retries; the handler's one retry on an invalid answer is the only
+// second attempt. This was 25 seconds with Claude on low effort, to log a
+// photo in under 30 seconds; the owner found the readings shallow ("it's not
+// actually trying to understand the picture"), and since the reading is now
+// final (054), a careful look is worth the extra seconds.
 //
-// Claude: one call per photo, structured outputs from the zod schema, low
-// effort (portion estimation from a photo, not long reasoning), and the
+// Claude: one call per photo, structured outputs from the zod schema, high
+// effort, and the
 // server-side refusal fallback on, as the Claude API guidance recommends for
-// claude-sonnet-5-5 ("default" routes a declined request to a suitable model
+// claude-opus-5-5 ("default" routes a declined request to a suitable model
 // in the same call).
 //
 // NVIDIA: OpenAI-compatible chat completions with the image as a data URL.
@@ -37,7 +40,7 @@ import { FoodVision } from './schema.ts'
 import { makeHandler, type VisionCall } from './handler.ts'
 
 const env = (name: string) => Deno.env.get(name)
-const TIMEOUT_MS = 25_000
+const TIMEOUT_MS = 60_000
 
 const anthropic = new Anthropic({ apiKey: env('ANTHROPIC_API_KEY') || 'unset', timeout: TIMEOUT_MS, maxRetries: 0 })
 
@@ -45,10 +48,10 @@ const callClaude: VisionCall = async ({ model, system, user, image, mime }) => {
   try {
     const res = await anthropic.beta.messages.parse({
       model,
-      max_tokens: 4000,
+      max_tokens: 16000,
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
-      output_config: { effort: 'low', format: zodOutputFormat(FoodVision) },
+      output_config: { effort: 'high', format: zodOutputFormat(FoodVision) },
       system,
       messages: [
         {

@@ -1,8 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { formatNaira, formatDate, displayName, timeAgo } from '../lib/formatters'
-import { getCategoryIcon } from '../lib/constants'
+import { formatDate, displayName, timeAgo } from '../lib/formatters'
 import { toast } from '../lib/toast'
 import CashReconciliation from '../components/CashReconciliation'
 import ErrorState from '../components/ui/ErrorState'
@@ -29,6 +27,23 @@ import DiscoveredAccounts from '../components/daily/DiscoveredAccounts'
 import DietCard from '../components/daily/DietCard'
 import { DailyHQSkeleton } from '../components/ui/PageSkeleton'
 import WeekReview from '../components/daily/WeekReview'
+import { useNewIds } from '../components/daily/useNewIds'
+import { useSystemStatus } from '../lib/useSystemStatus'
+import { shortName } from '../lib/systemStatus'
+import PageHeader from '../components/ui/PageHeader'
+import Panel from '../components/ui/Panel'
+import Readout from '../components/ui/Readout'
+import Money from '../components/ui/Money'
+import Stat from '../components/ui/Stat'
+import ListRow, { ListRows } from '../components/ui/ListRow'
+import Button from '../components/ui/Button'
+import Badge from '../components/ui/Badge'
+import Segmented from '../components/ui/Segmented'
+import StatusDot from '../components/ui/StatusDot'
+import ProgressBar from '../components/ui/ProgressBar'
+import Provenance from '../components/ui/Provenance'
+import CategoryMark from '../components/ui/CategoryMark'
+import Icon from '../components/ui/Icon'
 import {
   transactionListColumns,
   orderGoalsBySlot,
@@ -67,8 +82,9 @@ export default function DailyHQ() {
   const [dayBrief, setDayBrief] = useState(null)
   // Recent sync_runs rows for every scheduled job, not only the bank-alert
   // audit: a stalled snapshot or recap used to show only in Settings and in
-  // a morning push no phone has subscribed to.
-  const [jobRuns, setJobRuns] = useState([])
+  // a morning push no phone has subscribed to. Read once for the whole app by
+  // useSystemStatus (the status rail), not queried again here.
+  const { rows: jobRuns } = useSystemStatus()
   // How many phones get the morning reminder. null until read (or behind
   // 031): "unknown" must not read as "none".
   const [subscriberCount, setSubscriberCount] = useState(null)
@@ -85,6 +101,9 @@ export default function DailyHQ() {
   // src/lib/insight.js. Set in Settings, Cleo-style.
   const [plannerVoice, setPlannerVoice] = useState('encouraging')
   const [loading, setLoading] = useState(true)
+  // A ledger row that lands while the page is open (a QuickLog, an alert
+  // through realtime) fades in; the first render's rows do not.
+  const isNewTransaction = useNewIds(transactions.map((t) => t.id), !loading)
   const [pageError, setPageError] = useState(null)
 
   // Local date: the UTC form flips at 1am Lagos, which made this page load and
@@ -99,11 +118,10 @@ export default function DailyHQ() {
   // Reaching back to the earliest of them means the Day/Week toggle is pure
   // derivation -- no second query, no spinner between modes.
   const earliestNeeded = [startOfMonth(), yesterdayDate, lastWeekStart].sort()[0]
-  const fullDateStr = new Date().toLocaleDateString('en-GB', {
-    weekday: 'long',
+  const shortDate = new Date().toLocaleDateString('en-GB', {
+    weekday: 'short',
     day: 'numeric',
-    month: 'long',
-    year: 'numeric'
+    month: 'short',
   })
 
   const currentHour = new Date().getHours()
@@ -118,7 +136,7 @@ export default function DailyHQ() {
       // is checked: supabase-js returns errors rather than throwing, so the
       // old destructure-data-only version made the catch unreachable and a
       // total network failure rendered "Total: ₦0.00" and "All clear!".
-      const [walletsRes, recentRes, countRes, settingsRes, monthRes, goalsRes, debtsRes, briefRes, auditRes, linkedRes, pushRes, oldestRes, staleRes] =
+      const [walletsRes, recentRes, countRes, settingsRes, monthRes, goalsRes, debtsRes, briefRes, linkedRes, pushRes, oldestRes, staleRes] =
         await Promise.all([
           supabase.from('wallets').select('*'),
           excludeVoided(
@@ -169,17 +187,6 @@ export default function DailyHQ() {
           hasColumn('day_briefs.brief_date')
             ? supabase.from('day_briefs').select('*').eq('brief_date', todayDate).maybeSingle()
             : Promise.resolve({ data: null, error: null }),
-          // The one fact every other number on this page depends on: when
-          // bank alerts were last recorded, and whether the other jobs are
-          // still running. Same window as Settings → System, so the month
-          // plan stays in view mid-month. Additive; behind 025 it is skipped.
-          hasColumn('sync_runs.job')
-            ? supabase
-                .from('sync_runs')
-                .select('job, finished_at, ok, summary')
-                .gte('finished_at', new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString())
-                .order('finished_at', { ascending: false })
-            : Promise.resolve({ data: [], error: null }),
           // Repayments linked to a debt (029, and the ingest function links
           // them itself since 039): a loan the ledger has paid off must not
           // keep reading "overdue" here.
@@ -230,8 +237,6 @@ export default function DailyHQ() {
 
       if (briefRes.error) console.warn('Day brief unavailable:', briefRes.error.message)
       setDayBrief(briefRes.error ? null : briefRes.data || null)
-      if (auditRes.error) console.warn('Job history unavailable:', auditRes.error.message)
-      setJobRuns(auditRes.error ? [] : auditRes.data || [])
       if (pushRes.error) console.warn('Reminder devices unavailable:', pushRes.error.message)
       setSubscriberCount(pushRes.error ? null : pushRes.count ?? null)
       setOldestUnreviewed(oldestRes.error ? null : oldestRes.data?.transaction_date || null)
@@ -442,7 +447,7 @@ export default function DailyHQ() {
       toast.error('Failed to save: ' + error.message)
       return
     }
-    toast.success(`Added ${rows.length} ✓`)
+    toast.success(`Added ${rows.length} ${rows.length === 1 ? 'priority' : 'priorities'}`)
     fetchDailyData()
   }
 
@@ -462,8 +467,8 @@ export default function DailyHQ() {
 
   if (pageError) {
     return (
-      <div className="space-y-6 pb-6">
-        <h1 className="text-2xl md:text-3xl font-extrabold text-white">{greeting}, {ownerName} 👋</h1>
+      <div className="space-y-3 pb-6">
+        <PageHeader title={`${greeting}, ${ownerName}`} meta={shortDate} />
         <ErrorState message={pageError} onRetry={fetchDailyData} />
       </div>
     )
@@ -620,513 +625,328 @@ export default function DailyHQ() {
         : 'On track'
     : null
 
-  // Type icons for dynamic rendering
-  const typeIcons = { bank: '🏦', mobile: '📱', cash: '💵', savings: '🐖', investment: '📈' }
+  // Attention items, in the order they always had: setup steps first (until
+  // a phone is subscribed, this list is the only place the alarms below
+  // reach), then the system, then money owed, then the queue.
+  const attention = []
+  for (const row of setupRows) {
+    attention.push({ key: `setup-${row.id}`, tone: 'warn', to: row.to, title: SETUP_TITLES[row.id] || 'Finish setup', subtitle: row.text })
+  }
+  if (auditUnwell) {
+    attention.push({
+      key: 'audit',
+      tone: auditJob.status === STATUS.ATTENTION ? 'warn' : 'danger',
+      to: '/settings#system',
+      title: 'Bank alerts',
+      subtitle: auditJob.suspect
+        ? auditJob.suspectReason
+        : auditJob.status === STATUS.ATTENTION
+          ? `Read this morning, but ${auditJob.reason}`
+          : auditJob.status === STATUS.FAILING
+            ? 'Failing. The figures here may be stale.'
+            : auditJob.status === STATUS.NEVER
+              ? 'Never recorded. The figures here may be stale.'
+              : `Last recorded ${timeAgo(auditJob.lastRun.finished_at)}. The figures here may be stale.`,
+    })
+  }
+  for (const job of attentionJobs) {
+    attention.push({ key: `att-${job.id}`, tone: 'warn', to: '/settings#system', title: shortName(job), subtitle: job.reason })
+  }
+  for (const { wallet, status, daysSince } of silentWallets) {
+    attention.push({
+      key: `quiet-${wallet.id}`,
+      tone: 'warn',
+      to: '/settings',
+      title: `${wallet.name} has gone quiet`,
+      subtitle: `${status === 'never' ? 'Has never sent an alert' : `No alert for ${daysSince} days`}. Check ${wallet.alert_sender}.`,
+    })
+  }
+  for (const job of stalledJobs) {
+    attention.push({
+      key: `stall-${job.id}`,
+      tone: job.status === STATUS.FAILING ? 'danger' : 'warn',
+      to: '/settings#system',
+      title: shortName(job),
+      subtitle: job.status === STATUS.FAILING
+        ? `Failing, last run ${timeAgo(job.lastRun.finished_at)}`
+        : `Not run since ${timeAgo(job.lastRun.finished_at)}`,
+    })
+  }
+  // Payments and payouts inside the week, plus anything overdue: a missed
+  // contribution should not vanish just because its date has passed.
+  for (const { debt, days, kind } of dueDebts) {
+    attention.push({
+      key: `debt-${debt.id}-${kind}`,
+      tone: kind === 'payout' ? 'muted' : days < 0 ? 'danger' : 'warn',
+      to: '/debts',
+      title: `${kind === 'payout' ? 'Ajo payout from' : 'Payment for'} ${debt.counterparty}`,
+      subtitle: days < 0
+        ? `${Math.abs(days)} day${Math.abs(days) === 1 ? '' : 's'} overdue`
+        : days === 0
+          ? 'Due today'
+          : `Due in ${days} day${days === 1 ? '' : 's'}`,
+    })
+  }
+  if (unreviewedCount > 0) {
+    const age = queueAge(oldestUnreviewed, todayDate)
+    attention.push({
+      key: 'review',
+      tone: 'warn',
+      to: '/transactions?filter=Review',
+      title: `${unreviewedCount} transaction${unreviewedCount === 1 ? '' : 's'} to review`,
+      subtitle: `Needs a category or a check${age && age.days > 0 ? `, ${age.label}` : ''}`,
+    })
+  }
+  if (staleGoalCount > 0) {
+    attention.push({
+      key: 'stale-goals',
+      tone: 'warn',
+      to: '/goals',
+      title: `${staleGoalCount} goal${staleGoalCount === 1 ? ' is' : 's are'} past ${staleGoalCount === 1 ? 'its' : 'their'} date`,
+      subtitle: `Close or roll ${staleGoalCount === 1 ? 'it' : 'them'}`,
+    })
+  }
+  for (const w of lowWallets) {
+    attention.push({
+      key: `low-${w.id}`,
+      tone: 'danger',
+      title: `${w.name} balance low`,
+      subtitle: (
+        <>
+          <Money amount={w.balance} tone="muted" /> is under <Money amount={warnThreshold} tone="muted" />
+        </>
+      ),
+    })
+  }
+
+  const doneCount = todayTasks.filter(doneOn).length
+  const meta = [shortDate, streak > 0 ? `${streak}-day streak` : null].filter(Boolean).join(' · ')
+  const chip = statusChip ? { Over: 'danger', 'Watch it': 'warn', 'On track': 'accent' }[statusChip] : null
+  const insightDot = { warn: 'danger', watch: 'warn', good: 'accent' }[insight.tone] || 'muted'
 
   return (
-    <div className="space-y-6 pb-6">
-      
-      {/* Header */}
-      <div className="space-y-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold text-muted tracking-wider uppercase mb-1">
-              {mode === 'day' ? fullDateStr : `Week of ${formatDate(weekStart)}`}
-            </p>
-            <h1 className="text-2xl md:text-3xl font-extrabold text-white">
-              {mode === 'day' ? `${greeting}, {ownerName} 👋` : 'How the week went'}
-            </h1>
-          </div>
+    <div className="space-y-3 pb-6">
+      <PageHeader
+        title={mode === 'day' ? `${greeting}, ${ownerName}` : 'How the week went'}
+        meta={mode === 'day' ? meta : `Week of ${formatDate(weekStart)}`}
+        actions={
+          <Segmented
+            tabs
+            idPrefix="hq"
+            label="Time range"
+            options={[
+              { value: 'day', label: 'Day' },
+              { value: 'week', label: 'Week' },
+            ]}
+            value={mode}
+            onChange={setMode}
+          />
+        }
+      />
 
-          {/* Prominent, not buried in the activity grid further down --
-              the streak used to be visible only by scrolling past it. */}
-          {mode === 'day' && streak > 0 && (
-            <span className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full bg-accent/10 border border-accent/20 text-accent text-xs font-bold tabular-nums">
-              🔥 {streak}
-            </span>
-          )}
-        </div>
-
-        {/* Day / Week. A view switch, not navigation -- it changes what this
-            page is about, not which page you are on. Both modes read the same
-            already-fetched rows, so switching is instant. */}
-        <div
-          role="tablist"
-          aria-label="Time range"
-          className="inline-flex bg-background border border-white/10 rounded-xl p-1 gap-1"
-        >
-          {[
-            { id: 'day', label: 'Day' },
-            { id: 'week', label: 'Week' },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              id={`tab-${tab.id}`}
-              role="tab"
-              aria-selected={mode === tab.id}
-              aria-controls={`panel-${tab.id}`}
-              onClick={() => setMode(tab.id)}
-              className={`px-5 py-2 rounded-lg text-xs font-bold transition-colors min-h-[44px] ${
-                mode === tab.id ? 'bg-accent text-black' : 'text-muted hover:text-white'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div id={`panel-${mode}`} role="tabpanel" aria-labelledby={`tab-${mode}`}>
-      {mode === 'day' ? (
-        <>
-        {/* One proactive sentence, chosen deterministically from numbers this
-            page already computed -- see src/lib/insight.js. Above DayBrief
-            because it can say something needs a decision today; the brief
-            below is calendar context, not a call to action. */}
-        <div
-          className={`flex items-start gap-2.5 px-4 py-3 rounded-2xl border text-xs font-semibold ${
-            insight.tone === 'warn'
-              ? 'bg-red-500/10 border-red-500/20 text-red-300'
-              : insight.tone === 'watch'
-                ? 'bg-orange-500/10 border-orange-500/20 text-orange-300'
-                : insight.tone === 'good'
-                  ? 'bg-accent/10 border-accent/20 text-accent'
-                  : 'bg-background/40 border-white/10 text-muted'
-          }`}
-        >
-          <span aria-hidden="true">
-            {insight.tone === 'warn' ? '⚠️' : insight.tone === 'watch' ? '👀' : insight.tone === 'good' ? '✨' : '💭'}
-          </span>
-          <span>{insight.text}</span>
-        </div>
-
-        {/* What today already has in it. Above everything, because it changes
-            what the numbers below are worth asking for. */}
-        <DayBrief brief={dayBrief} />
-
-        {/* CASH RECONCILIATION PROMPT */}
-        <CashReconciliation onReconciled={fetchDailyData} />
-
-        {/* Today's food, with the camera one tap away. Hosts its own
-            capture sheet so a meal is logged without leaving this page. */}
-        {/* The Diet module replaced FoodToday with DietCard (Phase 1):
-            calories and protein left, and the add-food sheet one tap away.
-            The camera returns in Phase 3; see DietCard.jsx. */}
-        <DietCard />
-
-        {/* WALLET SNAPSHOT — Dynamic */}
-        <section className="bg-card rounded-3xl p-6 border border-white/10 relative overflow-hidden shadow-xl">
-          <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-1">
-            Wallet Snapshot
-          </p>
-          <p className="text-3xl sm:text-4xl font-extrabold text-white mb-4">
-            Total: <span className="money">{formatNaira(totalBalance)}</span>
-          </p>
-
-          {/* Layered summary if savings/investment exist */}
-          {hasSavingsOrInvestments && (
-            <div className="grid grid-cols-3 gap-2 mb-3">
-              <div className="bg-background/40 p-2 rounded-xl border border-white/5 text-center">
-                <p className="text-[10px] text-muted">💳 Liquid</p>
-                <p className="text-xs font-bold text-white money">{formatNaira(liquidBalance)}</p>
-              </div>
-              <div className="bg-background/40 p-2 rounded-xl border border-white/5 text-center">
-                <p className="text-[10px] text-muted">🐖 Savings</p>
-                <p className="text-xs font-bold text-blue-400 money">{formatNaira(savingsBalance)}</p>
-              </div>
-              <div className="bg-background/40 p-2 rounded-xl border border-white/5 text-center">
-                <p className="text-[10px] text-muted">📈 Invested</p>
-                <p className="text-xs font-bold text-purple-400 money">{formatNaira(investmentBalance)}</p>
-              </div>
-            </div>
-          )}
-
-          {/* Individual wallet tiles — dynamic */}
-          <div className={`grid gap-2 pt-3 border-t border-white/5 text-center sm:text-left ${
-            activeWallets.length <= 3 ? 'grid-cols-3' : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4'
-          }`}>
-            {activeWallets.map(w => (
-              <div
-                key={w.id}
-                className="bg-background/40 p-3 rounded-2xl border border-white/5"
-                style={w.color ? { borderColor: `${w.color}15` } : {}}
-              >
-                <p className="text-[11px] text-muted flex items-center gap-1">
-                  <span>{typeIcons[w.type] || '💰'}</span> {w.name}
-                  {w.account_last4 && <span className="text-muted-dim font-mono">••{w.account_last4}</span>}
-                </p>
-                <p className="text-sm font-bold text-white mt-1 money">
-                  {formatNaira(w.balance)}
-                </p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* THIS MONTH PROGRESS */}
-        <section className="bg-card rounded-3xl p-6 border border-white/5 space-y-3">
-          <div className="flex items-center justify-between text-xs font-semibold">
-            <span className="text-muted uppercase tracking-wider">This Month</span>
-            {percentSpent != null && (
-              <span className={percentSpent >= 100 ? 'text-red-400' : 'text-accent'}>
-                {percentSpent}% of budget
-              </span>
-            )}
-          </div>
-
-          {percentSpent != null && (
-            <div className="h-3 bg-background rounded-full overflow-hidden border border-white/5">
-              <div
-                className={`h-full rounded-full transition-all duration-500 ${
-                  percentSpent >= 100 ? 'bg-red-500' : 'bg-accent'
-                }`}
-                style={{ width: `${percentSpent}%` }}
+      <div id={`hq-panel-${mode}`} role="tabpanel" aria-labelledby={`hq-tab-${mode}`} className="space-y-3">
+        {mode === 'day' ? (
+          <>
+            {/* The hero: what can be spent today, the month it sits in, and
+                one sentence chosen from those same numbers (src/lib/insight.js). */}
+            <Panel label="Safe to spend" action={statusChip && <Badge label={statusChip} tone={chip} />}>
+              <Readout
+                size="display"
+                value={safeToSpendToday}
+                tone={safeToSpendToday < 0 ? 'danger' : 'default'}
+                sub={
+                  committedGoals > 0 ? (
+                    <>
+                      After <Money amount={committedGoals} kobo={false} tone="muted" /> still owed to goals.
+                    </>
+                  ) : (
+                    'After the money already spoken for.'
+                  )
+                }
               />
-            </div>
-          )}
-
-          <p className="text-xs text-muted text-right">
-            <span className="money">{formatNaira(totalSpent)}</span> spent
-            {percentSpent != null ? (
-              <>
-                {' of '}
-                <span className="money">{formatNaira(budgetTarget)}</span>
-              </>
-            ) : (
-              ' — set a budget target in Settings'
-            )}
-          </p>
-        </section>
-
-        {/* SAFE TO SPEND */}
-        <section className="bg-card rounded-3xl p-6 border border-white/5 space-y-1.5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted uppercase tracking-wider">Safe to spend</span>
-            {statusChip && (
-              <span
-                className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                  statusChip === 'Over'
-                    ? 'bg-red-500/10 text-red-400'
-                    : statusChip === 'Watch it'
-                      ? 'bg-orange-500/10 text-orange-300'
-                      : 'bg-accent/10 text-accent'
-                }`}
-              >
-                {statusChip}
-              </span>
-            )}
-          </div>
-          <p className="text-3xl font-bold text-white money">{formatNaira(safeToSpendToday)}</p>
-          <p className="text-xs text-muted">
-            {committedGoals > 0 ? (
-              <>
-                After <span className="money">{formatNaira(committedGoals)}</span> still owed to
-                today's and this week's goals.
-              </>
-            ) : (
-              'After the money already spoken for.'
-            )}
-          </p>
-        </section>
-
-        {/* NEEDS ATTENTION */}
-        <section className="bg-card rounded-3xl p-6 border border-white/5 space-y-3">
-          <h2 className="text-xs font-semibold text-muted uppercase tracking-wider flex items-center gap-2">
-            <span>⚠️</span> Needs Attention
-          </h2>
-
-          {unreviewedCount === 0 &&
-          lowWallets.length === 0 &&
-          dueDebts.length === 0 &&
-          !auditUnwell &&
-          stalledJobs.length === 0 &&
-          attentionJobs.length === 0 &&
-          silentWallets.length === 0 &&
-          staleGoalCount === 0 &&
-          setupRows.length === 0 ? (
-            <div className="flex items-center gap-2 text-accent text-sm font-medium pt-1">
-              <span>✅</span> All clear! No items require review.
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {/* Setup steps first: until a phone is subscribed, this card is
-                  the only place any of the alarms below reach. */}
-              {setupRows.map((row) => (
-                <Link
-                  key={row.id}
-                  to={row.to}
-                  className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-orange-500/10 border border-orange-500/20 text-orange-300 text-xs font-semibold hover:bg-orange-500/20 transition-all min-h-[48px]"
-                >
-                  <span>🔧 {row.text}</span>
-                  <span className="font-bold shrink-0">{row.label}</span>
-                </Link>
-              ))}
-
-              {auditUnwell && (
-                <Link
-                  to="/settings"
-                  className={`flex items-center justify-between p-3 rounded-2xl text-xs font-semibold transition-all min-h-[48px] ${
-                    auditJob.status === STATUS.ATTENTION
-                      ? 'bg-amber-500/10 border border-amber-500/20 text-amber-300 hover:bg-amber-500/20'
-                      : 'bg-red-500/10 border border-red-500/20 text-red-300 hover:bg-red-500/20'
-                  }`}
-                >
-                  <span>
-                    • Bank alerts{' '}
-                    {auditJob.suspect
-                      ? auditJob.suspectReason
-                      : auditJob.status === STATUS.ATTENTION
-                        ? `were read this morning, but ${auditJob.reason}`
-                        : auditJob.status === STATUS.FAILING
-                          ? 'are failing — the figures here may be stale'
-                          : auditJob.status === STATUS.NEVER
-                            ? 'have never been recorded — the figures here may be stale'
-                            : `last recorded ${timeAgo(auditJob.lastRun.finished_at)} — the figures here may be stale`}
+              <div className="mt-3 space-y-1.5">
+                {percentSpent != null && (
+                  <ProgressBar
+                    value={percentSpent}
+                    tone={percentSpent >= 100 ? 'danger' : pace && !pace.onTrack ? 'warn' : 'accent'}
+                    label="Share of this month's budget spent"
+                  />
+                )}
+                <p className="flex items-baseline justify-between gap-3 text-body-sm text-muted">
+                  <span className="min-w-0">
+                    <Money amount={totalSpent} kobo={false} /> spent this month
+                    {percentSpent == null && ', set a budget target in Settings'}
                   </span>
-                  <span className="font-bold">System →</span>
-                </Link>
+                  {percentSpent != null && (
+                    <span className="type-data shrink-0">
+                      {percentSpent}% of <Money amount={budgetTarget} kobo={false} tone="muted" className="font-normal" />
+                    </span>
+                  )}
+                </p>
+              </div>
+              <p className="mt-2.5 flex items-start gap-2.5 text-body-sm text-foreground">
+                <StatusDot status={insightDot} className="mt-1.5" />
+                <span className="money whitespace-normal">{insight.text}</span>
+              </p>
+            </Panel>
+
+            {/* Today's food, with the add-food sheet one tap away. */}
+            <DietCard />
+
+            {/* What needs a decision. The first row is the next reminder. */}
+            <Panel label="Needs attention" meta={attention.length > 0 ? `${attention.length} item${attention.length === 1 ? '' : 's'}` : null} flush>
+              {attention.length === 0 ? (
+                <ListRow leading={<StatusDot status="ok" />} title="All clear" subtitle="Nothing needs you right now." />
+              ) : (
+                <ListRows>
+                  {attention.map((item) => (
+                    <ListRow
+                      key={item.key}
+                      to={item.to}
+                      wrap
+                      leading={<StatusDot status={item.tone} />}
+                      title={item.title}
+                      subtitle={item.subtitle}
+                      trailing={item.to ? <Icon name="chevR" size={18} className="text-muted" /> : null}
+                    />
+                  ))}
+                </ListRows>
               )}
+            </Panel>
 
-              {attentionJobs.map((job) => (
-                <Link
-                  key={job.id}
-                  to="/settings"
-                  className="flex items-center justify-between p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs font-semibold hover:bg-amber-500/20 transition-all min-h-[48px]"
-                >
-                  <span>• {job.label}: {job.reason}</span>
-                  <span className="font-bold shrink-0">System →</span>
-                </Link>
-              ))}
+            {/* What today already has in it. */}
+            <DayBrief brief={dayBrief} />
 
-              {silentWallets.map(({ wallet, status, daysSince }) => (
-                <Link
-                  key={wallet.id}
-                  to="/settings"
-                  className="flex items-center justify-between p-3 rounded-2xl bg-orange-500/10 border border-orange-500/20 text-orange-300 text-xs font-semibold hover:bg-orange-500/20 transition-all min-h-[48px]"
-                >
-                  <span>
-                    • {wallet.name}{' '}
-                    {status === 'never' ? 'has never sent an alert' : `has sent no alert for ${daysSince} days`} — check{' '}
-                    {wallet.alert_sender}
-                  </span>
-                  <span className="font-bold shrink-0">Settings →</span>
-                </Link>
-              ))}
+            {/* Today: the task list, typed and derived, tickable in place. */}
+            <Panel label="Today" meta={todayTasks.length > 0 ? `${doneCount}/${todayTasks.length} done` : null} flush>
+              {/* Say the day, or type it. The textarea is the baseline and the
+                  microphone is an accelerator on top (src/lib/speech.js). */}
+              <DictateDay
+                onAdd={addTasks}
+                busy={Boolean(togglingId)}
+                remaining={GENERATED_SLOT_BASE - todayTasks.filter((t) => (t.slot ?? 0) < GENERATED_SLOT_BASE).length}
+              />
+              <TodayList
+                tasks={todayTasks}
+                transactions={todayTransactions}
+                busyId={togglingId}
+                onToggle={toggleTask}
+                onSaveTitle={saveTaskTitle}
+                onDelete={deleteTask}
+                onSaveReason={hasColumn('goals.blocked_reason') ? saveTaskReason : undefined}
+                canAdd={todayTasks.filter((t) => (t.slot ?? 0) < GENERATED_SLOT_BASE).length < GENERATED_SLOT_BASE}
+              />
+            </Panel>
 
-              {stalledJobs.map((job) => (
-                <Link
-                  key={job.id}
-                  to="/settings"
-                  className={`flex items-center justify-between p-3 rounded-2xl text-xs font-semibold transition-all min-h-[48px] ${
-                    job.status === STATUS.FAILING
-                      ? 'bg-red-500/10 border border-red-500/20 text-red-300 hover:bg-red-500/20'
-                      : 'bg-orange-500/10 border border-orange-500/20 text-orange-300 hover:bg-orange-500/20'
-                  }`}
-                >
-                  <span>
-                    • {job.label}{' '}
-                    {job.status === STATUS.FAILING
-                      ? `is failing (last run ${timeAgo(job.lastRun.finished_at)})`
-                      : `has not run since ${timeAgo(job.lastRun.finished_at)}`}
-                  </span>
-                  <span className="font-bold">System →</span>
-                </Link>
-              ))}
-
-              {/* Payments and payouts inside the week, plus anything overdue --
-                  a missed contribution should not vanish just because its date
-                  has passed. */}
-              {dueDebts.map(({ debt, days, kind }) => (
-                <Link
-                  key={`${debt.id}-${kind}`}
-                  to="/debts"
-                  className={`flex items-center justify-between p-3 rounded-2xl text-xs font-semibold transition-all min-h-[48px] ${
-                    kind === 'payout'
-                      ? 'bg-blue-500/10 border border-blue-500/20 text-blue-300 hover:bg-blue-500/20'
-                      : days < 0
-                        ? 'bg-red-500/10 border border-red-500/20 text-red-300 hover:bg-red-500/20'
-                        : 'bg-orange-500/10 border border-orange-500/20 text-orange-300 hover:bg-orange-500/20'
-                  }`}
-                >
-                  <span>
-                    • {kind === 'payout' ? 'Ajo payout from' : 'Payment for'} {debt.counterparty}
-                    {days < 0
-                      ? ` — ${Math.abs(days)} day${Math.abs(days) === 1 ? '' : 's'} overdue`
-                      : days === 0
-                        ? ' — today'
-                        : ` — in ${days} day${days === 1 ? '' : 's'}`}
-                  </span>
-                  <span className="font-bold">View →</span>
-                </Link>
-              ))}
-
-              {unreviewedCount > 0 && (
-                <Link
-                  to="/transactions?filter=Review"
-                  className="flex items-center justify-between p-3 rounded-2xl bg-orange-500/10 border border-orange-500/20 text-orange-300 text-xs font-semibold hover:bg-orange-500/20 transition-all min-h-[48px]"
-                >
-                  <span>
-                    • {unreviewedCount} transaction{unreviewedCount === 1 ? '' : 's'} need categorization/review
-                    {(() => {
-                      const age = queueAge(oldestUnreviewed, todayDate)
-                      return age && age.days > 0 ? ` (${age.label})` : ''
-                    })()}
-                  </span>
-                  <span className="text-orange-400 font-bold">Review →</span>
-                </Link>
-              )}
-
-              {staleGoalCount > 0 && (
-                <Link
-                  to="/goals"
-                  className="flex items-center justify-between p-3 rounded-2xl bg-orange-500/10 border border-orange-500/20 text-orange-300 text-xs font-semibold hover:bg-orange-500/20 transition-all min-h-[48px]"
-                >
-                  <span>
-                    • {staleGoalCount} goal{staleGoalCount === 1 ? ' is' : 's are'} past {staleGoalCount === 1 ? 'its' : 'their'} date — close or roll{' '}
-                    {staleGoalCount === 1 ? 'it' : 'them'}
-                  </span>
-                  <span className="text-orange-400 font-bold">Goals →</span>
-                </Link>
-              )}
-
-              {lowWallets.map(w => (
-                <div
-                  key={w.id}
-                  className="flex items-center justify-between p-3 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-300 text-xs font-semibold"
-                >
-                  <span>• {w.name} balance low (<span className="money">{formatNaira(w.balance)}</span> &lt; <span className="money">{formatNaira(warnThreshold)}</span>)</span>
-                  <span className="text-red-400 font-bold">Warning</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-
-        {/* Accounts the morning audit saw in the mail and does not track yet
-            (043). Renders nothing when there is nothing to decide. */}
-        <DiscoveredAccounts />
-
-        {/* Bills nobody typed in, found from the pattern alone -- see
-            src/lib/recurring.js. Renders nothing when none are due soon. */}
-        <UpcomingBills />
-
-        {/* TODAY'S PRIORITIES */}
-        {/* Today — the task list, typed and derived, tickable in place */}
-        <section className="bg-card rounded-3xl p-6 border border-white/5 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">Today</h2>
-            {todayTasks.length > 0 && (
-              <span className="text-[10px] text-muted tabular-nums">
-                {todayTasks.filter(doneOn).length}/{todayTasks.length} done
-              </span>
+            {/* Asked once, in the evening, and only about what is still open. */}
+            {currentHour >= EVENING_HOUR && (
+              <EndOfDay
+                open={todayTasks.filter((t) => !doneOn(t))}
+                onToggle={toggleTask}
+                onSaveReason={hasColumn('goals.blocked_reason') ? saveTaskReason : undefined}
+                busyId={togglingId}
+              />
             )}
-          </div>
 
-          {/* Say the day, or type it. The textarea is the baseline and the
-              microphone is an accelerator on top -- see src/lib/speech.js. */}
-          <DictateDay
-            onAdd={addTasks}
-            busy={Boolean(togglingId)}
-            remaining={
-              GENERATED_SLOT_BASE -
-              todayTasks.filter((t) => (t.slot ?? 0) < GENERATED_SLOT_BASE).length
-            }
-          />
+            {/* The evening cash check (after 20:00 only). */}
+            <CashReconciliation onReconciled={fetchDailyData} />
 
-          <TodayList
-            tasks={todayTasks}
-            transactions={todayTransactions}
-            busyId={togglingId}
-            onToggle={toggleTask}
-            onSaveTitle={saveTaskTitle}
-            onDelete={deleteTask}
-            onSaveReason={hasColumn('goals.blocked_reason') ? saveTaskReason : undefined}
-            canAdd={todayTasks.filter((t) => (t.slot ?? 0) < GENERATED_SLOT_BASE).length < GENERATED_SLOT_BASE}
-          />
-        </section>
+            {/* Accounts the morning audit saw in the mail and does not track
+                yet (043); bills found from the pattern alone. Each renders
+                nothing when there is nothing to decide. */}
+            <DiscoveredAccounts />
+            <UpcomingBills />
 
-        {/* Asked once, in the evening, and only about what is still open. */}
-        {currentHour >= EVENING_HOUR && (
-          <EndOfDay
-            open={todayTasks.filter((t) => !doneOn(t))}
-            onToggle={toggleTask}
-            onSaveReason={hasColumn('goals.blocked_reason') ? saveTaskReason : undefined}
-            busyId={togglingId}
+            {/* Wallets */}
+            <Panel label="Wallets" meta={`${activeWallets.length} active`} flush>
+              <div className="px-3 pt-3 pb-3 lg:px-4 space-y-3 border-b border-border">
+                <Readout label="Total" value={totalBalance} />
+                {hasSavingsOrInvestments && (
+                  <div className="grid grid-cols-3 gap-3">
+                    <Stat label="Liquid" value={<Money amount={liquidBalance} kobo={false} />} />
+                    <Stat label="Savings" value={<Money amount={savingsBalance} kobo={false} />} />
+                    <Stat label="Invested" value={<Money amount={investmentBalance} kobo={false} />} />
+                  </div>
+                )}
+              </div>
+              <ListRows>
+                {activeWallets.map((w) => (
+                  <ListRow
+                    key={w.id}
+                    leading={
+                      <span aria-hidden="true" className="inline-flex items-center justify-center w-7 h-7 rounded-chip bg-surface-2 text-muted">
+                        <Icon name={WALLET_GLYPH[w.type] || 'budget'} size={16} />
+                      </span>
+                    }
+                    title={w.name}
+                    subtitle={
+                      <>
+                        <span className="capitalize">{w.type}</span>
+                        {w.account_last4 && <span className="type-data"> ··{w.account_last4}</span>}
+                      </>
+                    }
+                    trailing={<Money amount={w.balance} />}
+                  />
+                ))}
+              </ListRows>
+            </Panel>
+
+            <Panel label="Recent" flush action={<Button size="sm" variant="ghost" to="/transactions">See all</Button>}>
+              {transactions.length === 0 ? (
+                <ListRow title="No recent transactions" subtitle="Alerts and logged spending land here." />
+              ) : (
+                <ListRows>
+                  {transactions.map((t) => {
+                    const isCredit = t.type === 'credit'
+                    return (
+                      <ListRow
+                        key={t.id}
+                        isNew={isNewTransaction(t.id)}
+                        leading={<CategoryMark category={t.category} />}
+                        title={t.description || t.category}
+                        subtitle={`${t.category} · ${t.transaction_date === todayDate ? 'Today' : t.transaction_date === yesterdayDate ? 'Yesterday' : formatDate(t.transaction_date)}`}
+                        meta={<Provenance source={t.source} at={t.transaction_time} />}
+                        trailing={<Money amount={isCredit ? Number(t.amount) : -Number(t.amount)} sign={isCredit} tone={isCredit ? 'positive' : 'default'} />}
+                      />
+                    )
+                  })}
+                </ListRows>
+              )}
+            </Panel>
+
+            <Yesterday transactions={yesterdayTransactions} tasks={yesterdayTasks} isDone={doneOn} liquidWalletIds={liquidWalletIds} />
+
+            <ActivityGrid tasks={dayRows} isDone={doneOn} today={todayDate} isUnknown={isUnknownTask} />
+          </>
+        ) : (
+          <WeekReview
+            weekStart={weekStart}
+            weekEnd={weekEnd}
+            lastWeekStart={lastWeekStart}
+            thisWeekTransactions={thisWeekTransactions}
+            lastWeekTransactions={lastWeekTransactions}
+            liquidWalletIds={liquidWalletIds}
+            weeklyGoals={weeklyGoals}
+            lastWeekGoals={lastWeekGoals}
+            dailyTasks={dayRows}
+            isDone={doneOn}
+            isLastWeekGoalDone={(goal) => isTaskDone(goal, lastWeekTransactions)}
+            today={todayDate}
           />
         )}
-
-        <Yesterday
-          transactions={yesterdayTransactions}
-          tasks={yesterdayTasks}
-          isDone={doneOn}
-          liquidWalletIds={liquidWalletIds}
-        />
-
-        <ActivityGrid tasks={dayRows} isDone={doneOn} today={todayDate} isUnknown={isUnknownTask} />
-
-        {/* Recent Transactions */}
-        <section className="bg-card rounded-3xl p-6 border border-white/5 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">
-              Recent Transactions
-            </h2>
-            <Link to="/transactions" className="text-xs font-semibold text-accent hover:underline">
-              See all →
-            </Link>
-          </div>
-
-          {transactions.length === 0 ? (
-            <p className="text-xs text-muted py-4 text-center">No recent transactions</p>
-          ) : (
-            <div className="space-y-3">
-              {transactions.map((t) => {
-                const icon = getCategoryIcon(t.category)
-                const isCredit = t.type === 'credit'
-                return (
-                  <div
-                    key={t.id}
-                    className="flex items-center justify-between p-3 rounded-2xl bg-background/40 border border-white/5"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center text-base">
-                        {icon}
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-white leading-tight">
-                          {t.description || t.category}
-                        </p>
-                        <p className="text-[10px] text-muted mt-0.5">
-                          {formatDate(t.transaction_date)}
-                        </p>
-                      </div>
-                    </div>
-                    <span className={`text-xs font-bold money ${isCredit ? 'text-accent' : 'text-white'}`}>
-                      {isCredit ? '+' : '-'}{formatNaira(t.amount)}
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </section>
-        </>
-      ) : (
-        <WeekReview
-          weekStart={weekStart}
-          weekEnd={weekEnd}
-          lastWeekStart={lastWeekStart}
-          thisWeekTransactions={thisWeekTransactions}
-          lastWeekTransactions={lastWeekTransactions}
-          liquidWalletIds={liquidWalletIds}
-          weeklyGoals={weeklyGoals}
-          lastWeekGoals={lastWeekGoals}
-          dailyTasks={dayRows}
-          isDone={doneOn}
-          isLastWeekGoalDone={(goal) => isTaskDone(goal, lastWeekTransactions)}
-          today={todayDate}
-        />
-      )}
       </div>
     </div>
   )
 }
+
+/** Plain titles for the setup checklist's rows (src/lib/setup.js ids). */
+const SETUP_TITLES = {
+  migrations: 'Database is behind the app',
+  push: 'Morning reminder reaches nobody',
+  backup: 'Backup is not set up',
+  functions: 'Edge functions not deployed',
+  'meal-key': 'Photo reading has no key',
+}
+
+/** A wallet's type as a glyph. */
+const WALLET_GLYPH = { bank: 'bank', mobile: 'phone', cash: 'cash', savings: 'vault', investment: 'chart' }

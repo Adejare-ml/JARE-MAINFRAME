@@ -46,6 +46,9 @@ export async function nvidiaVisionModels() {
   }
 }
 
+/** See askClaude: thinking shares max_tokens with the answer. */
+const MIN_CLAUDE_TOKENS = 4000
+
 export const hasClaude = () => Boolean(env('ANTHROPIC_API_KEY'))
 export const hasOllama = () => Boolean(env('OLLAMA_API_KEY'))
 export const hasNvidia = () => Boolean(env('NVIDIA_API_KEY'))
@@ -64,8 +67,15 @@ async function timed(ms, fn) {
  * One Claude call. `image` is {base64, mime} or null. Returns
  * {ok, text, model, ms} or {ok:false, status, reason, ms}.
  */
-export async function askClaude({ model = CLAUDE_TEXT_MODEL(), system, user, schema, image = null, maxTokens = 2000, timeoutMs = 60000 }) {
+export async function askClaude({ model = CLAUDE_TEXT_MODEL(), system, user, schema, image = null, maxTokens = 2000, effort = null, timeoutMs = 60000 }) {
   const started = Date.now()
+  // Claude Haiku 5.5 thinks by default, and its thinking counts against
+  // max_tokens: the check-in's 400 left nothing for the answer, and every
+  // morning plan since the move to 5.5 ended "Claude ran out of tokens". A
+  // floor of 4,000 costs nothing extra (billing is on tokens produced, not on
+  // the cap), and callers can lower the thinking with `effort`.
+  const budget = Math.max(maxTokens, MIN_CLAUDE_TOKENS)
+  const outputConfig = { ...(schema ? { format: { type: 'json_schema', schema } } : {}), ...(effort ? { effort } : {}) }
   const content = image
     ? [{ type: 'image', source: { type: 'base64', media_type: image.mime, data: image.base64 } }, { type: 'text', text: user }]
     : user
@@ -76,10 +86,10 @@ export async function askClaude({ model = CLAUDE_TEXT_MODEL(), system, user, sch
         headers: { 'content-type': 'application/json', 'x-api-key': env('ANTHROPIC_API_KEY'), 'anthropic-version': '2023-06-01' },
         body: JSON.stringify({
           model,
-          max_tokens: maxTokens,
+          max_tokens: budget,
           system,
           messages: [{ role: 'user', content }],
-          ...(schema ? { output_config: { format: { type: 'json_schema', schema } } } : {}),
+          ...(Object.keys(outputConfig).length ? { output_config: outputConfig } : {}),
         }),
         signal,
       }),

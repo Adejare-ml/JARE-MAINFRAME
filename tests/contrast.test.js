@@ -39,52 +39,106 @@ describe('contrastRatio', () => {
   // this project's own pre-fix red-500-on-card measured 4.6:1 (Stage O), so
   // a very similar gray pair here pins the formula against a real prior
   // measurement rather than only textbook endpoints.
-  it('reports the dark theme\'s own documented muted-dim/card ratio correctly', () => {
-    // index.css: "--color-muted-dim: #8a8a8a;  /* 5.0:1 on card */"
+  it('reports a previously measured pair correctly', () => {
+    // The old dark theme's muted-dim on card, hand-measured at 5.0:1.
     expect(contrastRatio('#8a8a8a', '#1a1a1a')).toBeCloseTo(5.0, 1)
   })
 })
 
-describe('light theme palette (src/index.css :root[data-theme="light"])', () => {
-  // Kept in sync with index.css by hand -- the same "duplication documented
-  // on purpose" this project already accepts for TRANSFER_CATEGORIES and
-  // similar lists, so a new pair chosen in CSS is a test failure here until
-  // it is added to both places.
-  const LIGHT = {
-    background: '#f5f5f5',
-    card: '#ffffff',
-    foreground: '#18181b',
-    muted: '#52525b',
-    accent: '#166534',
-    mutedDim: '#595966',
-    hint: '#6e6e78',
-  }
+/*
+ * The three palettes, kept in sync with src/index.css by hand: a value
+ * changed in CSS is a failure here until it changes in both places. Every
+ * text token must clear AA (4.5:1) and both border tokens the 3:1 non-text
+ * floor, on each of the three surfaces a token can sit on.
+ */
+const DARK = {
+  background: '#0b0c0d',
+  card: '#131517',
+  surface2: '#1c1f22',
+  foreground: '#ecece8',
+  muted: '#a6aab0',
+  mutedDim: '#93979d',
+  hint: '#8b8f95',
+  border: '#696e74',
+  borderStrong: '#8b8f95',
+  accent: '#22c55e',
+  onAccent: '#05140b',
+  warn: '#f0a93b',
+  danger: '#f87171',
+}
 
-  it('foreground text clears AA on both surfaces', () => {
-    expect(contrastRatio(LIGHT.foreground, LIGHT.background)).toBeGreaterThanOrEqual(AA_TEXT_MINIMUM)
-    expect(contrastRatio(LIGHT.foreground, LIGHT.card)).toBeGreaterThanOrEqual(AA_TEXT_MINIMUM)
+const LIGHT = {
+  background: '#f1f2f0',
+  card: '#ffffff',
+  surface2: '#e6e8e5',
+  foreground: '#15171a',
+  muted: '#474c53',
+  mutedDim: '#51565d',
+  hint: '#595e65',
+  border: '#7f848b',
+  borderStrong: '#595e65',
+  accent: '#166534',
+  onAccent: '#ffffff',
+  warn: '#8a4700',
+  danger: '#b42318',
+}
+
+// OLED moves the page background only.
+const OLED = { ...DARK, background: '#000000' }
+
+const TEXT_TOKENS = ['foreground', 'muted', 'mutedDim', 'hint', 'accent', 'warn', 'danger']
+const BORDER_TOKENS = ['border', 'borderStrong']
+const SURFACES = ['background', 'card', 'surface2']
+const NON_TEXT_MINIMUM = 3
+
+for (const [name, palette] of Object.entries({ dark: DARK, light: LIGHT, oled: OLED })) {
+  describe(`${name} palette (src/index.css)`, () => {
+    for (const token of TEXT_TOKENS) {
+      for (const surface of SURFACES) {
+        it(`${token} text clears AA on ${surface}`, () => {
+          expect(contrastRatio(palette[token], palette[surface])).toBeGreaterThanOrEqual(AA_TEXT_MINIMUM)
+        })
+      }
+    }
+
+    for (const token of BORDER_TOKENS) {
+      for (const surface of SURFACES) {
+        it(`${token} clears the 3:1 non-text floor on ${surface}`, () => {
+          expect(contrastRatio(palette[token], palette[surface])).toBeGreaterThanOrEqual(NON_TEXT_MINIMUM)
+        })
+      }
+    }
+
+    for (const fill of ['accent', 'warn', 'danger']) {
+      it(`on-accent text clears AA on a ${fill} fill`, () => {
+        expect(contrastRatio(palette.onAccent, palette[fill])).toBeGreaterThanOrEqual(AA_TEXT_MINIMUM)
+      })
+    }
+
+    it('elevation runs background, card, surface-2 by surface rather than shadow', () => {
+      const l = (k) => relativeLuminance(palette[k])
+      if (name === 'light') {
+        // Light: the card is the brightest; surface-2 is a pressed grey.
+        expect(l('card')).toBeGreaterThan(l('background'))
+        expect(l('surface2')).toBeLessThan(l('card'))
+      } else {
+        expect(l('card')).toBeGreaterThan(l('background'))
+        expect(l('surface2')).toBeGreaterThan(l('card'))
+      }
+    })
   })
+}
 
-  it('muted text clears AA on both surfaces', () => {
-    expect(contrastRatio(LIGHT.muted, LIGHT.background)).toBeGreaterThanOrEqual(AA_TEXT_MINIMUM)
-    expect(contrastRatio(LIGHT.muted, LIGHT.card)).toBeGreaterThanOrEqual(AA_TEXT_MINIMUM)
-  })
-
-  it('muted-dim text clears AA on both surfaces', () => {
-    expect(contrastRatio(LIGHT.mutedDim, LIGHT.background)).toBeGreaterThanOrEqual(AA_TEXT_MINIMUM)
-    expect(contrastRatio(LIGHT.mutedDim, LIGHT.card)).toBeGreaterThanOrEqual(AA_TEXT_MINIMUM)
-  })
-
-  it('hint text clears AA on card -- placeholders only, matching the dark theme\'s own convention for this token', () => {
-    expect(contrastRatio(LIGHT.hint, LIGHT.card)).toBeGreaterThanOrEqual(AA_TEXT_MINIMUM)
-  })
-
-  it('accent text clears AA on both surfaces (its text role -- see index.css for the bg-fill tradeoff this does not cover)', () => {
-    expect(contrastRatio(LIGHT.accent, LIGHT.background)).toBeGreaterThanOrEqual(AA_TEXT_MINIMUM)
-    expect(contrastRatio(LIGHT.accent, LIGHT.card)).toBeGreaterThanOrEqual(AA_TEXT_MINIMUM)
-  })
-
-  it('card is lighter than background, matching the dark theme\'s own card-raised-above-background relationship', () => {
-    expect(relativeLuminance(LIGHT.card)).toBeGreaterThan(relativeLuminance(LIGHT.background))
+describe('the palette in this test matches src/index.css', () => {
+  it('every dark token above is declared in the @theme block', async () => {
+    const { readFileSync } = await import('node:fs')
+    const css = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8')
+    const kebab = (k) => k.replace(/[A-Z0-9]/g, (c) => (/[0-9]/.test(c) ? `-${c}` : `-${c.toLowerCase()}`))
+    for (const [token, hex] of Object.entries(DARK)) {
+      expect(css).toContain(`--color-${kebab(token)}: ${hex};`)
+    }
+    for (const [token, hex] of Object.entries(LIGHT)) {
+      expect(css).toContain(`--color-${kebab(token)}: ${hex};`)
+    }
   })
 })

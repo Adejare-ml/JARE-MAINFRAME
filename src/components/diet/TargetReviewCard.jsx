@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { toast } from '../../lib/toast'
 import { decideTarget } from './api'
+import Panel from '../ui/Panel'
+import Button from '../ui/Button'
 
 /**
  * The 14-day target review (Diet module, Phase 4). src/lib/diet/target.js
@@ -18,7 +20,7 @@ export default function TargetReviewCard({ review, current, onDecided }) {
     setBusy(true)
     try {
       await decideTarget(p, accept)
-      toast.success(accept ? `Target set to ${p.kcal_target.toLocaleString()} kcal ✓` : 'Target kept ✓')
+      toast.success(accept ? `Target set to ${p.kcal_target.toLocaleString()} kcal` : 'Target kept')
       onDecided?.()
     } catch (err) {
       toast.error('Not saved: ' + err.message)
@@ -28,35 +30,36 @@ export default function TargetReviewCard({ review, current, onDecided }) {
   }
 
   return (
-    <section className="rounded-3xl p-5 border border-accent/30 bg-accent/5 space-y-3" aria-label="Target review">
-      <p className="text-xs font-semibold text-muted uppercase tracking-wider">14-day target review</p>
-      {review.change ? (
-        <p className="text-sm text-white leading-relaxed">
-          At {p.weight_kg} kg your maintenance is about {p.maintenance.toLocaleString()} kcal. Keeping the same gap, the new target would be{' '}
-          <b>{p.kcal_target.toLocaleString()} kcal</b> (now {current.toLocaleString()}).
-        </p>
-      ) : (
-        <p className="text-sm text-white leading-relaxed">
-          At {p.weight_kg} kg your target stays at <b>{current.toLocaleString()} kcal</b>.
-        </p>
-      )}
-      <div className="grid grid-cols-2 gap-2">
+    <Panel label="14-day target review">
+      <div className="space-y-3">
         {review.change ? (
-          <>
-            <button type="button" disabled={busy} onClick={() => decide(false)} className="min-h-[48px] rounded-xl bg-white/5 text-white text-sm font-bold disabled:opacity-60">
-              Keep {current.toLocaleString()}
-            </button>
-            <button type="button" disabled={busy} onClick={() => decide(true)} className="min-h-[48px] rounded-xl bg-accent text-black text-sm font-extrabold disabled:opacity-60">
-              Accept
-            </button>
-          </>
+          <p className="text-body text-foreground">
+            At {p.weight_kg} kg your maintenance is about {p.maintenance.toLocaleString()} kcal. Keeping the same gap, the new target would be{' '}
+            <b className="font-semibold">{p.kcal_target.toLocaleString()} kcal</b> (now {current.toLocaleString()}).
+          </p>
         ) : (
-          <button type="button" disabled={busy} onClick={() => decide(false)} className="col-span-2 min-h-[48px] rounded-xl bg-white/5 text-white text-sm font-bold disabled:opacity-60">
-            OK
-          </button>
+          <p className="text-body text-foreground">
+            At {p.weight_kg} kg your target stays at <b className="font-semibold">{current.toLocaleString()} kcal</b>.
+          </p>
         )}
+        <div className="grid grid-cols-2 gap-2">
+          {review.change ? (
+            <>
+              <Button variant="secondary" disabled={busy} onClick={() => decide(false)}>
+                Keep {current.toLocaleString()}
+              </Button>
+              <Button disabled={busy} onClick={() => decide(true)}>
+                Accept
+              </Button>
+            </>
+          ) : (
+            <Button variant="secondary" disabled={busy} onClick={() => decide(false)} className="col-span-2">
+              OK
+            </Button>
+          )}
+        </div>
+        <p className="text-body-sm text-muted-dim">Exercise is never added back to the daily budget. The target never goes under 1,800 kcal.</p>
       </div>
-      <p className="text-[10px] text-muted-dim">Exercise is never added back to the daily budget. The target never goes under 1,800 kcal.</p>
-    </section>
+    </Panel>
   )
 }

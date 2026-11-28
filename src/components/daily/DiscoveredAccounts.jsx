@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { hasColumn } from '../../lib/schema'
 import { toast } from '../../lib/toast'
@@ -7,6 +6,9 @@ import { toDateOnly } from '../../lib/queries'
 import { isMissingFunctionError } from '../../lib/corrections'
 import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh'
 import { awaitingDecision, describeDiscovered, suggestWalletType, DISCOVERY_URL } from '../../lib/discovery'
+import Panel from '../ui/Panel'
+import Button from '../ui/Button'
+import { controlClasses } from '../ui/Field'
 
 const TYPES = ['bank', 'mobile', 'savings', 'investment', 'cash']
 
@@ -68,7 +70,7 @@ export default function DiscoveredAccounts({ compact = false }) {
         if (isMissingFunctionError(error)) throw new Error('run supabase/migrations/043_discovered_accounts.sql first')
         throw error
       }
-      toast.success(`${name.trim() || row.label || row.slug} is now a wallet ✓ The next alert lands in the ledger.`)
+      toast.success(`${name.trim() || row.label || row.slug} is now a wallet. The next alert lands in the ledger.`)
       setChoosing(null)
       load()
       return data
@@ -90,53 +92,38 @@ export default function DiscoveredAccounts({ compact = false }) {
       toast.error('Could not ignore it: ' + error.message)
       return
     }
-    toast.success(`${row.label || row.slug} ignored. Change your mind under Settings → Accounts found in mail.`)
+    toast.success(`${row.label || row.slug} ignored. Change your mind in Settings, Accounts found in mail.`)
     load()
   }
 
   return (
-    <section className="bg-card rounded-3xl p-6 border border-white/5 space-y-3">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xs font-semibold text-muted uppercase tracking-wider flex items-center gap-2">
-          <span aria-hidden="true">📬</span> Found in your mail
-        </h2>
-        {!compact && (
-          <Link to={DISCOVERY_URL} className="text-xs font-semibold text-accent hover:underline">
-            All →
-          </Link>
-        )}
-      </div>
-      <p className="text-xs text-muted leading-relaxed">
+    <Panel
+      label="Found in your mail"
+      meta={`${pending.length} new`}
+      action={!compact && <Button size="sm" variant="ghost" to={DISCOVERY_URL}>All</Button>}
+      flush
+    >
+      <p className="px-3 py-2.5 text-body-sm text-muted border-b border-border">
         The morning audit saw alerts from {pending.length === 1 ? 'an account' : `${pending.length} accounts`} it does not
         track. Nothing from {pending.length === 1 ? 'it' : 'them'} is in the ledger until you say so.
       </p>
-      <ul className="space-y-2">
+      <ul className="divide-y divide-border">
         {pending.map((row) => (
-          <li key={row.id} className="rounded-2xl bg-background/40 border border-white/5 p-3 space-y-2">
-            <div className="flex items-start justify-between gap-3">
+          <li key={row.id} className="px-3 py-2.5 space-y-2">
+            <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-sm font-bold text-white truncate">{row.label || row.slug}</p>
-                <p className="text-[11px] text-muted truncate">{describeDiscovered(row, today)}</p>
-                {row.sender && <p className="text-[10px] text-muted-dim truncate">{row.sender}</p>}
+                <p className="text-body text-foreground truncate">{row.label || row.slug}</p>
+                <p className="text-body-sm text-muted truncate">{describeDiscovered(row, today)}</p>
+                {row.sender && <p className="type-data text-muted-dim truncate">{row.sender}</p>}
               </div>
               {choosing !== row.id && (
                 <div className="flex gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => startTrack(row)}
-                    disabled={busy === row.id}
-                    className="px-3 rounded-xl bg-accent text-black text-xs font-extrabold min-h-[44px] disabled:opacity-50"
-                  >
+                  <Button size="sm" onClick={() => startTrack(row)} disabled={busy === row.id}>
                     Track
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => ignore(row)}
-                    disabled={busy === row.id}
-                    className="px-3 rounded-xl bg-white/5 border border-white/10 text-muted hover:text-white text-xs font-bold min-h-[44px] disabled:opacity-50"
-                  >
+                  </Button>
+                  <Button size="sm" variant="secondary" onClick={() => ignore(row)} disabled={busy === row.id}>
                     Ignore
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>
@@ -154,14 +141,9 @@ export default function DiscoveredAccounts({ compact = false }) {
                   onChange={(e) => setName(e.target.value)}
                   aria-label="Wallet name"
                   maxLength={60}
-                  className="min-w-0 px-3 py-2.5 bg-background border border-white/10 rounded-xl text-white text-sm min-h-[44px]"
+                  className={controlClasses()}
                 />
-                <select
-                  value={type}
-                  onChange={(e) => setType(e.target.value)}
-                  aria-label="Wallet type"
-                  className="px-3 py-2.5 bg-background border border-white/10 rounded-xl text-white text-sm min-h-[44px] capitalize"
-                >
+                <select value={type} onChange={(e) => setType(e.target.value)} aria-label="Wallet type" className={`${controlClasses()} capitalize`}>
                   {TYPES.map((t) => (
                     <option key={t} value={t}>
                       {t}
@@ -169,18 +151,18 @@ export default function DiscoveredAccounts({ compact = false }) {
                   ))}
                 </select>
                 <div className="flex gap-2">
-                  <button type="submit" disabled={busy === row.id} className="flex-1 px-3 rounded-xl bg-accent text-black text-xs font-extrabold min-h-[44px] disabled:opacity-50">
-                    {busy === row.id ? 'Creating…' : 'Create wallet'}
-                  </button>
-                  <button type="button" onClick={() => setChoosing(null)} className="px-3 rounded-xl bg-white/5 text-muted text-xs font-bold min-h-[44px]">
+                  <Button type="submit" loading={busy === row.id} full>
+                    Create wallet
+                  </Button>
+                  <Button variant="secondary" onClick={() => setChoosing(null)}>
                     Back
-                  </button>
+                  </Button>
                 </div>
               </form>
             )}
           </li>
         ))}
       </ul>
-    </section>
+    </Panel>
   )
 }

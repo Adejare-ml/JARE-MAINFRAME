@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { toast } from '../../lib/toast'
-import { formatNaira, formatDate } from '../../lib/formatters'
+import { formatDate } from '../../lib/formatters'
+import Panel from '../ui/Panel'
+import ListRow, { ListRows } from '../ui/ListRow'
+import Money from '../ui/Money'
+import Button from '../ui/Button'
+import Segmented from '../ui/Segmented'
+import StatusDot from '../ui/StatusDot'
+import { Input } from '../ui/Field'
 import { planPayoff, PAYOFF_STRATEGIES } from '../../lib/debts'
 
 /** The user_settings key the monthly debt budget is kept under. */
@@ -66,7 +73,7 @@ export default function PayoffPlan({ debts, paidByDebt }) {
         : await supabase.from('user_settings').insert({ key: PAYOFF_BUDGET_KEY, value: String(num), updated_at: now })
       if (error) throw error
       setSaved(String(num))
-      toast.success('Monthly debt budget saved ✓')
+      toast.success('Monthly debt budget saved')
     } catch (err) {
       toast.error('Could not save: ' + (err.message || 'check connection'))
     } finally {
@@ -74,89 +81,79 @@ export default function PayoffPlan({ debts, paidByDebt }) {
     }
   }
 
+  const hint = PAYOFF_STRATEGIES.find((s) => s.value === strategy)?.hint
+
   return (
-    <section className="bg-card rounded-3xl p-5 border border-white/5 space-y-4" aria-labelledby="payoff-plan-heading">
-      <div className="flex items-center justify-between gap-3">
-        <h2 id="payoff-plan-heading" className="text-xs font-semibold text-muted uppercase tracking-wider">
-          Payoff plan
-        </h2>
-        <span className="text-[11px] text-muted">
-          <span className="money">{formatNaira(plan.totalOutstanding)}</span> owed
-        </span>
-      </div>
+    <Panel label="Payoff plan" meta={<><Money amount={plan.totalOutstanding} kobo={false} tone="muted" className="font-normal" /> owed</>} flush>
+      <div className="p-3 lg:p-4 space-y-3 border-b border-border">
+        <div className="flex items-end gap-2">
+          <div className="flex-1 min-w-0">
+            <Input
+              label="Monthly amount toward debts"
+              type="number"
+              inputMode="numeric"
+              min="0"
+              step="500"
+              value={budget}
+              onChange={(e) => setBudget(e.target.value)}
+              placeholder="50000"
+            />
+          </div>
+          <Button variant="secondary" onClick={saveBudget} loading={saving} disabled={budget === saved}>
+            Save
+          </Button>
+        </div>
 
-      <div className="flex flex-col sm:flex-row gap-2">
-        <label className="flex-1 min-w-0">
-          <span className="sr-only">Monthly amount toward debts</span>
-          <input
-            type="number"
-            inputMode="numeric"
-            min="0"
-            step="500"
-            value={budget}
-            onChange={(e) => setBudget(e.target.value)}
-            placeholder="Monthly amount toward debts"
-            className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+        <div className="space-y-1.5">
+          <Segmented
+            full
+            label="Payoff order"
+            options={PAYOFF_STRATEGIES.map((s) => ({ value: s.value, label: s.label }))}
+            value={strategy}
+            onChange={setStrategy}
           />
-        </label>
-        <button
-          type="button"
-          onClick={saveBudget}
-          disabled={saving || budget === saved}
-          className="px-4 py-3 bg-white/5 text-white text-sm font-semibold rounded-xl min-h-[48px] disabled:opacity-40"
-        >
-          {saving ? 'Saving…' : 'Save'}
-        </button>
-      </div>
-
-      <div role="group" aria-label="Payoff order" className="grid grid-cols-2 gap-2">
-        {PAYOFF_STRATEGIES.map((s) => (
-          <button
-            key={s.value}
-            type="button"
-            aria-pressed={strategy === s.value}
-            onClick={() => setStrategy(s.value)}
-            className={`px-3 py-2.5 rounded-xl text-xs font-semibold border min-h-[48px] transition-all ${
-              strategy === s.value ? 'bg-accent/20 border-accent text-accent' : 'bg-background border-white/5 text-muted hover:text-white'
-            }`}
-          >
-            {s.label}
-            <span className="block text-[10px] font-normal opacity-80">{s.hint}</span>
-          </button>
-        ))}
+          {hint && <p className="text-body-sm text-muted">Pays the {hint}.</p>}
+        </div>
       </div>
 
       {!plan.feasible ? (
-        <p className="text-xs text-orange-300 leading-relaxed">
-          No plan yet: {plan.reason}.
-          {plan.minimums > 0 && (
-            <>
-              {' '}
-              The payments you have set come to <span className="money">{formatNaira(plan.minimums)}</span> a month.
-            </>
-          )}
+        <p className="flex items-start gap-2.5 p-3 lg:p-4 text-body-sm text-foreground">
+          <StatusDot status="warn" className="mt-1.5" />
+          <span>
+            No plan yet: {plan.reason}.
+            {plan.minimums > 0 && (
+              <>
+                {' '}
+                The payments you have set come to <Money amount={plan.minimums} kobo={false} /> a month.
+              </>
+            )}
+          </span>
         </p>
       ) : (
-        <ol className="space-y-2" aria-label="Debts in payoff order">
-          {plan.order.map((item, index) => (
-            <li key={item.debt.id} className="flex items-center justify-between gap-3 text-sm">
-              <span className="min-w-0 truncate text-white">
-                <span className="text-muted tabular-nums mr-2">{index + 1}.</span>
-                {item.debt.counterparty}
-                <span className="text-muted"> · <span className="money">{formatNaira(item.outstanding)}</span></span>
-              </span>
-              <span className="text-xs text-muted shrink-0 tabular-nums">
-                {item.monthsRemaining} mo · {formatDate(item.payoffDate)}
-              </span>
-            </li>
-          ))}
-          <li className="pt-2 border-t border-white/5 text-xs text-muted">
+        <>
+          <ListRows as="ol" label="Debts in payoff order">
+            {plan.order.map((item, index) => (
+              <ListRow
+                key={item.debt.id}
+                as="li"
+                leading={<span className="type-data text-muted-dim w-5 text-right">{index + 1}</span>}
+                title={item.debt.counterparty}
+                subtitle={<Money amount={item.outstanding} tone="muted" className="font-normal" />}
+                trailing={
+                  <span className="type-data text-muted whitespace-nowrap">
+                    {item.monthsRemaining} mo · {formatDate(item.payoffDate)}
+                  </span>
+                }
+              />
+            ))}
+          </ListRows>
+          <p className="px-3 py-3 lg:px-4 border-t border-border text-body-sm text-muted">
             Debt-free in {plan.months} month{plan.months === 1 ? '' : 's'} at{' '}
-            <span className="money text-white">{formatNaira(plan.budget)}</span>/mo
-            {!ordersDiffer && plan.order.length > 1 && ' · same order either way'}
-          </li>
-        </ol>
+            <Money amount={plan.budget} kobo={false} />/mo
+            {!ordersDiffer && plan.order.length > 1 && ', same order either way'}
+          </p>
+        </>
       )}
-    </section>
+    </Panel>
   )
 }

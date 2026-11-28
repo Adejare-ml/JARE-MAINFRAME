@@ -2,7 +2,8 @@
  * A circular progress indicator, hand-rolled in SVG -- no chart library
  * exists in this project, and one ring does not justify adding one.
  *
- * Animates by itself: the fill is a plain CSS transition on stroke-dashoffset,
+ * Animates by itself: the fill is a CSS transition on stroke-dashoffset
+ * (`.progress-ring-fill`, --dur-sheet, off under reduced motion),
  * so a re-render with a new `value` eases from the old ring to the new one
  * without any JS animation loop. That is also what makes it safe to reuse for
  * every ring in the app (Budget's category donuts, a Goal's target) rather
@@ -13,7 +14,8 @@
  *   since a >100%-funded goal is still a full ring, not an overflowing one.
  * @param {number} [props.size] - px, default 96
  * @param {number} [props.strokeWidth] - px, default 8
- * @param {string} [props.color] - stroke color for the filled arc, default var(--color-accent)
+ * @param {string} [props.color] - stroke colour for the filled arc, a token var: var(--color-accent),
+ *   var(--color-warn) or var(--color-danger)
  * @param {string} [props.trackColor] - stroke color for the empty track
  * @param {React.ReactNode} [props.children] - rendered centered inside the ring
  */
@@ -22,7 +24,7 @@ export default function ProgressRing({
   size = 96,
   strokeWidth = 8,
   color = 'var(--color-accent)',
-  trackColor = 'rgba(255,255,255,0.08)',
+  trackColor = 'var(--color-surface-2)',
   children,
 }) {
   const clamped = Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0))
@@ -32,7 +34,7 @@ export default function ProgressRing({
 
   return (
     <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="-rotate-90">
+      <svg width={size} height={size} className="-rotate-90" aria-hidden="true">
         <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={trackColor} strokeWidth={strokeWidth} />
         <circle
           cx={size / 2}
@@ -44,7 +46,7 @@ export default function ProgressRing({
           strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={offset}
-          style={{ transition: 'stroke-dashoffset 0.6s ease' }}
+          className="progress-ring-fill"
         />
       </svg>
       {children && (

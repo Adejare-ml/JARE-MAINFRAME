@@ -28,7 +28,7 @@
  * without a browser.
  */
 
-const VERSION = 'jare-v1'
+const VERSION = 'jare-v2'
 const SHELL_CACHE = `${VERSION}-shell`
 const ASSET_CACHE = `${VERSION}-assets`
 const SHELL_URL = '/'

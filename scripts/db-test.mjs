@@ -115,10 +115,10 @@ async function check(name, fn) {
   try {
     await fn()
     results.push({ name, ok: true })
-    console.log(`   ✓ ${name}`)
+    console.log(`   ok    ${name}`)
   } catch (err) {
     results.push({ name, ok: false, error: err })
-    console.log(`   ✗ ${name}\n     ${String(err?.message || err).split('\n').join('\n     ')}`)
+    console.log(`   FAIL  ${name}\n     ${String(err?.message || err).split('\n').join('\n     ')}`)
   }
 }
 
@@ -683,6 +683,50 @@ async function runChecks() {
     }
   })
 
+  await check('a sealed photo meal cannot be edited or deleted by the owner, only by the service role (054)', async () => {
+    const r = await asOwner(() => logDiet('db-test-photo-seal', { meal_slot: 'lunch', source: 'photo', status: 'auto' }, [{ food_id: null, name: 'Jollof rice', grams: 300, kcal: 520 }]))
+    await client.query('set role service_role')
+    try {
+      await client.query("update meal_logs set status = 'confirmed' where id = $1", [r.id])
+    } finally {
+      await client.query('reset role')
+    }
+    const refused = async (sql, params) => {
+      try {
+        await asOwner(() => client.query(sql, params))
+        return false
+      } catch (err) {
+        return /cannot be (changed|deleted)/.test(err.message)
+      }
+    }
+    assert(await refused('update meal_items set grams = 100, kcal = 170 where meal_id = $1', [r.id]), 'owner shrank a sealed item')
+    assert(await refused('delete from meal_items where meal_id = $1', [r.id]), 'owner removed a sealed item')
+    assert(await refused("insert into meal_items (meal_id, name, grams, kcal) values ($1, 'x', 1, 1)", [r.id]), 'owner added to a sealed meal')
+    assert(await refused('delete from meal_logs where id = $1', [r.id]), 'owner deleted a sealed photo meal')
+    assert(await refused("update meal_logs set eaten_on = eaten_on - 1 where id = $1", [r.id]), 'owner moved a sealed photo meal to another day')
+    assert(await refused("update meal_logs set source = 'text' where id = $1", [r.id]), 'owner relabelled a sealed photo meal')
+    assert(await refused('select diet_replace_items($1, $2::jsonb)', [r.id, JSON.stringify([{ name: 'Rice', grams: 50, kcal: 65 }])]), 'diet_replace_items edited a sealed meal')
+    // What changes no calorie stays writable.
+    await asOwner(() => client.query("update meal_logs set meal_slot = 'dinner', verdict = 'over', reason = 'r' where id = $1", [r.id]))
+    const after = await one('select kcal, meal_slot from meal_logs where id = $1', [r.id])
+    eq(after.kcal, 520, 'kcal after the refused edits')
+    eq(after.meal_slot, 'dinner', 'slot is still the owner\'s to set')
+    // An unsealed one ('auto', from the old flow) may only be accepted.
+    const old = await asOwner(() => logDiet('db-test-photo-auto', { meal_slot: 'lunch', source: 'photo', status: 'auto' }, [{ name: 'Beans', grams: 200, kcal: 230 }]))
+    assert(await refused("update meal_logs set status = 'edited' where id = $1", [old.id]), 'owner set an auto photo meal to edited')
+    await asOwner(() => client.query("update meal_logs set status = 'confirmed' where id = $1", [old.id]))
+    // A meal typed in is unaffected.
+    const typed = await asOwner(() => logDiet('db-test-typed-free', { meal_slot: 'lunch', source: 'text' }, [{ name: 'Bread', grams: 100, kcal: 265 }]))
+    await asOwner(() => client.query('delete from meal_logs where id = $1', [typed.id]))
+    // The service role may still remove it (cleanup, the table editor's equivalent).
+    await client.query('set role service_role')
+    try {
+      await client.query('delete from meal_logs where id = any($1)', [[r.id, old.id]])
+    } finally {
+      await client.query('reset role')
+    }
+  })
+
   await check('a second account sees no Diet rows, through the tables or the views (048)', async () => {
     const other = '33333333-3333-4333-8333-333333333333'
     await client.query('insert into auth.users (id, email) values ($1, $2)', [other, 'diet-stranger@example.test'])
@@ -743,7 +787,7 @@ async function runChecks() {
 // ───────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log(`🗄️  Migration harness on database ${TEST_DB}`)
+  console.log(`Migration harness on database ${TEST_DB}`)
   await recreateDatabase()
   client = new Client(testConfig())
   await client.connect()
@@ -762,6 +806,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error(`❌ ${err?.message || err}`)
+  console.error(`${err?.message || err}`)
   process.exit(1)
 })

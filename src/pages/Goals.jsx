@@ -1,10 +1,16 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { toast } from '../lib/toast'
 import { formatDate } from '../lib/formatters'
 import ErrorState from '../components/ui/ErrorState'
 import EmptyState from '../components/ui/EmptyState'
+import PageHeader from '../components/ui/PageHeader'
+import Panel from '../components/ui/Panel'
+import Button from '../components/ui/Button'
+import Stat from '../components/ui/Stat'
+import StatusDot from '../components/ui/StatusDot'
+import Icon from '../components/ui/Icon'
+import ListRow, { ListRows } from '../components/ui/ListRow'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import {
   toDateOnly,
@@ -195,12 +201,12 @@ export default function Goals() {
       const { error } = await supabase.from('goals').update(row).eq('id', goal.id)
       if (error) {
         if (error.code === '23505') {
-          toast.error('That slot already has a goal this period — edit it there, or close this one')
+          toast.error('That slot already has a goal this period. Edit it there, or close this one.')
           return
         }
         throw error
       }
-      toast.success(action === 'close' ? 'Closed' : 'Rolled into this period ✓')
+      toast.success(action === 'close' ? 'Closed' : 'Rolled into this period')
       fetchGoals()
     } catch (err) {
       console.error('Error resolving stale goal:', err)
@@ -225,7 +231,7 @@ export default function Goals() {
         let slot = 0
         while (slot < 10 && taken.has(slot)) slot++
         if (slot >= 10) {
-          toast.error('That period already holds ten goals — finish or remove one first')
+          toast.error('That period already holds ten goals. Finish or remove one first.')
           return
         }
         row = { ...fields, slot }
@@ -236,7 +242,7 @@ export default function Goals() {
         : await supabase.from('goals').insert(row)
       if (error) throw error
 
-      toast.success(id ? 'Updated ✓' : 'Goal set ✓')
+      toast.success(id ? 'Updated' : 'Goal set')
       setShowForm(false)
       setEditing(null)
       fetchGoals()
@@ -293,7 +299,7 @@ export default function Goals() {
       setDrafts(previous)
       toast.error('Could not save that: ' + error.message)
     } else {
-      toast.success(status === PLAN_STATUS.ACTIVE ? 'Plan approved ✓' : 'Discarded')
+      toast.success(status === PLAN_STATUS.ACTIVE ? 'Plan approved' : 'Discarded')
       fetchGoals()
     }
     setPlanBusy(false)
@@ -316,7 +322,7 @@ export default function Goals() {
 
     if (error) toast.error('Could not log that: ' + error.message)
     else {
-      toast.success('Logged ✓')
+      toast.success('Logged')
       fetchGoals()
     }
     setPlanBusy(false)
@@ -345,7 +351,7 @@ export default function Goals() {
       // cannot leave tasks in tomorrow's list with nothing to explain them.
       const { error } = await supabase.from('goals').delete().eq('id', id)
       if (error) throw error
-      toast.success('Deleted ✓')
+      toast.success('Deleted')
       setConfirmDeleteId(null)
       fetchGoals()
     } catch (err) {
@@ -366,8 +372,8 @@ export default function Goals() {
 
   if (pageError) {
     return (
-      <div className="space-y-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-white">Goals 🎯</h1>
+      <div className="space-y-3 pb-6">
+        <PageHeader title="Goals" />
         <ErrorState message={pageError} onRetry={fetchGoals} />
       </div>
     )
@@ -410,69 +416,75 @@ export default function Goals() {
       && day.every(g => (!g.metric || g.metric === 'manual') ? g.completed : true),
   ).length
 
+  const openNew = () => {
+    setEditing(null)
+    setShowForm(true)
+  }
+
   return (
-    <div className="space-y-6 pb-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-white">Goals 🎯</h1>
-          <p className="text-muted text-sm mt-0.5">
-            What you are aiming at, and today's priorities ·{' '}
-            <Link to="/projects" className="text-accent hover:underline">
-              Projects →
-            </Link>
-          </p>
-        </div>
-        {canPlan && (
-          <button
-            onClick={() => {
-              setEditing(null)
-              setShowForm(true)
-            }}
-            className="px-4 py-2.5 bg-accent text-black rounded-xl text-sm font-bold min-h-[48px] flex-shrink-0"
-          >
-            + New
-          </button>
-        )}
-      </div>
+    <div className="space-y-3 pb-6">
+      <PageHeader
+        title="Goals"
+        actions={
+          <>
+            <Button size="sm" variant="ghost" to="/projects">
+              Projects
+            </Button>
+            {canPlan && (
+              <Button size="sm" icon="plus" onClick={openNew}>
+                New
+              </Button>
+            )}
+          </>
+        }
+      />
 
       {/* Goals from periods long over, still open. Close them or roll them
           into this period; nothing is re-filed on its own. */}
       {stale.length > 0 && (
-        <section className="bg-orange-500/10 border border-orange-500/20 rounded-3xl p-5 space-y-3" aria-labelledby="stale-goals-heading">
-          <h2 id="stale-goals-heading" className="text-xs font-semibold text-orange-300 uppercase tracking-wider">
-            {stale.length} goal{stale.length === 1 ? '' : 's'} past {stale.length === 1 ? 'its' : 'their'} date
-          </h2>
-          <ul className="space-y-2">
-            {stale.map(({ goal, endedOn, daysPast }) => (
-              <li key={goal.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <span className="text-sm text-white min-w-0">
-                  <span className="truncate">{goal.title}</span>
-                  <span className="block text-[11px] text-muted">
-                    {goal.period} · ended {formatDate(endedOn)}, {daysPast} days ago
-                  </span>
-                </span>
-                <span className="flex gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => resolveStale(goal, 'roll')}
-                    disabled={staleBusy === goal.id}
-                    className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 text-white hover:bg-white/10 min-h-[44px] disabled:opacity-50"
-                  >
-                    Roll into this {goal.period === 'monthly' ? 'month' : goal.period === 'weekly' ? 'week' : 'day'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => resolveStale(goal, 'close')}
-                    disabled={staleBusy === goal.id}
-                    className="px-3 py-2 rounded-xl text-xs font-semibold bg-orange-500/20 text-orange-200 hover:bg-orange-500/30 min-h-[44px] disabled:opacity-50"
-                  >
-                    Close
-                  </button>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
+        <Panel
+          label="Past their date"
+          meta={`${stale.length} goal${stale.length === 1 ? '' : 's'}`}
+          tone="warn"
+          flush
+        >
+          <ListRows as="ul">
+            {stale.map(({ goal, endedOn, daysPast }) => {
+              const unit = goal.period === 'monthly' ? 'month' : goal.period === 'weekly' ? 'week' : 'day'
+              return (
+                <ListRow
+                  key={goal.id}
+                  as="li"
+                  title={goal.title}
+                  subtitle={`${goal.period.charAt(0).toUpperCase()}${goal.period.slice(1)} · ${daysPast} days ago`}
+                  meta={formatDate(endedOn)}
+                  trailing={
+                    <>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => resolveStale(goal, 'roll')}
+                        disabled={staleBusy === goal.id}
+                        aria-label={`Roll "${goal.title}" into this ${unit}`}
+                      >
+                        Roll over
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => resolveStale(goal, 'close')}
+                        disabled={staleBusy === goal.id}
+                        aria-label={`Close "${goal.title}"`}
+                      >
+                        Close
+                      </Button>
+                    </>
+                  }
+                />
+              )
+            })}
+          </ListRows>
+        </Panel>
       )}
 
       {/* First, because it is the only thing here that is waiting on you. */}
@@ -484,33 +496,25 @@ export default function Goals() {
       />
 
       {/* Monthly and weekly targets */}
-      <section className="bg-card rounded-3xl p-6 border border-white/5 space-y-4">
-        <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">
-          Targets
-        </h2>
-
+      <Panel label="Targets" meta={canPlan && targets.length > 0 ? `${targets.length} set` : null} flush>
         {!canPlan ? (
-          <p className="text-xs text-yellow-400 leading-relaxed">
-            Monthly and weekly goals need{' '}
-            <code className="font-mono text-yellow-200">
-              supabase/migrations/009_goal_cadence.sql
-            </code>
-            . Run it in the Supabase SQL editor and this section starts working. Today's
-            priorities below are unaffected.
+          <p className="flex items-start gap-2.5 p-3 lg:p-4 text-body-sm text-foreground">
+            <StatusDot status="warn" className="mt-1.5" />
+            <span>
+              Monthly and weekly goals need{' '}
+              <code className="type-data text-muted break-all">supabase/migrations/009_goal_cadence.sql</code>. Run it
+              in the Supabase SQL editor and this section starts working. Today's priorities below are unaffected.
+            </span>
           </p>
         ) : targets.length === 0 ? (
           <EmptyState
-            icon="🎯"
             title="No targets set"
-            message="Set a target for the month and it will work out what that means each week and each day — and read its own progress from your transactions"
-            actionLabel="+ New target"
-            onAction={() => {
-              setEditing(null)
-              setShowForm(true)
-            }}
+            message="Set a target for the month and it will work out what that means each week and each day, and read its own progress from your transactions"
+            actionLabel="New target"
+            onAction={openNew}
           />
         ) : (
-          <div className="space-y-3">
+          <ul className="divide-y divide-border">
             {targets.map((goal) => (
               <TargetCard
                 key={goal.id}
@@ -532,9 +536,9 @@ export default function Goals() {
                 confirmingDelete={confirmDeleteId === goal.id}
               />
             ))}
-          </div>
+          </ul>
         )}
-      </section>
+      </Panel>
 
       <GoalForm
         open={showForm}
@@ -548,26 +552,22 @@ export default function Goals() {
         onSave={handleSave}
       />
 
-      {/* Stats — real counts, not the zeros that used to be hardcoded here */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="bg-card rounded-2xl p-4 border border-white/5">
-          <p className="text-[10px] text-muted uppercase tracking-wider mb-1">Done today</p>
-          <p className="text-xl font-bold text-white tabular-nums">
-            {doneToday}
-            <span className="text-muted text-sm font-normal">/{todayGoals.length || 0}</span>
-          </p>
+      {/* Stats: real counts, not the zeros that used to be hardcoded here */}
+      <Panel label="How it is going">
+        <div className="grid grid-cols-3 gap-3">
+          <Stat
+            label="Done today"
+            value={
+              <span className="tabular-nums">
+                {doneToday}
+                <span className="text-muted font-normal">/{todayGoals.length || 0}</span>
+              </span>
+            }
+          />
+          <Stat label={`${HISTORY_DAYS}-day rate`} value={completionRate == null ? 'None yet' : `${completionRate}%`} />
+          <Stat label="All done" value={perfectDays} />
         </div>
-        <div className="bg-card rounded-2xl p-4 border border-white/5">
-          <p className="text-[10px] text-muted uppercase tracking-wider mb-1">{HISTORY_DAYS}-day rate</p>
-          <p className="text-xl font-bold text-accent tabular-nums">
-            {completionRate == null ? '—' : `${completionRate}%`}
-          </p>
-        </div>
-        <div className="bg-card rounded-2xl p-4 border border-white/5">
-          <p className="text-[10px] text-muted uppercase tracking-wider mb-1">Clean sweeps</p>
-          <p className="text-xl font-bold text-white tabular-nums">{perfectDays}</p>
-        </div>
-      </div>
+      </Panel>
 
       {/* Consistency, at a glance -- and the streak, which used to live only
           on Daily HQ even though this is the page about how you've been
@@ -577,41 +577,41 @@ export default function Goals() {
           `perfectDays` above already works around, by the same means. */}
       <ActivityGrid tasks={tickable} isDone={(g) => g.completed} today={today} />
 
-      {/* Today */}
       {/* History */}
       {history.length > 0 && (
-        <section className="bg-card rounded-3xl p-6 border border-white/5">
-          <h2 className="text-xs font-semibold text-muted uppercase tracking-wider mb-4">
-            Last {HISTORY_DAYS} days
-          </h2>
-          <div className="space-y-4">
+        <Panel label={`Last ${HISTORY_DAYS} days`} flush>
+          <ul className="divide-y divide-border">
             {[...byDate.entries()]
               .filter(([date]) => date !== today)
               .map(([date, dayGoals]) => (
-                <div key={date}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <p className="text-xs text-muted">{formatDate(date)}</p>
-                    <p className="text-[10px] text-muted tabular-nums">
-                      {dayGoals.filter(g => g.completed).length}/{dayGoals.length}
+                <li key={date} className="px-3 py-2.5 lg:px-4">
+                  <div className="flex items-center justify-between gap-3 mb-1">
+                    <p className="type-data text-muted">{formatDate(date)}</p>
+                    <p className="type-data text-muted-dim">
+                      {dayGoals.filter(g => g.completed).length}/{dayGoals.length} done
                     </p>
                   </div>
-                  <ul className="space-y-1">
+                  <ul className="space-y-0.5">
                     {dayGoals.map(goal => (
-                      <li
-                        key={goal.id}
-                        className={`text-sm flex items-start gap-2 ${
-                          goal.completed ? 'text-muted' : 'text-white/70'
-                        }`}
-                      >
-                        <span aria-hidden="true">{goal.completed ? '✅' : '⬜'}</span>
-                        <span className={goal.completed ? 'line-through' : ''}>{goal.title}</span>
+                      <li key={goal.id} className="flex items-center gap-2 text-body-sm">
+                        {goal.completed ? (
+                          <Icon name="check" size={16} className="text-accent shrink-0" title="Done" />
+                        ) : (
+                          <span className="inline-flex w-4 justify-center shrink-0">
+                            <StatusDot status="never" />
+                            <span className="sr-only">Not done</span>
+                          </span>
+                        )}
+                        <span className={`min-w-0 truncate ${goal.completed ? 'text-muted line-through' : 'text-foreground'}`}>
+                          {goal.title}
+                        </span>
                       </li>
                     ))}
                   </ul>
-                </div>
+                </li>
               ))}
-          </div>
-        </section>
+          </ul>
+        </Panel>
       )}
 
       {/* Last, because it is a place to put something rather than something to

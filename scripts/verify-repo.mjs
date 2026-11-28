@@ -112,7 +112,7 @@ const missingVars = [
   .map(([name]) => name)
 
 if (missingVars.length > 0) {
-  console.error(`❌ Missing required environment variables: ${missingVars.join(', ')}`)
+  console.error(`Missing required environment variables: ${missingVars.join(', ')}`)
   process.exit(1)
 }
 
@@ -171,7 +171,7 @@ async function fetchCommits({ since, until }) {
 
     page++
     if (page > 20) {
-      console.warn('⚠️  Stopped after 2,000 commits; widen the window split if this is real.')
+      console.warn('Stopped after 2,000 commits; widen the window split if this is real.')
       break
     }
   }
@@ -210,7 +210,7 @@ function sameEvidence(stored, fresh) {
 
 async function main() {
   OWNER_USER_ID = await resolveOwnerUserId(supabase, OWNER_USER_ID)
-  console.log(`🔍 Verifying ${REPO}`)
+  console.log(`Verifying ${REPO}`)
   console.log(`   window: ${cutoff} → ${today} (UTC${OFFSET_MINUTES >= 0 ? '+' : ''}${OFFSET_MINUTES / 60})`)
   if (AUTHOR) console.log(`   author: ${AUTHOR}`)
 
@@ -253,7 +253,7 @@ async function main() {
   )
   const byDay = commitsByDay(commits, { author: AUTHOR, offsetMinutes: OFFSET_MINUTES })
 
-  console.log(`\n📦 ${commits.length} commit(s) fetched, ${byDay.size} day(s) with work\n`)
+  console.log(`\n${commits.length} commit(s) fetched, ${byDay.size} day(s) with work\n`)
 
   let written = 0
   let unchanged = 0
@@ -293,10 +293,10 @@ async function main() {
     // what landed in the repository and nothing whatsoever about the day.
     const verdict =
       evidence.counted >= target && target > 0
-        ? '✅ met'
+        ? 'met'
         : evidence.counted === 0
           ? '· no repo signal'
-          : '◐ partial'
+          : 'partial'
 
     // The goal's id, not its title: titles are the owner's plans and this
     // log is public with the repository.
@@ -306,7 +306,7 @@ async function main() {
     )
   }
   console.log('─'.repeat(64))
-  console.log(`\n✅ ${written} goal(s) updated, ${unchanged} unchanged`)
+  console.log(`\n${written} goal(s) updated, ${unchanged} unchanged`)
   console.log('   Days with no commits are recorded as checked-and-empty, not as missed.')
   runSummary = `${report.length} goal(s) checked: ${written} updated, ${unchanged} unchanged`
 }
@@ -314,7 +314,7 @@ async function main() {
 main()
   .then(() => recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: process.exitCode !== 1, summary: runSummary }))
   .catch(async (err) => {
-    console.error('❌ Repo verification failed:', err?.message || err)
+    console.error('Repo verification failed:', err?.message || err)
     await recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: false, summary: err?.message || String(err) })
     process.exit(1)
   })

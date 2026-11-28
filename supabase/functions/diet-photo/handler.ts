@@ -7,7 +7,9 @@
 //     The photo is already in the private meal-photos bucket. Claude and
 //     NVIDIA read it in parallel, each with one retry on an answer that does
 //     not validate; their answers are merged (src/lib/diet/merge.js) and the
-//     meal is logged with status 'auto' for the owner to check. Each model's
+//     meal is logged and sealed (054): status 'confirmed', final, not
+//     editable by the owner. (It was 'auto', for the owner to check and
+//     adjust, until the owner asked for the photo to be the honest record.) Each model's
 //     answer, or the reason it has none, goes into meal_estimates. Ollama is
 //     not waited for: the laptop may be off, and a log must never wait on it.
 //
@@ -38,7 +40,9 @@ import { FoodVision, type FoodVisionT } from './schema.ts'
 
 export const SERVICE = 'diet-photo'
 export const DEFAULTS = {
-  claude: 'claude-sonnet-5-5',
+  // Opus rather than Sonnet since the reading became final (054): the owner
+  // wanted the photo actually studied, and a few photos a day cost little.
+  claude: 'claude-opus-5-5',
   // Changed from meta/llama-3.2-90b-vision-instruct after the image test of
   // 10 Nov: that model timed out or refused on 7 of 8 photos; Gemma 4 on
   // NVIDIA answered 7 of 8, within 5 to 20% of Claude's totals.
@@ -210,7 +214,8 @@ export function makeHandler(deps: Deps) {
     const { data: logged, error: logError } = await user.rpc('log_diet_meal', {
       p_client_id: `photo-${path.split('/').pop()}`,
       p_meal: { source: 'photo', status: 'auto', meal_slot: slotForHour(hh), raw_text: note || null },
-      p_items: storageItems(merged.items),
+      // No "check it" flags: nobody is asked to check a final reading.
+      p_items: storageItems(merged.items).map((i) => ({ ...i, flagged: false, flag_reason: null })),
     })
     if (logError) return json({ ok: false, reason: `could not save the meal: ${logError.message}` })
     const mealId = logged.id
@@ -222,7 +227,14 @@ export function makeHandler(deps: Deps) {
     )
     if (estError) console.warn(`${SERVICE}: estimates not saved:`, estError.message)
 
-    return json({ ok: true, meal_id: mealId, entry: merged, models: estimates.map(summary) })
+    // Seal it (054): the reading is final and the owner cannot edit or delete
+    // it. Done with the service role, because the owner's role may not
+    // change a photo meal's status. The meal is logged 'auto' first only so
+    // the owner's insert of the items is allowed; it is never left that way.
+    const { error: sealError } = await deps.adminClient().from('meal_logs').update({ status: 'confirmed', needs_review: false }).eq('id', mealId)
+    if (sealError) console.warn(`${SERVICE}: meal not sealed:`, sealError.message)
+
+    return json({ ok: true, meal_id: mealId, sealed: !sealError, entry: merged, models: estimates.map(summary) })
   }
 
   // ── worker: pending and estimate ─────────────────────────────────────────

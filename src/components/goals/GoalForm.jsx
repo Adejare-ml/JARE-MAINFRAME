@@ -1,11 +1,19 @@
 import { useState, useEffect } from 'react'
 import Sheet from '../ui/Sheet'
-import { GOAL_ICONS, getCategoryIcon } from '../../lib/constants'
+import { GOAL_ICONS, getCategoryIcon, resolveIcon } from '../../lib/constants'
 import { formatGoalAmount } from '../../lib/formatters'
 import { hasColumn } from '../../lib/schema'
 import { startOfMonth, startOfWeek, endOfMonth, toDateOnly } from '../../lib/queries'
 import { decomposeMonthly, decomposeWeekly, weeksRemaining, REPO_METRIC } from '../../lib/planning'
 import CategoryPickerList from '../ui/CategoryPickerList'
+import Icon from '../ui/Icon'
+import IconButton from '../ui/IconButton'
+import Button from '../ui/Button'
+import Badge from '../ui/Badge'
+import Label from '../ui/Label'
+import Panel from '../ui/Panel'
+import Segmented from '../ui/Segmented'
+import { Field, Input, Select, controlClasses } from '../ui/Field'
 
 /**
  * Create or edit a monthly or weekly goal.
@@ -129,7 +137,7 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
             target_amount: editing.target_amount == null ? '' : String(editing.target_amount),
             metric_category: editing.metric_category || '',
             metric_wallet_id: editing.metric_wallet_id || '',
-            icon: editing.icon || '',
+            icon: editing.icon ? resolveIcon(editing.icon, 'goal') : '',
             locked: Boolean(editing.locked),
           }
         : EMPTY,
@@ -185,27 +193,24 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
   }
 
   const preview = buildPreview(form)
+  const metrics = METRICS.filter((m) => !m.needs || hasColumn(m.needs))
 
   return (
     <Sheet isOpen={open} onClose={onClose} title={editing ? 'Edit goal' : 'New goal'} desktopCenter>
       <form
         onSubmit={handleSubmit}
-        className={`p-6 space-y-4 overflow-y-auto ${shake ? 'animate-shake' : ''}`}
+        className={`p-4 space-y-4 overflow-y-auto ${shake ? 'animate-shake' : ''}`}
       >
         {/* Swapped in as a view within this same Sheet, rather than a second
             nested one -- see CategoryPickerList's own comment for why two
             Sheets open at once is the wrong shape here. */}
         {showCategoryPicker ? (
         <>
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-white">Measured on category</h2>
-          <button
-            type="button"
-            onClick={() => setShowCategoryPicker(false)}
-            className="text-sm font-semibold text-muted hover:text-white min-h-[44px] px-2 flex items-center gap-1"
-          >
-            ← Back
-          </button>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-title text-foreground">Measured on category</h2>
+          <Button variant="ghost" size="sm" icon="chevL" onClick={() => setShowCategoryPicker(false)}>
+            Back
+          </Button>
         </div>
         <CategoryPickerList
           value={form.metric_category}
@@ -219,51 +224,36 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
         </>
         ) : (
         <>
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-white">{editing ? 'Edit goal' : 'New goal'}</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-white/10 text-muted hover:text-white"
-          >
-            ✕
-          </button>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-title text-foreground">{editing ? 'Edit goal' : 'New goal'}</h2>
+          <IconButton name="close" label="Close" className="-mr-3" onClick={onClose} />
         </div>
 
-        <div>
-          <label htmlFor="goal-title" className="block text-xs text-muted mb-1.5">
-            What is it?
-          </label>
-          {formError && (
-            <p role="alert" className="text-xs text-red-400 font-medium mb-1.5">
-              {formError}
-            </p>
-          )}
-          <input
-            id="goal-title"
-            type="text"
-            value={form.title}
-            onChange={(e) => set({ title: e.target.value })}
-            placeholder="Laptop fund"
-            className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
-          />
-        </div>
+        {formError && (
+          <p role="alert" className="text-body-sm text-danger">
+            {formError}
+          </p>
+        )}
+
+        <Input
+          id="goal-title"
+          label="What is it?"
+          type="text"
+          value={form.title}
+          onChange={(e) => set({ title: e.target.value })}
+          placeholder="Laptop fund"
+        />
 
         {hasColumn('goals.icon') && (
-          <div>
-            <span className="block text-xs text-muted mb-1.5">Icon (optional)</span>
+          <div className="space-y-1.5">
+            <Label as="p">Icon (optional)</Label>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => set({ icon: '' })}
                 aria-pressed={!form.icon}
                 aria-label="No icon"
-                className={`w-11 h-11 flex items-center justify-center rounded-xl border text-xs transition-colors ${
-                  !form.icon
-                    ? 'bg-accent/10 border-accent text-accent'
-                    : 'bg-background border-white/10 text-muted hover:border-white/20'
-                }`}
+                className={`${pickClasses(!form.icon)} px-3 text-body-sm`}
               >
                 None
               </button>
@@ -274,13 +264,9 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
                   onClick={() => set({ icon })}
                   aria-pressed={form.icon === icon}
                   aria-label={`Icon ${icon}`}
-                  className={`w-11 h-11 flex items-center justify-center rounded-xl border text-lg transition-colors ${
-                    form.icon === icon
-                      ? 'bg-accent/10 border-accent'
-                      : 'bg-background border-white/10 hover:border-white/20'
-                  }`}
+                  className={`${pickClasses(form.icon === icon)} w-12`}
                 >
-                  {icon}
+                  <Icon name={icon} size={20} />
                 </button>
               ))}
             </div>
@@ -292,100 +278,82 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
             type="button"
             onClick={() => set({ locked: !form.locked })}
             aria-pressed={form.locked}
-            className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-left transition-colors min-h-[48px] ${
-              form.locked
-                ? 'bg-amber-500/10 border-amber-500/30'
-                : 'bg-background border-white/10 hover:border-white/20'
-            }`}
+            className={`${pickClasses(form.locked)} w-full justify-start gap-3 px-3 py-2.5 text-left`}
           >
-            <span>
-              <span className={`block text-sm font-semibold ${form.locked ? 'text-amber-400' : 'text-white'}`}>
-                {form.locked ? '🔒 Locked' : 'Lock this goal'}
-              </span>
-              <span className="block text-[11px] text-muted mt-0.5">
+            <Icon name="lock" size={20} className={form.locked ? 'text-warn' : 'text-muted'} />
+            <span className="min-w-0 flex-1">
+              <span className="block text-heading text-foreground">{form.locked ? 'Locked' : 'Lock this goal'}</span>
+              <span className="block text-body-sm text-muted">
                 Asks for confirmation before this can be deleted early. For money you do not want to talk yourself out of.
               </span>
             </span>
+            <Badge label={form.locked ? 'On' : 'Off'} tone={form.locked ? 'warn' : 'default'} />
           </button>
         )}
 
-        <div>
-          <span className="block text-xs text-muted mb-1.5">How often?</span>
-          <div className="grid grid-cols-2 gap-2">
-            {['monthly', 'weekly'].map((period) => (
-              <button
-                key={period}
-                type="button"
-                onClick={() => set({ period })}
-                aria-pressed={form.period === period}
-                className={`py-3 rounded-xl text-sm font-bold capitalize min-h-[48px] transition-colors ${
-                  form.period === period
-                    ? 'bg-accent text-black'
-                    : 'bg-background border border-white/10 text-muted hover:text-white'
-                }`}
-              >
-                {period}
-              </button>
-            ))}
-          </div>
+        <div className="space-y-1.5">
+          <Label as="p">How often?</Label>
+          <Segmented
+            full
+            label="How often?"
+            options={[
+              { value: 'monthly', label: 'Monthly' },
+              { value: 'weekly', label: 'Weekly' },
+            ]}
+            value={form.period}
+            onChange={(period) => set({ period })}
+          />
         </div>
 
-        <div>
-          <span className="block text-xs text-muted mb-1.5">How is it measured?</span>
+        <div className="space-y-1.5">
+          <Label as="p">How is it measured?</Label>
           <div className="space-y-2">
-            {METRICS.filter((m) => !m.needs || hasColumn(m.needs)).map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => set({ metric: m.id })}
-                aria-pressed={form.metric === m.id}
-                className={`w-full text-left px-4 py-3 rounded-xl border transition-colors min-h-[48px] ${
-                  form.metric === m.id
-                    ? 'bg-accent/10 border-accent'
-                    : 'bg-background border-white/10 hover:border-white/20'
-                }`}
-              >
-                <span
-                  className={`block text-sm font-semibold ${
-                    form.metric === m.id ? 'text-accent' : 'text-white'
-                  }`}
+            {metrics.map((m) => {
+              const selected = form.metric === m.id
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => set({ metric: m.id })}
+                  aria-pressed={selected}
+                  className={`${pickClasses(selected)} w-full justify-start gap-3 px-3 py-2.5 text-left`}
                 >
-                  {m.label}
-                </span>
-                <span className="block text-[11px] text-muted mt-0.5">{m.hint}</span>
-              </button>
-            ))}
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-heading text-foreground">{m.label}</span>
+                    <span className="block text-body-sm text-muted">{m.hint}</span>
+                  </span>
+                  {selected && <Icon name="check" size={18} className="text-accent shrink-0" />}
+                </button>
+              )
+            })}
           </div>
         </div>
 
         {form.metric !== 'manual' && (
           <>
-            <div>
-              <label htmlFor="goal-amount" className="block text-xs text-muted mb-1.5">
-                {isRepo(form.metric)
+            <Input
+              id="goal-amount"
+              label={
+                isRepo(form.metric)
                   ? 'How many commits?'
                   : form.metric === 'save_at_least'
-                    ? 'Save at least (₦)'
-                    : 'Stay under (₦)'}
-              </label>
-              <input
-                id="goal-amount"
-                type="number"
-                inputMode={isRepo(form.metric) ? 'numeric' : 'decimal'}
-                min="1"
-                step={isRepo(form.metric) ? '1' : 'any'}
-                value={form.target_amount}
-                onChange={(e) => set({ target_amount: e.target.value })}
-                placeholder={isRepo(form.metric) ? '40' : '150000'}
-                className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
-              />
-            </div>
+                    ? 'Save at least (naira)'
+                    : 'Stay under (naira)'
+              }
+              type="number"
+              inputMode={isRepo(form.metric) ? 'numeric' : 'decimal'}
+              min="1"
+              step={isRepo(form.metric) ? '1' : 'any'}
+              value={form.target_amount}
+              onChange={(e) => set({ target_amount: e.target.value })}
+              placeholder={isRepo(form.metric) ? '40' : '150000'}
+            />
 
             {isRepo(form.metric) && (
-              <p className="text-[11px] text-muted bg-background/60 border border-white/10 rounded-xl p-3">
+              <p className="text-body-sm text-muted">
                 Checked against the repository each night, and the commits it counted are
                 kept on the goal so the figure can be audited. A day with no commits is
-                recorded as <span className="text-white">checked and empty</span> — never as
+                recorded as <span className="text-foreground">checked and empty</span>, never as
                 missed, because office work leaves no trace here. You can still tick one off
                 yourself.
               </p>
@@ -396,75 +364,75 @@ export default function GoalForm({ open, editing, wallets = [], onClose, onSave,
                 it -- and one the user would reasonably expect to matter. */}
             {!isRepo(form.metric) && (
               <>
-                <div>
-                  <label className="block text-xs text-muted mb-1.5">Measured on category</label>
-                  <button
-                    type="button"
-                    onClick={() => setShowCategoryPicker(true)}
-                    className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-accent min-h-[48px] flex items-center gap-2"
-                  >
-                    {form.metric_category ? (
-                      <>
-                        <span className="text-lg" aria-hidden="true">{getCategoryIcon(form.metric_category)}</span>
-                        <span className="truncate">{form.metric_category}</span>
-                      </>
-                    ) : (
-                      <span className="text-muted">— any category —</span>
-                    )}
-                  </button>
-                </div>
+                <Field label="Measured on category">
+                  {({ id }) => (
+                    <button
+                      id={id}
+                      type="button"
+                      onClick={() => setShowCategoryPicker(true)}
+                      className={`${controlClasses()} flex items-center gap-2 text-left`}
+                    >
+                      {form.metric_category ? (
+                        <>
+                          <Icon name={getCategoryIcon(form.metric_category)} size={18} className="text-muted" />
+                          <span className="truncate">{form.metric_category}</span>
+                        </>
+                      ) : (
+                        <span className="text-muted">Any category</span>
+                      )}
+                      <Icon name="chevR" size={18} className="text-muted ml-auto shrink-0" />
+                    </button>
+                  )}
+                </Field>
 
-                <div>
-                  <label htmlFor="goal-wallet" className="block text-xs text-muted mb-1.5">
-                    And / or wallet
-                  </label>
-                  <select
-                    id="goal-wallet"
-                    value={form.metric_wallet_id}
-                    onChange={(e) => set({ metric_wallet_id: e.target.value })}
-                    className="w-full px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-accent min-h-[48px]"
-                  >
-                    <option value="">— any wallet —</option>
-                    {wallets
-                      .filter((w) => w.is_active !== false)
-                      .map((w) => (
-                        <option key={w.id} value={w.id}>
-                          {w.name}
-                        </option>
-                      ))}
-                  </select>
-                </div>
+                <Select
+                  id="goal-wallet"
+                  label="And / or wallet"
+                  value={form.metric_wallet_id}
+                  onChange={(e) => set({ metric_wallet_id: e.target.value })}
+                >
+                  <option value="">Any wallet</option>
+                  {wallets
+                    .filter((w) => w.is_active !== false)
+                    .map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {w.name}
+                      </option>
+                    ))}
+                </Select>
               </>
             )}
           </>
         )}
 
         {preview && (
-          <div className="bg-background/60 border border-white/10 rounded-xl p-4 space-y-1.5">
-            <p className="text-[10px] text-muted uppercase tracking-wider">
-              What this asks of you
-            </p>
-            {preview.lines.map((line) => (
-              <p key={line} className="text-sm text-white">
-                {line}
-              </p>
-            ))}
-            <p className="text-[11px] text-muted pt-1">{preview.note}</p>
-          </div>
+          <Panel label="What this asks of you">
+            <div className="space-y-1">
+              {preview.lines.map((line) => (
+                <p key={line} className={`text-heading text-foreground font-sans ${isRepo(form.metric) ? '' : 'money'}`}>
+                  {line}
+                </p>
+              ))}
+              <p className="text-body-sm text-muted pt-1">{preview.note}</p>
+            </div>
+          </Panel>
         )}
 
-        <button
-          type="submit"
-          disabled={saving}
-          className="w-full py-3.5 bg-accent text-black font-bold text-sm rounded-xl min-h-[48px] disabled:opacity-50"
-        >
-          {saving ? 'Saving…' : editing ? 'Save changes' : 'Create goal'}
-        </button>
+        <Button type="submit" full loading={saving}>
+          {editing ? 'Save changes' : 'Create goal'}
+        </Button>
         </>
         )}
       </form>
     </Sheet>
   )
+}
+
+/** A pick-one tile (icon, lock, metric): surface-2 and a strong outline when on. */
+function pickClasses(selected) {
+  return `press inline-flex items-center justify-center min-h-12 rounded-control border transition-colors ${
+    selected ? 'bg-surface-2 border-border-strong text-foreground' : 'bg-transparent border-border text-muted hover:border-border-strong'
+  }`
 }
 
 /**

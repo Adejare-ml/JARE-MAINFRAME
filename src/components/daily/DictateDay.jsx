@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { parseSpokenTasks, isSpeechSupported, speechRecognizer } from '../../lib/speech'
+import IconButton from '../ui/IconButton'
+import Button from '../ui/Button'
+import Label from '../ui/Label'
+import StatusDot from '../ui/StatusDot'
+import { controlClasses } from '../ui/Field'
 
 /**
  * Say what the day holds, instead of typing it into three boxes.
@@ -61,7 +66,7 @@ export default function DictateDay({ onAdd, busy, remaining }) {
       if (event.error === 'no-speech') return
       setMicError(
         event.error === 'not-allowed'
-          ? 'Microphone permission was refused — type it instead.'
+          ? 'Microphone permission was refused. Type it instead.'
           : `Dictation stopped (${event.error}). Type it instead.`,
       )
     }
@@ -86,69 +91,58 @@ export default function DictateDay({ onAdd, busy, remaining }) {
   if (remaining <= 0) return null
 
   return (
-    <div className="space-y-2">
+    <div className="p-3 space-y-2">
       <div className="flex gap-2">
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
           rows={2}
-          placeholder="What matters today? Say or type it — one per line, or “and then”."
+          placeholder="What matters today? One per line, or say it."
           aria-label="Today's plan"
-          className="flex-1 px-4 py-3 bg-background border border-white/10 rounded-2xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent resize-none"
+          className={`${controlClasses()} py-2.5 resize-none flex-1`}
         />
 
         {/* Only where it can actually work. */}
         {supported && (
-          <button
-            type="button"
-            onClick={listening ? stop : listen}
-            aria-label={listening ? 'Stop dictating' : 'Dictate today’s plan'}
+          <IconButton
+            name={listening ? 'close' : 'mic'}
+            label={listening ? 'Stop dictating' : 'Dictate today’s plan'}
             aria-pressed={listening}
-            className={`w-14 flex-shrink-0 rounded-2xl border text-xl transition-colors ${
-              listening
-                ? 'bg-red-500/20 border-red-500 text-red-300 animate-pulse'
-                : 'bg-background border-white/10 text-muted hover:text-white hover:border-white/20'
-            }`}
-          >
-            {listening ? '■' : '🎙'}
-          </button>
+            variant={listening ? 'primary' : 'secondary'}
+            onClick={listening ? stop : listen}
+          />
         )}
       </div>
 
-      {micError && <p className="text-[11px] text-yellow-400">{micError}</p>}
+      {micError && <p className="text-body-sm text-warn">{micError}</p>}
 
       {listening && (
-        <p className="text-[11px] text-muted" role="status">
-          Listening — say them however you like, then press stop.
+        <p className="flex items-center gap-2 text-body-sm text-muted" role="status">
+          <StatusDot status="danger" /> Listening. Say them however you like, then press stop.
         </p>
       )}
 
       {/* What it understood, before anything is written. */}
       {tasks.length > 0 && (
-        <div className="bg-background/60 border border-white/10 rounded-2xl p-3 space-y-1.5">
-          <p className="text-[10px] text-muted uppercase tracking-wider">
+        <div className="bg-surface-2 border border-border rounded-control p-3 space-y-2">
+          <Label as="p">
             {tasks.length} task{tasks.length === 1 ? '' : 's'}
-          </p>
-          <ul className="space-y-0.5">
+          </Label>
+          <ul className="space-y-1 list-disc pl-5 marker:text-muted">
             {tasks.map((task) => (
-              <li key={task} className="text-sm text-white">
-                • {task}
+              <li key={task} className="text-body text-foreground">
+                {task}
               </li>
             ))}
           </ul>
           {overflow > 0 && (
-            <p className="text-[11px] text-yellow-400">
-              {overflow} more won’t fit today — there is room for {remaining}.
+            <p className="text-body-sm text-warn">
+              {overflow} more won’t fit today. There is room for {remaining}.
             </p>
           )}
-          <button
-            type="button"
-            onClick={commit}
-            disabled={busy}
-            className="w-full mt-1 py-2.5 bg-accent text-black font-bold text-xs rounded-xl min-h-[44px] disabled:opacity-50"
-          >
-            {busy ? 'Adding…' : `Add ${tasks.length === 1 ? 'it' : 'them'}`}
-          </button>
+          <Button full onClick={commit} loading={busy}>
+            {busy ? 'Adding' : `Add ${tasks.length === 1 ? 'it' : 'them'}`}
+          </Button>
         </div>
       )}
     </div>

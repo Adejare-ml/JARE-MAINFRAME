@@ -1,89 +1,166 @@
 @import "tailwindcss";
 
-/* Inter, self-hosted and bundled rather than fetched from fonts.googleapis.com.
- * Only the five weights the app actually uses, latin only. @fontsource ships
- * font-display: swap, so text paints in the system stack immediately and
- * reflows once the file lands instead of holding the first paint hostage. */
+/* ═══════════════════════════════════════════
+   Fonts
+   ═══════════════════════════════════════════
+ *
+ * Inter for every word and every figure; IBM Plex Mono for labels and data
+ * only (docs/design-system.md). Self-hosted via @fontsource, font-display:
+ * swap, so text paints in the system stack first.
+ *
+ * The naira sign (U+20A6) is not in Inter's `latin` subset. @fontsource's
+ * per-subset files (`latin-ext-600.css`) carry no unicode-range, so importing
+ * one would make the browser fetch it for every character. The all-subset
+ * files for the figure weights (500/600/700) do carry unicode-range on each
+ * face, so the latin-ext file is fetched only when a ₦ (or another latin-ext
+ * glyph) is actually on screen. tests/fonts.test.js pins this. Weight 400 is
+ * latin-only: money never renders at 400 (see Money/Readout).
+ */
 @import "@fontsource/inter/latin-400.css";
-@import "@fontsource/inter/latin-500.css";
-@import "@fontsource/inter/latin-600.css";
-@import "@fontsource/inter/latin-700.css";
-@import "@fontsource/inter/latin-800.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+@import "@fontsource/ibm-plex-mono/latin-400.css";
+@import "@fontsource/ibm-plex-mono/latin-500.css";
 
 /* ═══════════════════════════════════════════
-   JARE MAINFRAME — Design System
-   ═══════════════════════════════════════════ */
-
-@theme {
-  --color-background: #0f0f0f;
-  --color-card: #1a1a1a;
-  --color-foreground: #f5f5f5;
-  --color-muted: #a0a0a0;
-  --color-accent: #22c55e;
-  --color-border: rgba(255, 255, 255, 0.05);
-
-  /* Two solid tokens for text that should read as secondary.
-   *
-   * The opacity variants they replace were not legible. `text-muted/60`
-   * composites to #666 on the background -- 3.3:1, under the 4.5:1 floor --
-   * and `placeholder-muted/40` on a card lands at 2.1:1, which on a mid-range
-   * phone in Abuja daylight is not dim, it is absent. QuickLog's amount
-   * placeholder was at /30, around 1.7:1.
-   *
-   * Solid rather than alpha because alpha's real contrast depends on whatever
-   * is behind it, so the same class was legible on one surface and invisible
-   * on another. These are measured against --color-card, the darker of the two
-   * backgrounds they sit on.
-   */
-  --color-muted-dim: #8a8a8a;  /* 5.0:1 on card, 5.6:1 on background */
-  --color-hint: #828282;       /* 4.5:1 on card -- placeholders only */
-}
-
-/* Light theme, opt-in (Settings → Appearance), applied via a data attribute
- * on <html> set before first paint by src/main.jsx -- see src/lib/theme.js's
- * getThemeMode/resolveTheme/applyThemePreference. Every value below is
- * checked against AA_TEXT_MINIMUM (4.5:1) by tests/contrast.test.js, not
- * eyeballed -- see src/lib/contrast.js.
+   JARE MAINFRAME — Design tokens (dark is the default)
+   ═══════════════════════════════════════════
  *
- * --color-accent is chosen for its TEXT role (7.1:1 on card, 6.5:1 on
- * background) -- the more pervasive of its two uses across this app (money
- * figures, streak badges, safe-to-spend). Its other role, a bg-accent fill
- * behind black button text, was the dark theme's accent for free (a bright
- * green is both legible AS text on near-black AND light enough FOR black
- * text on it) but the two roles pull in opposite directions once the
- * background is light -- no single hex satisfies both here. Deliberately
- * left for the follow-up per-page visual pass this stage's own PR
- * describes as deferred; this first slice ships the mechanism and a
- * correct, verified palette for text, not full parity on every button.
+ * Every colour is a solid hex, never alpha: alpha's contrast depends on what
+ * is behind it. Each text pair clears 4.5:1 and each border 3:1 on
+ * background, card and surface-2 in all three themes -- pinned by
+ * tests/contrast.test.js, which must change whenever a value here does.
  */
-:root[data-theme="light"] {
-  --color-background: #f5f5f5;
-  --color-card: #ffffff;
-  --color-foreground: #18181b;
-  --color-muted: #52525b;
-  --color-accent: #166534;
-  --color-border: rgba(0, 0, 0, 0.08);
-  --color-muted-dim: #595966;  /* 6.9:1 on card, 6.3:1 on background */
-  --color-hint: #6e6e78;       /* 5.0:1 on card -- placeholders only, matching the dark theme's own convention for this token */
+@theme {
+  --color-background: #0b0c0d;
+  --color-card: #131517;
+  --color-surface-2: #1c1f22;
+  --color-foreground: #ecece8;
+  --color-muted: #a6aab0;
+  --color-muted-dim: #93979d;
+  --color-hint: #8b8f95;
+  --color-border: #696e74;
+  --color-border-strong: #8b8f95;
+  --color-accent: #22c55e;
+  --color-on-accent: #05140b;
+  --color-warn: #f0a93b;
+  --color-danger: #f87171;
+
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'Roboto Mono', Menlo, monospace;
+
+  /* Legacy heavy weights resolve to 700: 800 is no longer shipped. */
+  --font-weight-extrabold: 700;
+  --font-weight-black: 700;
+
+  /* Type scale. `text-<step>` sets size, line height, weight and tracking.
+   * `label` and `data` also need `font-mono` (and `uppercase` for label):
+   * use the <Label> primitive, or the `type-label` / `type-data` utilities
+   * below, which bundle all of it. */
+  --text-display: 2rem;
+  --text-display--line-height: 2.25rem;
+  --text-display--font-weight: 600;
+  --text-display--letter-spacing: -0.02em;
+  --text-figure: 1.375rem;
+  --text-figure--line-height: 1.75rem;
+  --text-figure--font-weight: 600;
+  --text-figure--letter-spacing: -0.01em;
+  --text-title: 1.125rem;
+  --text-title--line-height: 1.5rem;
+  --text-title--font-weight: 600;
+  --text-title--letter-spacing: -0.01em;
+  --text-heading: 0.9375rem;
+  --text-heading--line-height: 1.25rem;
+  --text-heading--font-weight: 600;
+  --text-body: 0.9375rem;
+  --text-body--line-height: 1.375rem;
+  --text-body--font-weight: 400;
+  --text-body-sm: 0.8125rem;
+  --text-body-sm--line-height: 1.125rem;
+  --text-body-sm--font-weight: 400;
+  --text-label: 0.75rem;
+  --text-label--line-height: 1rem;
+  --text-label--font-weight: 500;
+  --text-label--letter-spacing: 0.06em;
+  --text-data: 0.8125rem;
+  --text-data--line-height: 1.125rem;
+  --text-data--font-weight: 400;
+
+  /* Shape. Tailwind's own scale is redefined so the ~600 legacy rounded-*
+   * classes shift with it; new code uses the named tokens. */
+  --radius-panel: 6px;
+  --radius-control: 6px;
+  --radius-chip: 4px;
+  --radius-sheet: 10px;
+  --radius-3xl: 6px;
+  --radius-2xl: 6px;
+  --radius-xl: 6px;
+  --radius-lg: 4px;
+  --radius-md: 4px;
+
+  /* Motion. Enter/move on --ease-out, state changes on --ease-standard. */
+  --ease-out: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
 }
 
-/* True black, opt-in (Settings → Appearance), applied via a data attribute
- * on <html> set before first paint by src/main.jsx -- see src/lib/theme.js.
- * Only the background moves; --color-card stays where it is so a card still
- * reads as raised against a screen with genuinely nothing behind it.
- *
- * Scoped to dark theme explicitly: without this, a light-mode user who had
- * OLED on from before would get a black page background under a white
- * card, rather than OLED simply not applying outside dark mode. */
+:root {
+  --dur-press: 120ms;
+  --dur-state: 180ms;
+  --dur-sheet: 260ms;
+  --dur-sheet-exit: 200ms;
+}
+
+/* Light theme, opt-in (Settings → Appearance), set on <html> before first
+ * paint by src/main.jsx (src/lib/theme.js). */
+:root[data-theme="light"] {
+  --color-background: #f1f2f0;
+  --color-card: #ffffff;
+  --color-surface-2: #e6e8e5;
+  --color-foreground: #15171a;
+  --color-muted: #474c53;
+  --color-muted-dim: #51565d;
+  --color-hint: #595e65;
+  --color-border: #7f848b;
+  --color-border-strong: #595e65;
+  --color-accent: #166534;
+  --color-on-accent: #ffffff;
+  --color-warn: #8a4700;
+  --color-danger: #b42318;
+}
+
+/* True black, opt-in, dark theme only: only the page background moves, so a
+ * panel still reads as raised against a screen with nothing behind it. */
 :root[data-theme="dark"][data-oled="true"] {
   --color-background: #000000;
 }
 
-/* Zen mode (Settings → header eye icon): blur every figure marked `.money`
- * instead of hiding it outright, so the layout does not jump and a glance
- * still confirms a number is there without reading it. `user-select: none`
- * so triple-clicking to select it does not un-hide it. See
- * src/lib/privacy.js. */
+/* ═══════════════════════════════════════════
+   Type utilities
+   ═══════════════════════════════════════════ */
+
+/* The two mono steps, with their family (and case) bundled. */
+@utility type-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
+  font-weight: var(--text-label--font-weight);
+  letter-spacing: var(--text-label--letter-spacing);
+  text-transform: uppercase;
+}
+
+@utility type-data {
+  font-family: var(--font-mono);
+  font-size: var(--text-data);
+  line-height: var(--text-data--line-height);
+  font-weight: var(--text-data--font-weight);
+}
+
+/* ═══════════════════════════════════════════
+   Zen mode
+   ═══════════════════════════════════════════
+ * Blur every figure marked `.money` rather than hiding it, so the layout does
+ * not jump. See src/lib/privacy.js. */
 [data-zen="true"] .money {
   filter: blur(7px);
   user-select: none;
@@ -91,7 +168,7 @@
 }
 
 /* ═══════════════════════════════════════════
-   Base Styles
+   Base
    ═══════════════════════════════════════════ */
 
 * {
@@ -99,51 +176,58 @@
 }
 
 html {
-  scroll-behavior: smooth;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
 }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-    Oxygen, Ubuntu, Cantarell, sans-serif;
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  font-variant-numeric: tabular-nums;
   background-color: var(--color-background);
   color: var(--color-foreground);
   min-height: 100dvh;
 }
 
-/* Safe area padding for mobile bottom nav */
+/* Figures never wrap and keep tabular digits (Money, Readout). In the
+ * components layer, so a sentence marked .money for zen mode can still take
+ * `whitespace-normal`. */
+@layer components {
+  .money {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
 .safe-area-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 /* ═══════════════════════════════════════════
    Focus
-   ═══════════════════════════════════════════ */
-
-/* Nearly every interactive element in the app carries `focus:outline-none`,
- * and nothing put a ring back. That is fine with a thumb and impossible with a
- * keyboard: tabbing through Settings moved an invisible cursor.
- *
- * :focus-visible rather than :focus, so the ring appears for keyboard and
- * assistive navigation and not around every button a thumb has just pressed --
- * which is the reason `outline-none` was reached for in the first place.
- *
- * Unlayered on purpose. Tailwind's utilities live in the `utilities` cascade
- * layer, and unlayered rules beat layered ones regardless of specificity, so
- * this wins over `focus:outline-none` without an !important anywhere. */
+   ═══════════════════════════════════════════
+ * Unlayered on purpose, so it beats Tailwind's `focus:outline-none` (which
+ * lives in the utilities layer) without !important. :focus-visible, so it
+ * shows for keyboards and not after every thumb press. */
 a:focus-visible,
 button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
+summary:focus-visible,
 [tabindex]:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
 
 /* ═══════════════════════════════════════════
-   Scrollbar Styling
+   Scrollbar
    ═══════════════════════════════════════════ */
 
 ::-webkit-scrollbar {
@@ -156,103 +240,10 @@ textarea:focus-visible,
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--color-border);
   border-radius: 3px;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-/* ═══════════════════════════════════════════
-   Animations
-   ═══════════════════════════════════════════ */
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes pulse-soft {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.7;
-  }
-}
-
-.animate-fade-in {
-  animation: fadeIn 0.3s ease-out;
-}
-
-.animate-slide-up {
-  animation: slideUp 0.4s ease-out;
-}
-
-/* A goal card crossing 25/50/75/100% funded. Scale only, no colour mixing --
- * the accent ring already carries the colour, this just makes the moment a
- * moment. */
-@keyframes milestonePulse {
-  0% {
-    transform: scale(1);
-  }
-  35% {
-    transform: scale(1.02);
-  }
-  100% {
-    transform: scale(1);
-  }
-}
-
-.animate-milestone {
-  animation: milestonePulse 0.6s ease-out;
-}
-
-/* Invalid input: a horizontal wobble in place of a full-width error banner,
- * paired with inline red text next to the field itself. */
-@keyframes shake {
-  10%, 90% { transform: translateX(-1px); }
-  20%, 80% { transform: translateX(2px); }
-  30%, 50%, 70% { transform: translateX(-4px); }
-  40%, 60% { transform: translateX(4px); }
-}
-
-.animate-shake {
-  animation: shake 0.4s ease-in-out;
-}
-
-/* A submit button morphing into a checkmark right after a successful log --
- * 150-250ms is too quick to need easing drama, just a quick settle. */
-@keyframes checkPop {
-  0% { transform: scale(0.6); opacity: 0; }
-  60% { transform: scale(1.15); opacity: 1; }
-  100% { transform: scale(1); opacity: 1; }
-}
-
-.animate-check-pop {
-  animation: checkPop 0.2s ease-out;
-}
-
-/* Used by the horizontally-scrolling filter chip rows. Was referenced before
-   it existed, so the scrollbar showed through under the chips on desktop. */
 .scrollbar-none {
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -260,4 +251,199 @@ textarea:focus-visible,
 
 .scrollbar-none::-webkit-scrollbar {
   display: none;
+}
+
+/* ═══════════════════════════════════════════
+   Motion (docs/design-system.md, "Motion")
+   ═══════════════════════════════════════════
+ * CSS only, transform and opacity only, transitions rather than keyframes so
+ * everything is interruptible. Nothing animates on page load or route change.
+ * Under reduced motion every transform is off; opacity fades of 120ms or less
+ * stay, and sheets and toasts appear instantly. */
+
+/* 1. Press: buttons scale to 0.98. Rows change surface only (no class). */
+.press {
+  transition: transform var(--dur-press) var(--ease-standard);
+}
+.press:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* 2. Sheet: translateY in and out, scrim fades. `data-state` is set by
+ * Sheet.jsx; `@starting-style` gives the enter without a mount effect. */
+.sheet-scrim {
+  background: rgba(0, 0, 0, 0.6);
+  opacity: 1;
+  transition: opacity var(--dur-sheet) var(--ease-out);
+  @starting-style {
+    opacity: 0;
+  }
+}
+.sheet-scrim[data-state="closing"] {
+  opacity: 0;
+  transition-duration: var(--dur-sheet-exit);
+}
+.sheet-panel {
+  transform: translateY(0);
+  transition: transform var(--dur-sheet) var(--ease-out);
+  @starting-style {
+    transform: translateY(100%);
+  }
+}
+.sheet-panel[data-state="closing"] {
+  transform: translateY(100%);
+  transition-duration: var(--dur-sheet-exit);
+}
+/* A centred dialog has no edge to come from: it fades. */
+.sheet-panel[data-center="true"] {
+  transform: none;
+  opacity: 1;
+  transition: opacity var(--dur-state) var(--ease-out);
+  @starting-style {
+    opacity: 0;
+  }
+}
+.sheet-panel[data-center="true"][data-state="closing"] {
+  opacity: 0;
+}
+
+/* 3. Toast: 8px rise plus fade. */
+.toast {
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity var(--dur-state) var(--ease-out),
+    transform var(--dur-state) var(--ease-out);
+  @starting-style {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+.toast[data-leaving="true"] {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+/* 4. Row insertion: a row added after mount gets `.row-enter`. Initial lists
+ * do not (ListRow only sets it when told the row is new). */
+.row-enter {
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity var(--dur-state) var(--ease-out),
+    transform var(--dur-state) var(--ease-out);
+  @starting-style {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+/* 5. Sync pulse: once, when a sync completes while the app is open. The one
+ * keyframe, because it is a one-shot with nothing to interrupt. */
+@keyframes sync-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.pulse-once {
+  animation: sync-pulse 600ms var(--ease-standard) 1;
+}
+
+/* 6. Progress: bar and ring ease to a new value. */
+.progress-fill {
+  transform-origin: left center;
+  transition: transform var(--dur-sheet) var(--ease-out);
+}
+.progress-ring-fill {
+  transition: stroke-dashoffset var(--dur-sheet) var(--ease-out);
+}
+
+/* 7. Segmented control: the indicator slides. */
+.segmented-indicator {
+  transition: transform var(--dur-state) var(--ease-out);
+}
+
+/* 8. Kept from before: invalid-field shake, goal milestone pulse, submit
+ * check pop (retuned: 0.9 to 1, 180ms, no overshoot). */
+@keyframes milestonePulse {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.02); }
+  100% { transform: scale(1); }
+}
+.animate-milestone {
+  animation: milestonePulse 0.6s var(--ease-out);
+}
+
+@keyframes shake {
+  10%, 90% { transform: translateX(-1px); }
+  20%, 80% { transform: translateX(2px); }
+  30%, 50%, 70% { transform: translateX(-4px); }
+  40%, 60% { transform: translateX(4px); }
+}
+.animate-shake {
+  animation: shake 0.4s ease-in-out;
+}
+
+@keyframes checkPop {
+  from { transform: scale(0.9); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.animate-check-pop {
+  animation: checkPop 180ms var(--ease-out);
+}
+
+/* Page-load motion is retired. These stay as no-ops until the page agents
+ * delete their usages (Phase 2); the integrator removes them in Phase 3. */
+.animate-fade-in,
+.animate-slide-up {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .press:active:not(:disabled) {
+    transform: none;
+  }
+  .sheet-panel,
+  .sheet-panel[data-state="closing"] {
+    transform: none;
+    transition: none;
+    @starting-style {
+      transform: none;
+    }
+  }
+  .sheet-scrim {
+    transition-duration: 120ms;
+  }
+  .sheet-scrim[data-state="closing"] {
+    transition-duration: 0ms;
+  }
+  .toast,
+  .toast[data-leaving="true"] {
+    transform: none;
+    transition: none;
+    @starting-style {
+      transform: none;
+      opacity: 1;
+    }
+  }
+  .row-enter {
+    transform: none;
+    transition: opacity 120ms linear;
+    @starting-style {
+      transform: none;
+    }
+  }
+  .progress-fill,
+  .progress-ring-fill,
+  .segmented-indicator {
+    transition: none;
+  }
+  .pulse-once,
+  .animate-milestone,
+  .animate-shake,
+  .animate-check-pop,
+  .animate-pulse,
+  .animate-spin {
+    animation: none;
+  }
 }

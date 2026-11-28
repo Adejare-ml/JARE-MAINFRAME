@@ -1,4 +1,7 @@
 import React from 'react'
+import Panel from './ui/Panel'
+import Button from './ui/Button'
+import StatusDot from './ui/StatusDot'
 
 /**
  * Last line of defence: a render throw anywhere below used to unmount the
@@ -31,21 +34,22 @@ export default class ErrorBoundary extends React.Component {
 
     return (
       <div className="min-h-screen bg-background flex items-center justify-center px-4">
-        <div className="text-center space-y-4 max-w-sm">
-          <span className="text-4xl" aria-hidden="true">💥</span>
-          <div>
-            <p className="text-lg font-bold text-white mb-1">Something broke</p>
-            <p className="text-xs text-muted">
-              The app hit an error it couldn't recover from. Your data is safe — reloading
-              usually fixes it.
-            </p>
-          </div>
-          <button
-            onClick={this.handleReload}
-            className="px-6 py-3 bg-accent text-black font-bold text-sm rounded-xl min-h-[48px]"
-          >
-            Reload
-          </button>
+        <div className="w-full max-w-sm">
+          <Panel label="App error" tone="danger">
+            <div className="space-y-3">
+              <p className="flex items-center gap-2 text-heading text-foreground">
+                <StatusDot status="danger" />
+                Something broke
+              </p>
+              <p className="text-body-sm text-muted">
+                The app hit an error it couldn't recover from. Your data is safe — reloading
+                usually fixes it.
+              </p>
+              <Button icon="refresh" full onClick={this.handleReload}>
+                Reload
+              </Button>
+            </div>
+          </Panel>
         </div>
       </div>
     )

@@ -5,6 +5,10 @@ import { localDay } from '../lib/diet/totals'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import { GoalsSkeleton } from '../components/ui/PageSkeleton'
 import ErrorState from '../components/ui/ErrorState'
+import PageHeader from '../components/ui/PageHeader'
+import Panel from '../components/ui/Panel'
+import Segmented from '../components/ui/Segmented'
+import Icon from '../components/ui/Icon'
 import { loadLibrary, loadDay, loadWeek, loadLatestWeight } from '../components/diet/api'
 import { addDays } from '../lib/diet/totals'
 import DietToday from '../components/diet/DietToday'
@@ -102,13 +106,15 @@ export default function Diet() {
 
   if (!available) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-3">
         <Header />
-        <div className="rounded-3xl bg-orange-500/10 border border-orange-500/20 p-6 text-sm text-orange-200 leading-relaxed">
-          Run <code className="font-mono">supabase/migrations/048_diet.sql</code>, then <code className="font-mono">049_diet_seed.sql</code> and{' '}
-          <code className="font-mono">050_diet_backfill.sql</code>, in the Supabase SQL editor, then reload. They create the Diet tables, add the starting foods and
-          copy your old Meals log across.
-        </div>
+        <Panel label="Setup needed" tone="warn">
+          <p className="text-body-sm text-foreground">
+            Run <code className="type-data">supabase/migrations/048_diet.sql</code>, then <code className="type-data">049_diet_seed.sql</code> and{' '}
+            <code className="type-data">050_diet_backfill.sql</code>, in the Supabase SQL editor, then reload. They create the Diet tables, add the starting foods and
+            copy your old Meals log across.
+          </p>
+        </Panel>
       </div>
     )
   }
@@ -117,23 +123,11 @@ export default function Diet() {
   if (error) return <ErrorState message={error} onRetry={load} />
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <Header />
-      <div className="flex gap-1 p-1 rounded-2xl bg-card border border-white/5 overflow-x-auto scrollbar-none" role="tablist" aria-label="Diet">
-        {TABS.map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            role="tab"
-            aria-selected={tab === key}
-            onClick={() => goTab(key)}
-            className={`flex-1 shrink-0 px-3 min-h-[44px] rounded-xl text-xs font-bold ${tab === key ? 'bg-accent text-black' : 'text-muted hover:text-white'}`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <Segmented label="Diet" tabs idPrefix="diet" full options={TABS.map(([value, label]) => ({ value, label: value === 'settings' ? <Icon name="settings" size={18} title={label} /> : label }))} value={tab} onChange={goTab} />
 
+      <div role="tabpanel" id={`diet-panel-${tab}`} aria-labelledby={`diet-tab-${tab}`}>
       {tab === 'today' && (
         <DietToday
           lib={lib}
@@ -160,6 +154,7 @@ export default function Diet() {
       {tab === 'weight' && <WeightTab onChanged={load} />}
       {tab === 'library' && <LibraryTab lib={lib} onChanged={load} />}
       {tab === 'settings' && <DietSettingsForm key={lib.settings?.updated_at ?? 'new'} settings={lib.settings} onSaved={load} />}
+      </div>
 
       <AddFoodSheet
         isOpen={adding}
@@ -179,9 +174,9 @@ export default function Diet() {
 
 function Header() {
   return (
-    <div>
-      <h1 className="text-2xl md:text-3xl font-bold text-white">Diet 🥗</h1>
-      <p className="text-muted text-sm mt-1">What you ate today against your targets. One tap for the usual meals.</p>
+    <div className="space-y-1">
+      <PageHeader title="Diet" />
+      <p className="text-body-sm text-muted">What you ate today against your targets. One tap for the usual meals.</p>
     </div>
   )
 }

@@ -1,51 +1,43 @@
-import { Link } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import BottomNav from './BottomNav'
 import QuickLog from '../ui/QuickLog'
 import ToastContainer from '../ui/ToastContainer'
 import SchemaBanner from '../ui/SchemaBanner'
 import ZenModeToggle from '../ui/ZenModeToggle'
+import StatusRail from '../ui/StatusRail'
+import IconButton from '../ui/IconButton'
+import { SystemStatusProvider } from '../../lib/useSystemStatus'
 
 export default function Layout({ children, onSignOut, pendingMigrations = [] }) {
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      {/* Above everything, including the nav: it explains why fields are
-          missing from every page below it. */}
-      <SchemaBanner pending={pendingMigrations} />
+    <SystemStatusProvider>
+      <div className="min-h-screen bg-background text-foreground">
+        {/* Above everything, including the nav: it explains why fields are
+            missing from every page below it. */}
+        <SchemaBanner pending={pendingMigrations} />
 
-      {/* Desktop Sidebar */}
-      <Sidebar onSignOut={onSignOut} />
+        <Sidebar onSignOut={onSignOut} />
 
-      {/* Mobile Top Header with Gear Icon */}
-      <div className="lg:hidden flex items-center justify-between px-4 py-3 border-b border-white/5 bg-card/95 backdrop-blur-md sticky top-0 z-30">
-        <h1 className="text-base font-bold text-white tracking-tight">
-          <span className="text-accent">J</span>are
-          <span className="text-muted ml-1 text-xs font-normal">Mainframe</span>
-        </h1>
-        <div className="flex items-center gap-1.5">
-          <ZenModeToggle className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-lg transition-colors min-h-[48px] min-w-[48px]" />
-          <Link
-            to="/settings"
-            className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-lg transition-colors min-h-[48px] min-w-[48px]"
-            aria-label="Settings"
-          >
-            ⚙️
-          </Link>
-        </div>
+        {/* Mobile header, which is also the status rail: wordmark, system
+            status, then zen and settings. 48px, solid, no blur. */}
+        <header className="lg:hidden sticky top-0 z-30 h-12 flex items-center gap-1 pl-4 pr-1 bg-card border-b border-border">
+          <span className="type-label text-foreground shrink-0 mr-1">Jare</span>
+          <div className="flex-1 min-w-0 flex">
+            <StatusRail />
+          </div>
+          <ZenModeToggle />
+          <IconButton name="settings" label="Settings" to="/settings" />
+        </header>
+
+        <BottomNav />
+
+        <main className="lg:ml-60 pb-40 lg:pb-8 px-4 lg:px-8 pt-4 lg:pt-6">
+          <div className="max-w-5xl mx-auto">{children}</div>
+        </main>
+
+        <QuickLog />
+        <ToastContainer />
       </div>
-
-      {/* Bottom Nav on Mobile */}
-      <BottomNav />
-      
-      {/* Main content area */}
-      <main className="lg:ml-60 pb-24 lg:pb-8 px-4 md:px-6 lg:px-8 pt-4 lg:pt-6">
-        <div className="max-w-5xl mx-auto">
-          {children}
-        </div>
-      </main>
-
-      <QuickLog />
-      <ToastContainer />
-    </div>
+    </SystemStatusProvider>
   )
 }

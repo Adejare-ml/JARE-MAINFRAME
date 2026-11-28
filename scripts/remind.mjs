@@ -81,7 +81,7 @@ const missingVars = [
   .map(([name]) => name)
 
 if (missingVars.length > 0) {
-  console.error(`❌ Missing required environment variables: ${missingVars.join(', ')}`)
+  console.error(`Missing required environment variables: ${missingVars.join(', ')}`)
   process.exit(1)
 }
 
@@ -229,17 +229,17 @@ async function sendToAll(subscriptions, payload) {
       await webpush.sendNotification(subscription, payload, { TTL: PUSH_TTL_SECONDS })
       outcome.sent++
       await supabase.from('push_subscriptions').update({ last_used_at: now }).eq('id', row.id)
-      console.log(`   ✓ sent   ${describe(row)}`)
+      console.log(`   sent     ${describe(row)}`)
     } catch (err) {
       const verdict = classifySendError(err?.statusCode)
       if (verdict === 'gone') {
         outcome.gone++
         await supabase.from('push_subscriptions').delete().eq('id', row.id)
-        console.log(`   ✗ gone   ${describe(row)} (${err.statusCode}) -- row removed`)
+        console.log(`   gone     ${describe(row)} (${err.statusCode}) -- row removed`)
       } else {
         outcome.failed++
         await supabase.from('push_subscriptions').update({ failed_at: now }).eq('id', row.id)
-        console.log(`   ✗ failed ${describe(row)} (${err?.statusCode || err?.message || 'no status'}) -- will retry tomorrow`)
+        console.log(`   failed   ${describe(row)} (${err?.statusCode || err?.message || 'no status'}) -- will retry tomorrow`)
       }
     }
   }
@@ -257,7 +257,7 @@ const describe = (row) => `${(row.user_agent || 'unknown device').slice(0, 60)} 
 async function main() {
   OWNER_USER_ID = await resolveOwnerUserId(supabase, OWNER_USER_ID)
   const today = toDateOnly(new Date())
-  console.log(`🔔 Reminder digest for ${today}${DRY_RUN ? ' (dry run)' : ''}`)
+  console.log(`Reminder digest for ${today}${DRY_RUN ? ' (dry run)' : ''}`)
 
   const input = await readEverything(today)
   const unwell = unwellJobs(input.jobs)
@@ -279,7 +279,7 @@ async function main() {
   }
 
   if (DRY_RUN) {
-    console.log(`📣 ${digest.title}`)
+    console.log(`${digest.title}`)
     console.log(`   ${digest.body}`)
     console.log(`   → ${digest.url}`)
     console.log('')
@@ -287,7 +287,7 @@ async function main() {
   } else {
     // Counts only: this log is world-readable while the repository is public.
     // A manual dry run (remind.yml, dry_run=true) prints the text.
-    console.log(`📣 ${describeDigest(digest)}`)
+    console.log(`${describeDigest(digest)}`)
   }
   console.log('─'.repeat(64))
 
@@ -321,7 +321,7 @@ async function main() {
   }
 
   const outcome = haveKeys ? await sendToAll(subscriptions, payload) : { sent: 0, gone: 0, failed: 0 }
-  console.log(`\n📱 ${outcome.sent} sent, ${outcome.gone} gone (removed), ${outcome.failed} failed (kept)`)
+  console.log(`\n${outcome.sent} sent, ${outcome.gone} gone (removed), ${outcome.failed} failed (kept)`)
   // Written to sync_runs, so a morning that reached nobody reads that way in
   // Settings → System instead of as a plain green tick.
   runSummary = `sent ${outcome.sent}/${subscriptions.length} device(s), ${outcome.gone} gone, ${outcome.failed} failed`
@@ -343,7 +343,7 @@ main()
   // dry-run row would hide a week of real failures.
   .then(() => recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: !DRY_RUN && process.exitCode !== 1, summary: runSummary }))
   .catch(async (err) => {
-    console.error('❌ Reminder digest failed:', err?.message || err)
+    console.error('Reminder digest failed:', err?.message || err)
     await recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: false, summary: err?.message || String(err) })
     process.exit(1)
   })

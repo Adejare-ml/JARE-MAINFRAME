@@ -1,5 +1,6 @@
 import Sheet from './Sheet'
 import CategoryPickerList from './CategoryPickerList'
+import IconButton from './IconButton'
 
 /**
  * Icon + label bottom sheet for choosing a category, for a caller with no
@@ -29,17 +30,10 @@ export default function CategoryPickerSheet({
 }) {
   return (
     <Sheet isOpen={isOpen} onClose={onClose} title={title} desktopCenter>
-      <div className="p-6 space-y-4 overflow-y-auto">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-white">{title}</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-white/10 text-muted hover:text-white"
-          >
-            ✕
-          </button>
+      <div className="px-4 pb-4 space-y-3 overflow-y-auto">
+        <div className="flex items-center justify-between -mr-2">
+          <h2 className="text-title text-foreground">{title}</h2>
+          <IconButton name="close" label="Close" onClick={onClose} />
         </div>
 
         <CategoryPickerList

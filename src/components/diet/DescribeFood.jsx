@@ -2,6 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import { isSpeechSupported, speechRecognizer, SPEECH_LANGS, fallbackSpeechLang } from '../../lib/speech'
 import { PARSE_LIMITS } from '../../lib/diet/parse'
 import { parseNote } from './api'
+import Label from '../ui/Label'
+import Button from '../ui/Button'
+import IconButton from '../ui/IconButton'
+import StatusDot from '../ui/StatusDot'
+import { controlClasses } from '../ui/Field'
 
 /**
  * Type it or say it: the note goes to the diet-parse edge function and the
@@ -96,9 +101,10 @@ export default function DescribeFood({ onParsed }) {
 
   return (
     <form onSubmit={send} className="space-y-2" aria-label="Describe what you ate">
-      <label htmlFor="diet-describe" className="block text-xs text-muted">
-        Type or say it: "2 boiled eggs and a plantain", "bought 2 kg beans for 3,000"
-      </label>
+      <Label as="label" htmlFor="diet-describe" className="block">
+        Type or say it
+      </Label>
+      <p className="text-body-sm text-muted">"2 boiled eggs and a plantain", "bought 2 kg beans for 3,000"</p>
       <div className="flex gap-2 items-start">
         <textarea
           id="diet-describe"
@@ -112,28 +118,32 @@ export default function DescribeFood({ onParsed }) {
           }}
           rows={2}
           placeholder="What did you eat?"
-          className="flex-1 min-w-0 px-4 py-3 bg-background border border-white/10 rounded-xl text-white text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px] resize-none"
+          className={`${controlClasses()} flex-1 min-w-0 py-3 resize-none`}
         />
         {canSpeak && (
-          <button
-            type="button"
+          <IconButton
+            name={listening ? 'close' : 'mic'}
+            variant="secondary"
             onClick={() => (listening ? stop() : listen())}
-            className={`shrink-0 w-12 h-12 rounded-xl border text-lg ${listening ? 'border-red-400 bg-red-400/15 animate-pulse' : 'border-white/10 bg-white/5'}`}
-            aria-label={listening ? 'Stop listening' : 'Say it'}
+            label={listening ? 'Stop listening' : 'Say it'}
             aria-pressed={listening}
-          >
-            {listening ? '■' : '🎙️'}
-          </button>
+            className={listening ? '!border-danger text-danger' : ''}
+          />
         )}
       </div>
+      {listening && (
+        <p className="flex items-center gap-2 type-data text-muted" aria-live="polite">
+          <StatusDot status="danger" /> Listening
+        </p>
+      )}
       {error && (
-        <p className="text-[11px] text-orange-300" role="alert">
+        <p className="text-body-sm text-warn" role="alert">
           {error}
         </p>
       )}
-      <button type="submit" disabled={!text.trim() || busy} className="w-full min-h-[48px] rounded-xl bg-white/10 border border-white/10 text-white text-sm font-bold disabled:opacity-40">
+      <Button type="submit" variant="secondary" full disabled={!text.trim()} loading={busy}>
         {busy ? 'Reading it…' : 'Fill it in for me'}
-      </button>
+      </Button>
     </form>
   )
 }
