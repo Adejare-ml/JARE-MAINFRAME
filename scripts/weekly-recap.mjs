@@ -72,7 +72,7 @@ const missingVars = [
   .map(([name]) => name)
 
 if (missingVars.length > 0) {
-  console.error(`❌ Missing required environment variables: ${missingVars.join(', ')}`)
+  console.error(`Missing required environment variables: ${missingVars.join(', ')}`)
   process.exit(1)
 }
 
@@ -92,7 +92,7 @@ const priorWeekStart = weeksAgo(2, now)
 
 async function main() {
   OWNER_USER_ID = await resolveOwnerUserId(supabase, OWNER_USER_ID)
-  console.log(`🗓️  Recapping week of ${weekStart}`)
+  console.log(`Recapping week of ${weekStart}`)
 
   // Inside main() so that a missing key is recorded as a failed run rather
   // than an exit before recordRun, which Settings → System could only ever
@@ -187,7 +187,7 @@ async function main() {
         { onConflict: 'week_start' },
       )
     if (error) throw error
-    console.log('✅ Empty recap recorded')
+    console.log('Empty recap recorded')
     return
   }
 
@@ -216,7 +216,7 @@ async function main() {
   // and why it was rejected, never the sentence; RECAP_VERBOSE=1 prints it.
   const VERBOSE = process.env.RECAP_VERBOSE === '1' || process.env.RECAP_VERBOSE === 'true'
   for (const { item, reason } of rejected) {
-    console.log(VERBOSE ? `   ✗ "${item.sentence ?? '(no sentence)'}" — ${reason}` : `   ✗ cites "${item.cites ?? '(nothing)'}" — ${reason}`)
+    console.log(VERBOSE ? `   rejected "${item.sentence ?? '(no sentence)'}" — ${reason}` : `   rejected, cites "${item.cites ?? '(nothing)'}" — ${reason}`)
   }
 
   const { error } = await supabase
@@ -234,8 +234,8 @@ async function main() {
   if (error) throw error
 
   console.log('─'.repeat(64))
-  for (const s of accepted) console.log(VERBOSE ? `   ✓ ${s.sentence}` : `   ✓ cites ${s.cites}`)
-  console.log(`✅ ${accepted.length} sentence(s) kept of ${accepted.length + rejected.length} proposed`)
+  for (const s of accepted) console.log(VERBOSE ? `   kept ${s.sentence}` : `   kept, cites ${s.cites}`)
+  console.log(`${accepted.length} sentence(s) kept of ${accepted.length + rejected.length} proposed`)
   // A provider that answered and had every sentence rejected is the review
   // step doing its job, not a script failure -- reviewPlan's own rejection
   // path in plan-month.mjs gets the same pass. assertProgress already ran,
@@ -245,7 +245,7 @@ async function main() {
 main()
   .then(() => recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: process.exitCode !== 1 }))
   .catch(async (err) => {
-    console.error('❌ Weekly recap failed:', err?.message || err)
+    console.error('Weekly recap failed:', err?.message || err)
     await recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: false, summary: err?.message || String(err) })
     process.exit(1)
   })

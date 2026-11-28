@@ -21,12 +21,12 @@ import { validateParsedTransaction } from '../src/lib/normalize.js'
 const fixturePath = process.argv[2] || 'tests/fixtures/emails/opay-out.txt'
 
 console.log('Configuration')
-console.log(`  Ollama: ${LLM_CONFIG.ollama.configured ? '🔑 key set' : '— NO KEY'}  ${LLM_CONFIG.ollama.baseUrl}  ${LLM_CONFIG.ollama.model}`)
-console.log(`  NVIDIA: ${LLM_CONFIG.nvidia.configured ? '🔑 key set' : '— NO KEY'}  ${LLM_CONFIG.nvidia.baseUrl}  ${LLM_CONFIG.nvidia.model}`)
-console.log(`  Claude: ${LLM_CONFIG.claude.configured ? '🔑 key set' : '— NO KEY'}  ${LLM_CONFIG.claude.baseUrl}  ${LLM_CONFIG.claude.model}`)
+console.log(`  Ollama: ${LLM_CONFIG.ollama.configured ? 'key set' : '— NO KEY'}  ${LLM_CONFIG.ollama.baseUrl}  ${LLM_CONFIG.ollama.model}`)
+console.log(`  NVIDIA: ${LLM_CONFIG.nvidia.configured ? 'key set' : '— NO KEY'}  ${LLM_CONFIG.nvidia.baseUrl}  ${LLM_CONFIG.nvidia.model}`)
+console.log(`  Claude: ${LLM_CONFIG.claude.configured ? 'key set' : '— NO KEY'}  ${LLM_CONFIG.claude.baseUrl}  ${LLM_CONFIG.claude.model}`)
 
 if (!hasAnyProvider()) {
-  console.error('\n❌ Neither OLLAMA_API_KEY nor NVIDIA_API_KEY is set.')
+  console.error('\nNeither OLLAMA_API_KEY nor NVIDIA_API_KEY is set.')
   process.exit(1)
 }
 
@@ -34,7 +34,7 @@ let body
 try {
   body = readFileSync(fixturePath, 'utf-8')
 } catch (err) {
-  console.error(`\n❌ Could not read ${fixturePath}: ${err.message}`)
+  console.error(`\nCould not read ${fixturePath}: ${err.message}`)
   process.exit(1)
 }
 
@@ -46,7 +46,7 @@ for (const name of ['ollama', 'nvidia', 'claude']) {
   console.log(`\n${'─'.repeat(60)}\n${name.toUpperCase()}  ${LLM_CONFIG[name].model}`)
 
   if (!LLM_CONFIG[name].configured) {
-    console.log('  ⏭  skipped, no key set')
+    console.log('  skipped, no key set')
     outcomes.push({ name, ok: false, reason: 'no key' })
     continue
   }
@@ -56,40 +56,40 @@ for (const name of ['ollama', 'nvidia', 'claude']) {
   const elapsed = ((Date.now() - started) / 1000).toFixed(1)
 
   if (!result.ok) {
-    console.log(`  ❌ ${elapsed}s — ${result.error}`)
+    console.log(`  failed after ${elapsed}s — ${result.error}`)
     outcomes.push({ name, ok: false, reason: result.error })
     continue
   }
 
-  console.log(`  ✅ responded in ${elapsed}s`)
+  console.log(`  responded in ${elapsed}s`)
   console.log(`  ${JSON.stringify(result.data)}`)
 
   const check = validateParsedTransaction({ ...result.data, source: 'test' })
   if (!check.ok) {
-    console.log(`  ⚠️  fails validation: ${check.reason}`)
+    console.log(`  fails validation: ${check.reason}`)
     outcomes.push({ name, ok: false, reason: `validation: ${check.reason}` })
     continue
   }
 
   console.log(`     direction ${check.value.type} · amount ${check.value.amount} · ${check.value.category}`)
-  for (const w of check.warnings) console.log(`     ⚠️  ${w}`)
+  for (const w of check.warnings) console.log(`     warning: ${w}`)
   outcomes.push({ name, ok: true })
 }
 
 console.log(`\n${'═'.repeat(60)}`)
 for (const o of outcomes) {
-  console.log(`  ${o.ok ? '✅' : '❌'} ${o.name}${o.ok ? '' : ` — ${o.reason}`}`)
+  console.log(`  ${o.ok ? 'ok  ' : 'FAIL'} ${o.name}${o.ok ? '' : ` — ${o.reason}`}`)
 }
 
 const working = outcomes.filter((o) => o.ok)
 if (working.length === 0) {
-  console.error('\n❌ No provider works. Categorization would silently degrade to Uncategorized.')
+  console.error('\nNo provider works. Categorization would silently degrade to Uncategorized.')
   process.exit(1)
 }
 if (working.length === 1) {
-  console.warn(`\n⚠️  Only ${working[0].name} works. There is no fallback if it goes down.`)
+  console.warn(`\nOnly ${working[0].name} works. There is no fallback if it goes down.`)
   process.exit(0)
 }
 
-console.log('\n✅ Both providers work. Check the direction above by eye — it is the')
+console.log('\nBoth providers work. Check the direction above by eye — it is the')
 console.log('   field rules cannot get right, and the reason this path exists.')

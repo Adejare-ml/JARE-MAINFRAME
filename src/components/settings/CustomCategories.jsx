@@ -12,6 +12,13 @@ import {
 } from '../../lib/categories'
 import Sheet from '../ui/Sheet'
 import Icon from '../ui/Icon'
+import Panel from '../ui/Panel'
+import ListRow, { ListRows } from '../ui/ListRow'
+import Button from '../ui/Button'
+import IconButton from '../ui/IconButton'
+import Label from '../ui/Label'
+import { Input } from '../ui/Field'
+import { SheetHeader, Notice, Code } from './parts'
 
 /**
  * The user's own category names (migration 030), in the same self-contained
@@ -100,118 +107,97 @@ export default function CustomCategories() {
       toast.error('Could not delete: ' + error.message)
       return
     }
-    toast.success(`${row.name} removed -- transactions filed under it keep the name`)
+    toast.success(`${row.name} removed. Transactions filed under it keep the name`)
     load()
   }
 
   if (loading) return null
 
   return (
-    <section className="bg-card rounded-3xl p-6 border border-border space-y-4">
-      <div className="flex items-center justify-between border-b border-border pb-3">
-        <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">
-          Custom Categories
-        </h2>
-        {available && (
-          <button
+    <Panel
+      label="Custom categories"
+      flush
+      action={
+        available && (
+          <Button
+            size="sm"
+            variant="secondary"
+            icon="plus"
             onClick={() => {
               setForm(EMPTY_FORM)
               setFormError(null)
               setShowForm(true)
             }}
-            className="px-3 py-1.5 bg-surface-2 hover:bg-accent text-foreground hover:text-on-accent rounded-lg text-xs font-bold transition-all min-h-[44px]"
           >
-            + New
-          </button>
-        )}
-      </div>
-
+            New
+          </Button>
+        )
+      }
+    >
       {!available ? (
-        <p className="text-xs text-yellow-400 leading-relaxed">
-          Custom categories need{' '}
-          <code className="font-mono text-yellow-200">
-            supabase/migrations/030_categories.sql
-          </code>
-          . Run it in the Supabase SQL editor and this section starts working.
-        </p>
+        <div className="p-3 lg:p-4">
+          <Notice>
+            Custom categories need <Code>supabase/migrations/030_categories.sql</Code>. Run it in the Supabase SQL editor
+            and this section starts working.
+          </Notice>
+        </div>
       ) : rows.length === 0 ? (
-        <p className="text-xs text-muted">
-          Nothing yet. Add a name the built-in list is missing -- it shows up in
-          every category picker and on the Budget breakdown.
+        <p className="p-3 lg:p-4 text-body-sm text-muted">
+          Nothing yet. Add a name the built-in list is missing. It shows up in every category picker and on the Budget
+          breakdown.
         </p>
       ) : (
-        <ul className="space-y-2">
+        <ListRows as="ul" label="Custom categories">
           {rows.map((row) => (
-            <li
+            <ListRow
               key={row.id}
-              className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-background/40 border border-border"
-            >
-              <p className="text-xs text-foreground min-w-0 truncate flex items-center gap-1.5">
-                <Icon name={row.icon ? resolveIcon(row.icon) : getCategoryIcon(row.name)} size={16} className="text-muted" />
-                <span className="truncate">{row.name}</span>
-              </p>
-              <button
-                type="button"
-                onClick={() => handleDelete(row)}
-                disabled={deletingId === row.id}
-                aria-label={`Delete category ${row.name}`}
-                className="flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-full hover:bg-red-500/10 text-muted hover:text-red-400 disabled:opacity-50"
-              >
-                🗑️
-              </button>
-            </li>
+              as="li"
+              leading={
+                <span aria-hidden="true" className="inline-flex items-center justify-center w-7 h-7 shrink-0 rounded-chip bg-surface-2 text-muted">
+                  <Icon name={row.icon ? resolveIcon(row.icon) : getCategoryIcon(row.name)} size={16} />
+                </span>
+              }
+              title={row.name}
+              trailing={
+                <IconButton
+                  name="trash"
+                  label={`Delete category ${row.name}`}
+                  onClick={() => handleDelete(row)}
+                  disabled={deletingId === row.id}
+                  className="-mr-2"
+                />
+              }
+            />
           ))}
-        </ul>
+        </ListRows>
       )}
 
       {available && (
-        <p className="text-xs text-muted-dim leading-relaxed">
-          The email sync files into built-in categories only, so it never invents
-          a name. To route synced transactions here, add a Category Rule above
-          that points at it.
+        <p className="px-3 py-2.5 lg:px-4 text-body-sm text-muted border-t border-border">
+          The email sync files into built-in categories only, so it never invents a name. To route synced transactions
+          here, add a category rule above that points at it.
         </p>
       )}
 
       <Sheet isOpen={showForm} onClose={closeForm} title="New category" desktopCenter>
-        <form onSubmit={handleSave} className="p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-foreground">New category</h2>
-            <button
-              type="button"
-              onClick={closeForm}
-              aria-label="Close"
-              className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-surface-2 text-muted hover:text-foreground"
-            >
-              ✕
-            </button>
-          </div>
+        <SheetHeader title="New category" onClose={closeForm} />
+        <form onSubmit={handleSave} className="p-4 space-y-4 overflow-y-auto">
+          <Input
+            id="category-name"
+            label="Name"
+            value={form.name}
+            maxLength={NAME_MAX}
+            autoFocus
+            onChange={(e) => {
+              setForm((f) => ({ ...f, name: e.target.value }))
+              if (formError) setFormError(null)
+            }}
+            placeholder="Pets"
+            error={formError}
+          />
 
-          {formError && (
-            <p role="alert" className="text-xs text-red-400 font-medium">
-              {formError}
-            </p>
-          )}
-
-          <div>
-            <label htmlFor="category-name" className="block text-xs text-muted mb-1.5">
-              Name
-            </label>
-            <input
-              id="category-name"
-              value={form.name}
-              maxLength={NAME_MAX}
-              autoFocus
-              onChange={(e) => {
-                setForm((f) => ({ ...f, name: e.target.value }))
-                if (formError) setFormError(null)
-              }}
-              placeholder="Pets"
-              className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
-            />
-          </div>
-
-          <div>
-            <p className="text-xs text-muted mb-1.5">Icon</p>
+          <div className="space-y-1.5">
+            <Label as="p">Icon</Label>
             <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
               {CUSTOM_CATEGORY_ICONS.map((icon) => (
                 <button
@@ -220,10 +206,10 @@ export default function CustomCategories() {
                   onClick={() => setForm((f) => ({ ...f, icon }))}
                   aria-pressed={form.icon === icon}
                   aria-label={`Icon ${icon}`}
-                  className={`w-11 h-11 flex items-center justify-center rounded-xl border text-lg transition-colors ${
+                  className={`press w-12 h-12 flex items-center justify-center rounded-control border transition-colors ${
                     form.icon === icon
-                      ? 'bg-accent/10 border-accent'
-                      : 'bg-background border-border hover:border-border-strong'
+                      ? 'bg-surface-2 border-border-strong text-foreground'
+                      : 'bg-card border-border text-muted hover:text-foreground'
                   }`}
                 >
                   <Icon name={icon} size={20} />
@@ -232,15 +218,11 @@ export default function CustomCategories() {
             </div>
           </div>
 
-          <button
-            type="submit"
-            disabled={saving}
-            className="w-full py-3.5 bg-accent text-on-accent font-bold text-sm rounded-xl min-h-[48px] disabled:opacity-50"
-          >
+          <Button type="submit" full loading={saving}>
             {saving ? 'Saving…' : 'Add category'}
-          </button>
+          </Button>
         </form>
       </Sheet>
-    </section>
+    </Panel>
   )
 }

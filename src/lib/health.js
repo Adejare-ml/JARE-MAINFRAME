@@ -147,6 +147,17 @@ export const JOBS = [
   { id: 'backup', label: 'Weekly backup', staleAfterHours: 8 * 24, readReport: readBackupSummary },
 ]
 
+/**
+ * The name a person reads, where it differs from the stored label. The audit's
+ * label names the tool that runs it, which reads oddly in a sentence ("Bank
+ * alerts (Claude audit) is failing"); the label itself stays as it is, since
+ * tests and old notes refer to it.
+ */
+const JOB_TITLES = { 'claude-audit': 'Bank alert audit' }
+
+/** @param {{id?: string, label?: string}|null|undefined} job */
+export const jobTitle = (job) => JOB_TITLES[job?.id] || job?.label || 'Job'
+
 export function hoursBetween(from, to) {
   return (new Date(to) - new Date(from)) / 3_600_000
 }

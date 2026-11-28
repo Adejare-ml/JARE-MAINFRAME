@@ -207,7 +207,7 @@ describe('system health', () => {
     expect(digest).not.toBeNull()
     expect(digest.items).toHaveLength(1)
     expect(digest.items[0].kind).toBe('system')
-    expect(digest.items[0].text).toMatch(/Bank alerts \(Claude audit\) is failing \(last run yesterday\)/)
+    expect(digest.items[0].text).toMatch(/Bank alert audit is failing \(last run yesterday\)/)
     expect(digest.url).toBe(KIND_URLS.system)
   })
 
@@ -272,7 +272,7 @@ describe('attention and suspect jobs', () => {
     const digest = buildReminderDigest({ today: TODAY, jobs })
     expect(digest.items.map((i) => i.text)).toEqual([
       'Balance reconciliation: OPay: 3 missed alert(s) around 2026-10-02',
-      'Bank alerts (Claude audit) recorded nothing (usually 9 a day): check the Gmail connector',
+      'Bank alert audit recorded nothing (usually 9 a day): check the Gmail connector',
     ])
   })
 })

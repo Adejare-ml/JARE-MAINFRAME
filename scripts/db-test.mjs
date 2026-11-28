@@ -115,10 +115,10 @@ async function check(name, fn) {
   try {
     await fn()
     results.push({ name, ok: true })
-    console.log(`   ✓ ${name}`)
+    console.log(`   ok    ${name}`)
   } catch (err) {
     results.push({ name, ok: false, error: err })
-    console.log(`   ✗ ${name}\n     ${String(err?.message || err).split('\n').join('\n     ')}`)
+    console.log(`   FAIL  ${name}\n     ${String(err?.message || err).split('\n').join('\n     ')}`)
   }
 }
 
@@ -787,7 +787,7 @@ async function runChecks() {
 // ───────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log(`🗄️  Migration harness on database ${TEST_DB}`)
+  console.log(`Migration harness on database ${TEST_DB}`)
   await recreateDatabase()
   client = new Client(testConfig())
   await client.connect()
@@ -806,6 +806,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error(`❌ ${err?.message || err}`)
+  console.error(`${err?.message || err}`)
   process.exit(1)
 })

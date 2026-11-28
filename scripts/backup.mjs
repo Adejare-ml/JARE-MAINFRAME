@@ -66,7 +66,7 @@ const missingVars = [
   .map(([name]) => name)
 
 if (missingVars.length > 0) {
-  console.error(`❌ Missing required environment variables: ${missingVars.join(', ')}`)
+  console.error(`Missing required environment variables: ${missingVars.join(', ')}`)
   process.exit(1)
 }
 
@@ -159,7 +159,7 @@ async function putFile(path, content, message) {
 async function main() {
   OWNER_USER_ID = await resolveOwnerUserId(supabase, OWNER_USER_ID)
   const today = toDateOnly(new Date())
-  console.log(`🗄️  Backup for ${today}${DRY_RUN ? ' (dry run)' : ''}`)
+  console.log(`Backup for ${today}${DRY_RUN ? ' (dry run)' : ''}`)
 
   const bundle = await buildBundle(EXPORT_TABLES, readTable)
   const rowCount = Object.values(bundle.tables).reduce((n, rows) => n + rows.length, 0)
@@ -222,13 +222,13 @@ async function main() {
   }
 
   runRecord = runRecordFor({ ...facts, written: true })
-  console.log(`✅ ${runRecord.summary}`)
+  console.log(`${runRecord.summary}`)
 }
 
 main()
   .then(() => recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: runRecord.ok && process.exitCode !== 1, summary: runRecord.summary }))
   .catch(async (err) => {
-    console.error('❌ Backup failed:', err?.message || err)
+    console.error('Backup failed:', err?.message || err)
     await recordRun(supabase, { job: JOB, userId: OWNER_USER_ID, startedAt: RUN_STARTED_AT, ok: false, summary: err?.message || String(err) })
     process.exit(1)
   })

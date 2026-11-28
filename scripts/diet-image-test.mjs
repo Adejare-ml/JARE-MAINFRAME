@@ -159,8 +159,8 @@ async function main() {
       summary(`| ${r.dish} | ${models.map(() => '–').join(' | ')} | _${r.error}_ | | |`)
       continue
     }
-    const cells = r.runs.map((x) => (x.answer ? `${Math.round(x.answer.totals.kcal)} kcal${sawDish(x.answer, r.words) ? ' ✓' : ' ✗ dish'} (${(x.ms / 1000).toFixed(1)} s)` : `_${x.status}: ${(x.reason || '').slice(0, 60)}_`))
-    summary(`| ${r.dish} | ${cells.join(' | ')} | ${r.merged.kcal} kcal: ${r.merged.items.join(', ')} | ${r.merged.flagged} | ${(r.appMs / 1000).toFixed(1)} s${r.appMs > PHOTO_TARGET_MS ? ' ⚠' : ''} |`)
+    const cells = r.runs.map((x) => (x.answer ? `${Math.round(x.answer.totals.kcal)} kcal${sawDish(x.answer, r.words) ? ' (named the dish)' : ' (missed the dish)'} (${(x.ms / 1000).toFixed(1)} s)` : `_${x.status}: ${(x.reason || '').slice(0, 60)}_`))
+    summary(`| ${r.dish} | ${cells.join(' | ')} | ${r.merged.kcal} kcal: ${r.merged.items.join(', ')} | ${r.merged.flagged} | ${(r.appMs / 1000).toFixed(1)} s${r.appMs > PHOTO_TARGET_MS ? ' (slow)' : ''} |`)
   }
   const ok = (m) => results.filter((r) => r.runs?.find((x) => x.model === m)?.status === 'ok').length
   const named = (m) => results.filter((r) => { const x = r.runs?.find((y) => y.model === m); return x?.answer && sawDish(x.answer, r.words) }).length
@@ -169,7 +169,7 @@ async function main() {
   for (const [m, on] of models) summary(`- ${MODEL_LABELS[m]}: ${on ? `answered ${ok(m)}/${tested}, named the dish ${named(m)}/${tested}` : 'not configured'}`)
   const slow = results.filter((r) => r.appMs > PHOTO_TARGET_MS).length
   summary(`- Photo to answer under 30 s (Claude and NVIDIA, in parallel): ${tested - slow}/${tested}`)
-  summary(`\n✓ = the model named the dish the photo shows; ✗ dish = it did not. Grams and calories have no ground truth here: compare the models with each other, and with your own meals once you log them.`)
+  summary(`\n"Named the dish" means the model named the dish the photo shows. Grams and calories have no ground truth here: compare the models with each other, and with your own meals once you log them.`)
 
   // Added after the second run: which NVIDIA models can read images today,
   // so the next choice comes from the catalog, not from memory.

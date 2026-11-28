@@ -25,7 +25,7 @@ export async function resolveOwnerUserId(supabase, explicit = process.env.OWNER_
   try {
     const { data: pinned, error: pinError } = await supabase.from('jare_owner').select('user_id').limit(1).maybeSingle()
     if (!pinError && pinned?.user_id) {
-      console.log(`👤 OWNER_USER_ID is unset; using the pinned owner (jare_owner)`)
+      console.log(`OWNER_USER_ID is unset; using the pinned owner (jare_owner)`)
       return pinned.user_id
     }
   } catch {
@@ -43,7 +43,7 @@ export async function resolveOwnerUserId(supabase, explicit = process.env.OWNER_
   const users = data?.users ?? []
   if (users.length === 1) {
     const [owner] = users
-    console.log(`👤 OWNER_USER_ID is unset; using the only account, ${owner.email || owner.id}`)
+    console.log(`OWNER_USER_ID is unset; using the only account, ${owner.email || owner.id}`)
     return owner.id
   }
   if (users.length === 0) {

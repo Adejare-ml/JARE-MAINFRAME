@@ -17,7 +17,7 @@ import { upcomingDebts, outstanding, cycleStatus, daysUntil, isRotating, paidTot
 import { detectRecurring } from './recurring.js'
 import { urgentRepairs } from './repairs.js'
 import { dueMilestones } from './projects.js'
-import { STATUS } from './health.js'
+import { STATUS, jobTitle } from './health.js'
 import { detectAnomalies } from './anomalies.js'
 import { discoveryItems, DISCOVERY_URL } from './discovery.js'
 
@@ -36,7 +36,7 @@ export const KIND_URLS = {
   repair: '/repairs',
   milestone: '/projects',
   review: '/transactions',
-  system: '/settings',
+  system: '/settings#system',
   anomaly: '/transactions',
   account: DISCOVERY_URL,
 }
@@ -152,15 +152,16 @@ function systemItems(jobs, today) {
       const last = job.lastRun?.finished_at ? String(job.lastRun.finished_at).slice(0, 10) : null
       const days = last ? Math.round((new Date(`${today}T00:00:00`) - new Date(`${last}T00:00:00`)) / 86400000) : null
       const since = days == null ? '' : days <= 0 ? ' today' : days === 1 ? ' yesterday' : ` ${days}d ago`
+      const name = jobTitle(job)
       const text = job.suspect
-        ? `${job.label} ${job.suspectReason}`
+        ? `${name} ${job.suspectReason}`
         : job.status === STATUS.ATTENTION
-          ? `${job.label}: ${job.reason}`
+          ? `${name}: ${job.reason}`
           : job.status === STATUS.FAILING
-            ? `${job.label} is failing (last run${since})`
+            ? `${name} is failing (last run${since})`
             : job.status === STATUS.NEVER
-              ? `${job.label} has never run`
-              : `${job.label} has not run (last${since})`
+              ? `${name} has never run`
+              : `${name} has not run (last${since})`
       return { kind: 'system', text, url: KIND_URLS.system, days: days == null ? 0 : -days }
     })
 }

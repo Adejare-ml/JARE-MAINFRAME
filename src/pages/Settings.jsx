@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { sanitizeSlug } from '../lib/walletRouting'
 import { walletUpdatePayload } from '../lib/wallets'
-import { formatNaira, timeAgo } from '../lib/formatters'
+import { timeAgo } from '../lib/formatters'
 import { walletAlertStatus } from '../lib/health'
 import { toast } from '../lib/toast'
 import { useAuth } from '../hooks/useAuth'
@@ -21,15 +21,27 @@ import { SettingsSkeleton } from '../components/ui/PageSkeleton'
 import { isOledEnabled, setOledEnabled, getThemeMode, setThemeMode } from '../lib/theme'
 import { CALORIE_TARGET_KEY, CALORIE_TARGET_MIN, CALORIE_TARGET_MAX, parseCalorieTarget } from '../lib/meals'
 import Icon from '../components/ui/Icon'
+import PageHeader from '../components/ui/PageHeader'
+import Panel from '../components/ui/Panel'
+import ListRow, { ListRows } from '../components/ui/ListRow'
+import Button from '../components/ui/Button'
+import Money from '../components/ui/Money'
+import Segmented from '../components/ui/Segmented'
+import EmptyState from '../components/ui/EmptyState'
+import Label from '../components/ui/Label'
+import { Input, Select } from '../components/ui/Field'
+import { SheetHeader } from '../components/settings/parts'
 
 const WALLET_TYPES = [
-  { value: 'bank', label: 'Bank', icon: '🏦' },
-  { value: 'mobile', label: 'Mobile Money', icon: '📱' },
-  { value: 'cash', label: 'Cash', icon: '💵' },
-  { value: 'savings', label: 'Savings', icon: '🐖' },
-  { value: 'investment', label: 'Investment', icon: '📈' },
+  { value: 'bank', label: 'Bank', icon: 'bank' },
+  { value: 'mobile', label: 'Mobile Money', icon: 'phone' },
+  { value: 'cash', label: 'Cash', icon: 'cash' },
+  { value: 'savings', label: 'Savings', icon: 'vault' },
+  { value: 'investment', label: 'Investment', icon: 'chart' },
 ]
 
+// Wallet colours are the owner's data (wallets.color), stored as hex and
+// drawn only as a swatch; they are not interface colours.
 const PRESET_COLORS = [
   '#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6',
   '#ec4899', '#06b6d4', '#f97316', '#14b8a6', '#6366f1',
@@ -37,6 +49,7 @@ const PRESET_COLORS = [
 
 export default function Settings() {
   const { signOut } = useAuth()
+  const location = useLocation()
 
   const [isLoading, setIsLoading] = useState(true)
   // Every other page has had this since Track A; Settings did not, and swallowed
@@ -142,6 +155,32 @@ export default function Settings() {
   useEffect(() => {
     loadData()
   }, [])
+
+  // /settings#system (the status rail, Daily HQ), #discovered and #reminders
+  // (push and setup links) land on their section. The sections only exist
+  // once the page has loaded, so this waits for that rather than the route.
+  useEffect(() => {
+    if (isLoading || pageError) return
+    const id = decodeURIComponent(location.hash.slice(1))
+    if (!id) return
+    // The sections above System load on their own and arrive in any order,
+    // each pushing it down; keep it in place while they settle (at most two
+    // seconds), and let go as soon as the owner scrolls or touches.
+    const scroll = () => document.getElementById(id)?.scrollIntoView({ block: 'start' })
+    const frame = requestAnimationFrame(scroll)
+    const observer = new ResizeObserver(scroll)
+    observer.observe(document.body)
+    const release = () => observer.disconnect()
+    const timer = setTimeout(release, 2000)
+    const events = ['wheel', 'touchstart', 'keydown', 'pointerdown']
+    events.forEach((e) => window.addEventListener(e, release, { once: true, passive: true }))
+    return () => {
+      cancelAnimationFrame(frame)
+      clearTimeout(timer)
+      release()
+      events.forEach((e) => window.removeEventListener(e, release))
+    }
+  }, [isLoading, pageError, location.hash])
 
   // ── Settings Handlers ──
 
@@ -355,623 +394,425 @@ export default function Settings() {
     }
   }
 
+  const closeWalletSheet = () => setShowWalletModal(false)
+
   return (
-    <div className="space-y-6 pb-8 max-w-2xl mx-auto">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl md:text-3xl font-extrabold text-foreground">Settings</h1>
-        <p className="text-muted text-sm mt-0.5">Manage integrations, banks, wallets, and account</p>
-      </div>
+    <div className="space-y-3 pb-8 max-w-2xl mx-auto">
+      <PageHeader title="Settings" meta="Wallets, alerts, appearance, system" />
 
       {isLoading ? (
         <SettingsSkeleton />
       ) : pageError ? (
         <ErrorState message={pageError} onRetry={loadData} />
       ) : (
-        <div className="space-y-6">
-
-          {/* ════════════════════════════════════════ */}
-          {/* MODULES (phone only -- the sidebar carries these on desktop) */}
-          {/* ════════════════════════════════════════ */}
+        <div className="space-y-3">
+          {/* Modules: phone only, the sidebar carries these on desktop. */}
           {secondaryItems().length > 0 && (
-            <nav aria-label="More modules" className="lg:hidden grid grid-cols-2 gap-3">
-              {secondaryItems().map((item) => (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className="bg-card rounded-2xl p-4 border border-border flex items-center gap-3 min-h-[56px] hover:border-accent/40 transition-colors"
-                >
-                  <Icon name={item.icon} size={20} className="text-muted" />
-                  <span className="text-sm font-bold text-foreground">{item.label}</span>
-                  <span className="ml-auto text-muted" aria-hidden="true">→</span>
-                </Link>
-              ))}
+            <nav aria-label="More modules" className="lg:hidden">
+              <Panel label="More" flush>
+                <ListRows>
+                  {secondaryItems().map((item) => (
+                    <ListRow
+                      key={item.path}
+                      to={item.path}
+                      leading={<Icon name={item.icon} size={20} className="text-muted" />}
+                      title={item.label}
+                      trailing={<Icon name="chevR" size={18} className="text-muted" />}
+                    />
+                  ))}
+                </ListRows>
+              </Panel>
             </nav>
           )}
 
-          {/* ════════════════════════════════════════ */}
-          {/* BANK ALERTS SECTION */}
-          {/* ════════════════════════════════════════ */}
-          <section className="bg-card rounded-3xl p-6 border border-border space-y-3">
-            <h2 className="text-xs font-semibold text-muted uppercase tracking-wider border-b border-border pb-3">
-              Bank alerts
-            </h2>
+          <Panel label="Bank alerts">
             {/* The Connect / Sync Now / Disconnect trio lived here until 26 Sep
                 2026. Sync Now re-imported alerts the morning audit had already
                 recorded, and Disconnect deleted the row that audit stamps, so
                 System read "never checked" for good. Nothing here to press now:
                 the reading happens outside the app, and its state is below. */}
-            <p className="text-sm text-foreground leading-relaxed">
-              Read every morning by the Claude scheduled task, which files each GTBank, OPay, Stanbic,
-              PalmPay, Zenith and PiggyVest alert straight into the ledger. Anything it was unsure about waits in the
-              review queue on Transactions, and so does any transfer to someone other than you:
-              a payment the bank calls a transfer is spending here until you say which kind.
-            </p>
-            <p className="text-xs text-muted leading-relaxed">
-              A wallet is matched by its slug (gtbank, opay, stanbic, palmpay, zenith, piggyvest), set under Banks &amp; Wallets
-              below. Whether the import is alive, and when it last ran, is under System at the
-              bottom of this page.
-            </p>
-          </section>
-
-          {/* ════════════════════════════════════════ */}
-          {/* BANKS & WALLETS SECTION */}
-          {/* ════════════════════════════════════════ */}
-          <section className="bg-card rounded-3xl p-6 border border-border space-y-5">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">
-                Banks & Wallets
-              </h2>
-              <button
-                onClick={openAddWallet}
-                className="px-4 py-2 bg-accent/10 hover:bg-accent/20 text-accent border border-accent/20 rounded-xl text-xs font-bold transition-all min-h-[40px] flex items-center gap-1.5"
-              >
-                <span>+</span> Add Wallet
-              </button>
-            </div>
-
-            {/* Wallet List */}
             <div className="space-y-2">
-              {wallets.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-muted text-sm">No wallets configured yet.</p>
-                  <p className="text-muted-dim text-xs mt-1">Add your bank accounts, mobile wallets, and cash wallets.</p>
-                </div>
-              ) : (
-                wallets.map(w => {
-                  const typeInfo = WALLET_TYPES.find(t => t.value === w.type) || WALLET_TYPES[0]
-                  const wColor = w.color || '#22c55e'
+              <p className="text-body-sm text-foreground">
+                Read every morning by the scheduled audit, which files each GTBank, OPay, Stanbic, PalmPay, Zenith and
+                PiggyVest alert straight into the ledger. Anything it was unsure about waits in the review queue on
+                Transactions, and so does any transfer to someone other than you: a payment the bank calls a transfer is
+                spending here until you say which kind.
+              </p>
+              <p className="text-body-sm text-muted">
+                A wallet is matched by its slug (gtbank, opay, stanbic, palmpay, zenith, piggyvest), set under Banks and
+                wallets below. Whether the import is alive, and when it last ran, is under System further down.
+              </p>
+            </div>
+          </Panel>
+
+          <Panel
+            label="Banks and wallets"
+            meta={wallets.length > 0 ? `${wallets.length}` : null}
+            action={
+              <Button size="sm" variant="secondary" icon="plus" onClick={openAddWallet}>
+                Add wallet
+              </Button>
+            }
+            flush
+          >
+            {wallets.length === 0 ? (
+              <EmptyState
+                title="No wallets yet"
+                message="Add your bank accounts, mobile wallets and cash."
+                actionLabel="Add wallet"
+                onAction={openAddWallet}
+              />
+            ) : (
+              <ListRows as="ul" label="Wallets">
+                {wallets.map((w) => {
+                  const typeInfo = WALLET_TYPES.find((t) => t.value === w.type) || WALLET_TYPES[0]
                   const isInactive = w.is_active === false
-
+                  // Whether this bank has been heard from: the one code-side
+                  // sign that the audit reads this sender. From balance_as_of,
+                  // which the ingest function stamps on every alert that moves
+                  // the balance.
+                  const heard = walletAlertStatus(w)
+                  const quiet = heard.status === 'quiet' || heard.status === 'never'
+                  const heardText =
+                    heard.status === 'n/a'
+                      ? null
+                      : heard.status === 'never'
+                        ? 'No alert recorded yet'
+                        : `Last alert ${timeAgo(heard.lastAlertAt)}`
                   return (
-                    <div
-                      key={w.id}
-                      className={`p-4 rounded-2xl border transition-all ${
-                        isInactive
-                          ? 'bg-background/30 border-border opacity-50'
-                          : 'bg-background/50 border-border hover:border-border-strong'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-3 min-w-0 flex-1">
-                          {/* Color dot */}
-                          <div
-                            className="w-3 h-3 rounded-full flex-shrink-0"
-                            style={{ backgroundColor: wColor }}
-                          />
-                          <span className="text-lg flex-shrink-0">{typeInfo.icon}</span>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <h3 className="text-sm font-bold text-foreground truncate">{w.name}</h3>
-                              {w.account_last4 && (
-                                <span className="text-xs text-muted font-mono">••{w.account_last4}</span>
-                              )}
-                              {isInactive && (
-                                <span className="text-xs bg-surface-2 text-muted px-1.5 py-0.5 rounded-full uppercase font-bold">
-                                  Inactive
-                                </span>
-                              )}
-                            </div>
-                            {w.alert_sender && (
-                              <p className="text-xs text-muted-dim font-mono truncate">{w.alert_sender}</p>
-                            )}
-                            {/* Whether this bank has been heard from: the one
-                                code-side sign that the audit reads this sender.
-                                From balance_as_of, which the ingest function
-                                stamps on every alert that moves the balance. */}
-                            {(() => {
-                              const heard = walletAlertStatus(w)
-                              if (heard.status === 'n/a') return null
-                              const quiet = heard.status === 'quiet' || heard.status === 'never'
-                              return (
-                                <p className={`text-xs ${quiet ? 'text-orange-300' : 'text-muted-dim'}`}>
-                                  {heard.status === 'never' ? 'No alert recorded yet' : `Last alert ${timeAgo(heard.lastAlertAt)}`}
-                                </p>
-                              )
-                            })()}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-3 flex-shrink-0">
-                          <p className="text-sm font-extrabold text-foreground money">{formatNaira(w.balance)}</p>
-
-                          {/* Action buttons */}
-                          <div className="flex gap-1">
-                            <button
-                              onClick={() => openEditWallet(w)}
-                              className="w-9 h-9 flex items-center justify-center rounded-lg bg-surface-2 hover:bg-surface-2 text-muted hover:text-foreground transition-colors text-xs"
-                              aria-label={`Edit ${w.name}`}
-                              title="Edit"
-                            >
-                              ✏️
-                            </button>
-                            <button
-                              onClick={() => handleToggleActive(w)}
-                              className={`w-9 h-9 flex items-center justify-center rounded-lg transition-colors text-xs ${
-                                isInactive
-                                  ? 'bg-accent/10 hover:bg-accent/20 text-accent'
-                                  : 'bg-surface-2 hover:bg-orange-500/10 text-muted hover:text-orange-400'
-                              }`}
-                              aria-label={isInactive ? `Reactivate ${w.name}` : `Deactivate ${w.name}`}
-                              title={isInactive ? 'Reactivate' : 'Deactivate'}
-                            >
-                              {isInactive ? '✅' : '⏸️'}
-                            </button>
-                            <button
-                              onClick={() => setDeletingWallet(w)}
-                              className="w-9 h-9 flex items-center justify-center rounded-lg bg-surface-2 hover:bg-red-500/10 text-muted hover:text-red-400 transition-colors text-xs"
-                              aria-label={`Delete ${w.name}`}
-                              title="Delete"
-                            >
-                              🗑️
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                    <li key={w.id}>
+                      <ListRow
+                        onClick={() => openEditWallet(w)}
+                        label={`Edit ${w.name}`}
+                        leading={
+                          <span
+                            aria-hidden="true"
+                            className={`relative inline-flex items-center justify-center w-7 h-7 shrink-0 rounded-chip bg-surface-2 ${
+                              isInactive ? 'text-muted-dim' : 'text-muted'
+                            }`}
+                          >
+                            <Icon name={typeInfo.icon} size={16} />
+                            {/* The wallet's own colour, as the owner chose it. */}
+                            <span
+                              className="absolute -right-0.5 -bottom-0.5 w-2.5 h-2.5 rounded-full border-2 border-card"
+                              style={{ backgroundColor: w.color || 'var(--color-accent)' }}
+                            />
+                          </span>
+                        }
+                        title={
+                          <>
+                            {w.name}
+                            {w.account_last4 && <span className="type-data text-muted-dim"> ••{w.account_last4}</span>}
+                          </>
+                        }
+                        subtitle={
+                          isInactive || heardText ? (
+                            <>
+                              {isInactive && 'Inactive'}
+                              {isInactive && heardText && ' · '}
+                              {heardText && <span className={quiet ? 'text-warn' : undefined}>{heardText}</span>}
+                            </>
+                          ) : null
+                        }
+                        meta={w.alert_sender || null}
+                        trailing={
+                          <>
+                            <Money amount={w.balance} tone={isInactive ? 'muted' : 'default'} />
+                            <Icon name="chevR" size={18} className="text-muted" />
+                          </>
+                        }
+                      />
+                    </li>
                   )
-                })
-              )}
+                })}
+              </ListRows>
+            )}
+
+            <div className="border-t border-border p-3 lg:p-4 space-y-4">
+              <NumberSetting
+                id="low-balance"
+                label="Low balance warning"
+                hint="In naira. Wallets below this amount are flagged on Daily HQ."
+                value={threshold}
+                onChange={setThreshold}
+                placeholder="10000"
+                onSubmit={handleSaveThreshold}
+                saving={savingThreshold}
+              />
+              <NumberSetting
+                id="budget-target"
+                label="Monthly budget target"
+                hint={'In naira. Daily HQ\'s "% of budget" bar measures this month\'s spending against it.'}
+                value={budgetTarget}
+                onChange={setBudgetTarget}
+                placeholder="85000"
+                onSubmit={handleSaveBudgetTarget}
+                saving={savingBudgetTarget}
+              />
             </div>
+          </Panel>
 
-            {/* Threshold Setting */}
-            <form onSubmit={handleSaveThreshold} className="space-y-3 pt-3 border-t border-border">
-              <label className="block text-xs text-muted font-semibold">
-                Low Balance Warning Threshold (₦)
-              </label>
-              <p className="text-xs text-muted-dim">
-                Wallets below this amount trigger warnings on Daily HQ
-              </p>
-
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="relative flex-1">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted font-bold">₦</span>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    value={threshold}
-                    onChange={(e) => setThreshold(e.target.value)}
-                    placeholder="10000"
-                    required
-                    className="w-full pl-9 pr-4 py-3 bg-background border border-border rounded-xl text-foreground font-bold text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={savingThreshold}
-                  className="px-6 py-3 bg-surface-2 hover:bg-accent text-foreground hover:text-on-accent font-bold text-sm rounded-xl transition-all min-h-[48px] disabled:opacity-50"
-                >
-                  {savingThreshold ? 'Saving...' : 'Save Threshold'}
-                </button>
-              </div>
-            </form>
-
-            {/* Monthly Budget Target */}
-            <form onSubmit={handleSaveBudgetTarget} className="space-y-3 pt-3 border-t border-border">
-              <label className="block text-xs text-muted font-semibold">
-                Monthly Budget Target (₦)
-              </label>
-              <p className="text-xs text-muted-dim">
-                Daily HQ's "% of budget" bar measures this month's spending against this number.
-              </p>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted font-bold">₦</span>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    value={budgetTarget}
-                    onChange={(e) => setBudgetTarget(e.target.value)}
-                    placeholder="85000"
-                    required
-                    className="w-full pl-9 pr-4 py-3 bg-background border border-border rounded-xl text-foreground font-bold text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={savingBudgetTarget}
-                  className="px-6 py-3 bg-surface-2 hover:bg-accent text-foreground hover:text-on-accent font-bold text-sm rounded-xl transition-all min-h-[48px] disabled:opacity-50"
-                >
-                  {savingBudgetTarget ? 'Saving...' : 'Save Target'}
-                </button>
-              </div>
-            </form>
-          </section>
-
-          {/* ════════════════════════════════════════ */}
-          {/* APPEARANCE & PLANNER VOICE */}
-          {/* ════════════════════════════════════════ */}
-          <section className="bg-card rounded-3xl p-6 border border-border space-y-5">
-            <h2 className="text-xs font-semibold text-muted uppercase tracking-wider border-b border-border pb-3">
-              Appearance & Planner
-            </h2>
-
-            <div>
-              <span className="block text-xs text-muted font-semibold mb-1">Theme</span>
-              <p className="text-xs text-muted-dim mb-2">
-                "System" follows your device. Per device, not synced.
-              </p>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { value: 'dark', label: 'Dark' },
-                  { value: 'light', label: 'Light' },
-                  { value: 'system', label: 'System' },
-                ].map((m) => (
-                  <button
-                    key={m.value}
-                    type="button"
-                    onClick={() => {
-                      setThemeMode(m.value)
-                      setThemeModeState(m.value)
-                    }}
-                    aria-pressed={themeMode === m.value}
-                    className={`py-3 rounded-xl text-sm font-bold text-center min-h-[48px] transition-colors ${
-                      themeMode === m.value
-                        ? 'bg-accent text-on-accent'
-                        : 'bg-background border border-border text-muted hover:text-foreground'
-                    }`}
-                  >
-                    {m.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between p-3 bg-background/50 rounded-xl border border-border">
-              <div>
-                <span className="block text-sm font-semibold text-foreground">True black (OLED)</span>
-                <span className="block text-xs text-muted mt-0.5">
-                  A pure black background instead of dark grey. Per device, not synced.
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  const next = !oledEnabled
-                  setOledEnabled(next)
-                  setOledEnabledState(next)
-                }}
-                aria-pressed={oledEnabled}
-                className={`flex-shrink-0 w-12 h-7 rounded-full transition-all relative ${
-                  oledEnabled ? 'bg-accent' : 'bg-surface-2'
-                }`}
-              >
-                <div
-                  className={`w-5 h-5 bg-white rounded-full absolute top-1 transition-all ${
-                    oledEnabled ? 'left-6' : 'left-1'
-                  }`}
+          <Panel label="Appearance and planner">
+            <div className="space-y-5">
+              <div className="space-y-1.5">
+                <Label as="p">Theme</Label>
+                <Segmented
+                  full
+                  label="Theme"
+                  value={themeMode}
+                  onChange={(value) => {
+                    setThemeMode(value)
+                    setThemeModeState(value)
+                  }}
+                  options={[
+                    { value: 'dark', label: 'Dark' },
+                    { value: 'light', label: 'Light' },
+                    { value: 'system', label: 'System' },
+                  ]}
                 />
-              </button>
-            </div>
+                <p className="text-body-sm text-muted">System follows your device. Per device, not synced.</p>
+              </div>
 
-            <div>
-              <span className="block text-xs text-muted font-semibold mb-1">Planner tone</span>
-              <p className="text-xs text-muted-dim mb-2">
-                How Daily HQ's proactive line talks to you about your money -- same facts either
-                way, just said differently.
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { value: 'encouraging', label: 'Encouraging', example: '"On pace this month."' },
-                  { value: 'stern', label: 'Tough love', example: '"On pace, for now."' },
-                ].map((t) => (
-                  <button
-                    key={t.value}
-                    type="button"
-                    onClick={() => handleSetPlannerTone(t.value)}
-                    aria-pressed={plannerTone === t.value}
-                    className={`p-3 rounded-xl border text-left transition-all min-h-[48px] ${
-                      plannerTone === t.value
-                        ? 'border-accent bg-accent/10'
-                        : 'border-border bg-background text-muted hover:border-border-strong'
-                    }`}
-                  >
-                    <span className={`block text-sm font-bold ${plannerTone === t.value ? 'text-accent' : 'text-foreground'}`}>
-                      {t.label}
-                    </span>
-                    <span className="block text-xs text-muted-dim mt-0.5">{t.example}</span>
-                  </button>
-                ))}
+              <div className="space-y-1.5">
+                <Label as="p">True black (OLED)</Label>
+                <Segmented
+                  full
+                  label="True black (OLED)"
+                  value={oledEnabled ? 'on' : 'off'}
+                  onChange={(value) => {
+                    const next = value === 'on'
+                    setOledEnabled(next)
+                    setOledEnabledState(next)
+                  }}
+                  options={[
+                    { value: 'off', label: 'Off' },
+                    { value: 'on', label: 'On' },
+                  ]}
+                />
+                <p className="text-body-sm text-muted">A pure black background instead of dark grey. Per device, not synced.</p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label as="p">Planner tone</Label>
+                <Segmented
+                  full
+                  label="Planner tone"
+                  value={plannerTone}
+                  onChange={handleSetPlannerTone}
+                  options={[
+                    { value: 'encouraging', label: 'Encouraging' },
+                    { value: 'stern', label: 'Tough love' },
+                  ]}
+                />
+                <p className="text-body-sm text-muted">
+                  How Daily HQ&apos;s proactive line talks to you about money. Same facts either way:{' '}
+                  {plannerTone === 'stern' ? '"On pace, for now."' : '"On pace this month."'}
+                </p>
               </div>
             </div>
-          </section>
+          </Panel>
 
-          {/* ════════════════════════════════════════ */}
-          {/* ACCOUNTS FOUND IN MAIL (043) */}
-          {/* ════════════════════════════════════════ */}
           <DiscoveredAccountsSettings />
-          {/* MEALS */}
-          {/* ════════════════════════════════════════ */}
-          <section className="bg-card rounded-3xl p-6 border border-border space-y-4">
-            <h2 className="text-xs font-semibold text-muted uppercase tracking-wider border-b border-border pb-3">Meals</h2>
-            <p className="text-xs text-muted leading-relaxed">
-              The Meals page photographs a plate and estimates its calories (the analyze-meal edge function; see
-              README). The target below is what the day's ring fills towards. Most adults land between 1,800 and
-              2,600 kcal; a dietitian's figure beats a guess.
-            </p>
-            {/* Added for the Diet module, Phase 1: Diet keeps its own targets
-                (diet_settings, 048), copied from this one once by 049. This
-                field still saves, but nothing reads it now. */}
-            <p className="text-xs text-orange-200 leading-relaxed">
-              Diet has replaced the Meals page and keeps its own calorie and protein targets.{' '}
-              <Link to="/diet?tab=settings" className="text-accent font-bold hover:underline">
-                Set them in Diet settings →
-              </Link>
-            </p>
-            <form onSubmit={handleSaveCalorieTarget} className="flex gap-2">
-              <label htmlFor="calorie-target" className="sr-only">
-                Daily calorie target
-              </label>
-              <input
+
+          <Panel label="Meals">
+            <div className="space-y-3">
+              <p className="text-body-sm text-muted">
+                The Meals page photographs a plate and estimates its calories (the analyze-meal edge function; see
+                README). The target below is what the day&apos;s ring fills towards. Most adults land between 1,800 and
+                2,600 kcal; a dietitian&apos;s figure beats a guess.
+              </p>
+              {/* Added for the Diet module, Phase 1: Diet keeps its own targets
+                  (diet_settings, 048), copied from this one once by 049. This
+                  field still saves, but nothing reads it now. */}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-body-sm text-foreground min-w-0">
+                  Diet has replaced the Meals page and keeps its own calorie and protein targets.
+                </p>
+                <Button size="sm" variant="secondary" to="/diet?tab=settings">
+                  Diet settings
+                </Button>
+              </div>
+              <NumberSetting
                 id="calorie-target"
-                type="number"
+                label="Daily calorie target"
+                hint={`Between ${CALORIE_TARGET_MIN} and ${CALORIE_TARGET_MAX} kcal.`}
+                value={calorieTarget}
+                onChange={setCalorieTarget}
+                placeholder="e.g. 2200"
                 inputMode="numeric"
                 min={CALORIE_TARGET_MIN}
                 max={CALORIE_TARGET_MAX}
                 step="50"
-                value={calorieTarget}
-                onChange={(e) => setCalorieTarget(e.target.value)}
-                placeholder="e.g. 2200"
-                className="flex-1 min-w-0 px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
+                required={false}
+                onSubmit={handleSaveCalorieTarget}
+                saving={savingCalorieTarget}
               />
-              <button
-                type="submit"
-                disabled={savingCalorieTarget}
-                className="px-5 bg-accent text-on-accent rounded-xl font-bold text-sm min-h-[48px] disabled:opacity-50"
-              >
-                {savingCalorieTarget ? 'Saving…' : 'Save'}
-              </button>
-            </form>
-          </section>
+            </div>
+          </Panel>
 
-          {/* ════════════════════════════════════════ */}
-          {/* CATEGORY RULES */}
-          {/* ════════════════════════════════════════ */}
           <CategoryRules />
-
-          {/* ════════════════════════════════════════ */}
-          {/* CATEGORY BUDGETS */}
-          {/* ════════════════════════════════════════ */}
           <CategoryBudgets />
-
-          {/* ════════════════════════════════════════ */}
-          {/* CUSTOM CATEGORIES */}
-          {/* ════════════════════════════════════════ */}
           <CustomCategories />
-
-          {/* ════════════════════════════════════════ */}
-          {/* REMINDERS */}
-          {/* ════════════════════════════════════════ */}
           <Reminders />
-
-          {/* ════════════════════════════════════════ */}
-          {/* SYSTEM HEALTH */}
-          {/* ════════════════════════════════════════ */}
           <SystemHealth />
-
-          {/* ════════════════════════════════════════ */}
-          {/* EXPORT */}
-          {/* ════════════════════════════════════════ */}
           <ExportData />
 
-          {/* ════════════════════════════════════════ */}
-          {/* ACCOUNT SECTION */}
-          {/* ════════════════════════════════════════ */}
-          <section className="bg-card rounded-3xl p-6 border border-border space-y-4">
-            <h2 className="text-xs font-semibold text-muted uppercase tracking-wider border-b border-border pb-3">
-              Account
-            </h2>
-
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <p className="text-xs text-muted mb-0.5">Logged in as</p>
-                <p className="text-sm font-bold text-foreground font-mono">{userEmail || 'Adejare Adelugba'}</p>
+          <Panel label="Account">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-body-sm text-muted">Signed in as</p>
+                <p className="type-data text-foreground truncate">{userEmail || 'Adejare Adelugba'}</p>
               </div>
-
-              <button
-                onClick={signOut}
-                className="w-full sm:w-auto px-6 py-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 font-bold text-sm rounded-xl transition-all min-h-[48px]"
-              >
-                Log Out 🚪
-              </button>
+              <Button variant="danger" icon="signout" onClick={signOut} className="w-full sm:w-auto">
+                Log out
+              </Button>
             </div>
-          </section>
-
+          </Panel>
         </div>
       )}
 
-      {/* ════════════════════════════════════════ */}
-      {/* ADD / EDIT WALLET MODAL */}
-      {/* ════════════════════════════════════════ */}
-      <Sheet
-        isOpen={showWalletModal}
-        onClose={() => setShowWalletModal(false)}
-        title={editingWallet ? 'Edit wallet' : 'Add new wallet'}
-        alwaysCenter
-      >
-        <div className="p-6 relative overflow-y-auto">
-            <button
-              onClick={() => setShowWalletModal(false)}
-              className="absolute top-4 right-4 text-muted hover:text-foreground w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-2"
-            >
-              ✕
-            </button>
+      {/* Add / edit wallet */}
+      <Sheet isOpen={showWalletModal} onClose={closeWalletSheet} title={editingWallet ? 'Edit wallet' : 'Add wallet'} alwaysCenter>
+        <SheetHeader title={editingWallet ? 'Edit wallet' : 'Add wallet'} onClose={closeWalletSheet} />
+        <form onSubmit={handleSaveWallet} className="p-4 space-y-4 overflow-y-auto">
+          <Input
+            label="Wallet name"
+            type="text"
+            value={walletForm.name}
+            onChange={(e) => setWalletForm({ ...walletForm, name: e.target.value })}
+            placeholder="e.g. GTBank, PiggyVest"
+            required
+          />
 
-            <h2 className="text-xl font-bold text-foreground mb-5">
-              {editingWallet ? 'Edit Wallet' : 'Add New Wallet'}
-            </h2>
+          <Select label="Type" value={walletForm.type} onChange={(e) => setWalletForm({ ...walletForm, type: e.target.value })}>
+            {WALLET_TYPES.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </Select>
 
-            <form onSubmit={handleSaveWallet} className="space-y-4">
-              {/* Name */}
-              <div>
-                <label className="block text-xs text-muted font-semibold mb-1">Wallet Name *</label>
-                <input
-                  type="text"
-                  value={walletForm.name}
-                  onChange={(e) => setWalletForm({ ...walletForm, name: e.target.value })}
-                  placeholder="e.g. GTBank, PiggyVest"
-                  required
-                  className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
-                />
-              </div>
+          <Input
+            label={editingWallet ? 'Current balance' : 'Opening balance'}
+            hint="In naira."
+            type="number"
+            inputMode="decimal"
+            step="0.01"
+            value={walletForm.balance}
+            onChange={(e) => setWalletForm({ ...walletForm, balance: e.target.value })}
+            placeholder="0.00"
+          />
 
-              {/* Type */}
-              <div>
-                <label className="block text-xs text-muted font-semibold mb-1">Type</label>
-                <div className="grid grid-cols-5 gap-1.5">
-                  {WALLET_TYPES.map(t => (
+          {/* Everything below is optional: sane defaults already cover it
+              (auto-detect parsing, active, accent green), so a brand-new
+              wallet does not have to face all seven fields before it can
+              be saved. Collapsed on add, expanded on edit -- see
+              openAddWallet/openEditWallet. */}
+          <Button
+            variant="ghost"
+            full
+            icon={showAdvancedWalletFields ? 'chevU' : 'chevD'}
+            onClick={() => setShowAdvancedWalletFields((v) => !v)}
+            aria-expanded={showAdvancedWalletFields}
+          >
+            Advanced: sync and appearance
+          </Button>
+
+          {showAdvancedWalletFields && (
+            <>
+              <Input
+                label="Alert email sender"
+                hint="The From address of transaction emails, such as GeNS@gtbank.com."
+                type="email"
+                value={walletForm.alert_sender}
+                onChange={(e) => setWalletForm({ ...walletForm, alert_sender: e.target.value })}
+                placeholder="alerts@bank.com"
+                className="font-mono"
+              />
+
+              <Input
+                label="Account last 4 digits"
+                type="text"
+                inputMode="numeric"
+                maxLength={4}
+                value={walletForm.account_last4}
+                onChange={(e) => setWalletForm({ ...walletForm, account_last4: e.target.value.replace(/\D/g, '').slice(0, 4) })}
+                placeholder="1234"
+                className="font-mono"
+              />
+
+              <div className="space-y-1.5">
+                <Label as="p">Colour</Label>
+                <div className="flex flex-wrap gap-1">
+                  {PRESET_COLORS.map((c) => (
                     <button
-                      key={t.value}
+                      key={c}
                       type="button"
-                      onClick={() => setWalletForm({ ...walletForm, type: t.value })}
-                      className={`flex flex-col items-center gap-1 p-2.5 rounded-xl border text-xs font-medium transition-all min-h-[48px] ${
-                        walletForm.type === t.value
-                          ? 'bg-accent/10 border-accent/30 text-accent'
-                          : 'bg-background/50 border-border text-muted hover:border-border-strong'
-                      }`}
+                      onClick={() => setWalletForm({ ...walletForm, color: c })}
+                      aria-pressed={walletForm.color === c}
+                      aria-label={`Colour ${c}`}
+                      className="press w-12 h-12 flex items-center justify-center rounded-control"
                     >
-                      <span className="text-lg">{t.icon}</span>
-                      <span className="text-xs">{t.label}</span>
+                      <span
+                        className={`w-8 h-8 rounded-full ${
+                          walletForm.color === c ? 'ring-2 ring-foreground ring-offset-2 ring-offset-card' : ''
+                        }`}
+                        style={{ backgroundColor: c }}
+                      />
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Balance */}
-              <div>
-                <label className="block text-xs text-muted font-semibold mb-1">
-                  {editingWallet ? 'Current Balance' : 'Opening Balance'}
-                </label>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted font-bold">₦</span>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.01"
-                    value={walletForm.balance}
-                    onChange={(e) => setWalletForm({ ...walletForm, balance: e.target.value })}
-                    placeholder="0.00"
-                    className="w-full pl-9 pr-4 py-3 bg-background border border-border rounded-xl text-foreground font-bold text-sm placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
-                  />
-                </div>
+              <div className="space-y-1.5">
+                <Label as="p">Status</Label>
+                <Segmented
+                  full
+                  label="Wallet status"
+                  value={walletForm.is_active ? 'active' : 'inactive'}
+                  onChange={(value) => setWalletForm({ ...walletForm, is_active: value === 'active' })}
+                  options={[
+                    { value: 'active', label: 'Active' },
+                    { value: 'inactive', label: 'Inactive' },
+                  ]}
+                />
               </div>
+            </>
+          )}
 
-              {/* Everything below is optional: sane defaults already cover it
-                  (auto-detect parsing, active, accent green), so a brand-new
-                  wallet does not have to face all seven fields before it can
-                  be saved. Collapsed on add, expanded on edit -- see
-                  openAddWallet/openEditWallet. */}
-              <button
-                type="button"
-                onClick={() => setShowAdvancedWalletFields((v) => !v)}
-                className="w-full flex items-center justify-between text-xs font-semibold text-muted hover:text-foreground py-2"
+          <Button type="submit" full loading={savingWallet}>
+            {savingWallet ? 'Saving…' : editingWallet ? 'Update wallet' : 'Add wallet'}
+          </Button>
+
+          {/* Deactivate and delete used to sit on each wallet row as glyph
+              buttons; at phone width they crowded the name and balance out,
+              so they live with the rest of the wallet's controls. */}
+          {editingWallet && (
+            <div className="flex gap-2 pt-4 border-t border-border">
+              <Button
+                variant="secondary"
+                className="flex-1"
+                onClick={async () => {
+                  closeWalletSheet()
+                  await handleToggleActive(editingWallet)
+                }}
               >
-                <span>Advanced (sync & appearance)</span>
-                <span aria-hidden="true">{showAdvancedWalletFields ? '−' : '+'}</span>
-              </button>
-
-              {showAdvancedWalletFields && (
-                <>
-                  {/* Alert Sender Email */}
-                  <div>
-                    <label className="block text-xs text-muted font-semibold mb-1">
-                      Alert Email Sender
-                    </label>
-                    <p className="text-xs text-muted-dim mb-1.5">
-                      The From address of transaction notification emails (e.g. GeNS@gtbank.com)
-                    </p>
-                    <input
-                      type="email"
-                      value={walletForm.alert_sender}
-                      onChange={(e) => setWalletForm({ ...walletForm, alert_sender: e.target.value })}
-                      placeholder="alerts@bank.com"
-                      className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm font-mono placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
-                    />
-                  </div>
-
-                  {/* Account Last 4 */}
-                  <div>
-                    <label className="block text-xs text-muted font-semibold mb-1">Account Last 4 Digits</label>
-                    <input
-                      type="text"
-                      maxLength={4}
-                      value={walletForm.account_last4}
-                      onChange={(e) => setWalletForm({ ...walletForm, account_last4: e.target.value.replace(/\D/g, '').slice(0, 4) })}
-                      placeholder="1234"
-                      className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground text-sm font-mono placeholder-hint focus:outline-none focus:border-accent min-h-[48px]"
-                    />
-                  </div>
-
-                  {/* Color Picker */}
-                  <div>
-                    <label className="block text-xs text-muted font-semibold mb-2">Color</label>
-                    <div className="flex flex-wrap gap-2">
-                      {PRESET_COLORS.map(c => (
-                        <button
-                          key={c}
-                          type="button"
-                          onClick={() => setWalletForm({ ...walletForm, color: c })}
-                          className={`w-9 h-9 rounded-full border-2 transition-all ${
-                            walletForm.color === c ? 'border-white scale-110' : 'border-transparent hover:scale-105'
-                          }`}
-                          style={{ backgroundColor: c }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Active toggle */}
-                  <div className="flex items-center justify-between p-3 bg-background/50 rounded-xl border border-border">
-                    <span className="text-xs text-muted font-semibold">Active</span>
-                    <button
-                      type="button"
-                      onClick={() => setWalletForm({ ...walletForm, is_active: !walletForm.is_active })}
-                      className={`w-12 h-7 rounded-full transition-all relative ${
-                        walletForm.is_active ? 'bg-accent' : 'bg-surface-2'
-                      }`}
-                    >
-                      <div
-                        className={`w-5 h-5 bg-white rounded-full absolute top-1 transition-all ${
-                          walletForm.is_active ? 'left-6' : 'left-1'
-                        }`}
-                      />
-                    </button>
-                  </div>
-                </>
-              )}
-
-              {/* Submit */}
-              <button
-                type="submit"
-                disabled={savingWallet}
-                className="w-full py-3.5 bg-accent hover:bg-accent/90 text-on-accent font-bold text-sm rounded-xl transition-all shadow-md shadow-accent/20 min-h-[48px] disabled:opacity-50"
+                {editingWallet.is_active === false ? 'Reactivate' : 'Deactivate'}
+              </Button>
+              <Button
+                variant="danger"
+                icon="trash"
+                className="flex-1"
+                onClick={() => {
+                  closeWalletSheet()
+                  setDeletingWallet(editingWallet)
+                }}
               >
-                {savingWallet ? 'Saving...' : editingWallet ? 'Update Wallet' : 'Add Wallet'}
-              </button>
-            </form>
-        </div>
+                Delete
+              </Button>
+            </div>
+          )}
+        </form>
       </Sheet>
 
       {/* Deleting a wallet, unlike everything else on this page, cannot be
@@ -986,48 +827,71 @@ export default function Settings() {
         title={`Delete ${deletingWallet?.name || 'wallet'}?`}
         alwaysCenter
       >
-        <div className="p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-foreground">Delete this wallet?</h2>
-            <button
-              type="button"
-              onClick={() => setDeletingWallet(null)}
-              aria-label="Close"
-              className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-surface-2 text-muted hover:text-foreground"
-            >
-              ✕
-            </button>
-          </div>
-
-          <p className="text-sm text-foreground">
-            <span className="font-bold">{deletingWallet?.name}</span> and its balance history
-            will be gone permanently. Transactions already logged against it stay in the
-            ledger, but nothing will point back to it.
+        <SheetHeader title="Delete this wallet?" onClose={() => setDeletingWallet(null)} />
+        <div className="p-4 space-y-3">
+          <p className="text-body text-foreground">
+            <span className="font-semibold">{deletingWallet?.name}</span> and its balance history will be gone
+            permanently. Transactions already logged against it stay in the ledger, but nothing will point back to it.
           </p>
-
-          <p className="text-xs text-muted leading-relaxed">
-            If you just don't use this wallet anymore, deactivating it instead keeps its
-            history in every month's totals and only leaves its balance out of net worth.
+          <p className="text-body-sm text-muted">
+            If you just don&apos;t use this wallet anymore, deactivating it instead keeps its history in every
+            month&apos;s totals and only leaves its balance out of net worth.
           </p>
-
           <div className="flex gap-2 pt-2">
-            <button
-              type="button"
-              onClick={() => handleDeleteWallet(deletingWallet.id)}
-              className="flex-1 py-3 bg-red-500 text-foreground text-sm font-bold rounded-xl min-h-[48px]"
-            >
+            <Button variant="danger" className="flex-1" onClick={() => handleDeleteWallet(deletingWallet.id)}>
               Delete permanently
-            </button>
-            <button
-              type="button"
-              onClick={() => setDeletingWallet(null)}
-              className="flex-1 py-3 bg-surface-2 text-muted hover:text-foreground text-sm font-semibold rounded-xl min-h-[48px]"
-            >
+            </Button>
+            <Button variant="secondary" className="flex-1" onClick={() => setDeletingWallet(null)}>
               Cancel
-            </button>
+            </Button>
           </div>
         </div>
       </Sheet>
     </div>
+  )
+}
+
+/**
+ * One saved number: a labelled input and its Save button on one line, the
+ * hint under both. The three money and calorie settings share it.
+ */
+function NumberSetting({
+  id,
+  label,
+  hint,
+  value,
+  onChange,
+  placeholder,
+  onSubmit,
+  saving,
+  inputMode = 'decimal',
+  required = true,
+  ...inputProps
+}) {
+  return (
+    <form onSubmit={onSubmit} className="space-y-1.5">
+      <div className="flex items-end gap-2">
+        <div className="flex-1 min-w-0">
+          <Input
+            id={id}
+            label={label}
+            type="number"
+            inputMode={inputMode}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={placeholder}
+            required={required}
+            aria-describedby={`${id}-hint`}
+            {...inputProps}
+          />
+        </div>
+        <Button type="submit" variant="secondary" loading={saving}>
+          Save
+        </Button>
+      </div>
+      <p id={`${id}-hint`} className="text-body-sm text-muted">
+        {hint}
+      </p>
+    </form>
   )
 }

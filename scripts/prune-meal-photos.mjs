@@ -23,7 +23,7 @@ const STARTED = new Date()
 const BATCH = 100
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
-  console.error('❌ SUPABASE_URL and SUPABASE_SERVICE_KEY are required')
+  console.error('SUPABASE_URL and SUPABASE_SERVICE_KEY are required')
   process.exit(1)
 }
 
@@ -62,12 +62,12 @@ async function main() {
     if (upErr) throw upErr
     removed += batch.length
   }
-  console.log(`✓ deleted ${removed} photo(s)`)
+  console.log(`Deleted ${removed} photo(s)`)
   await recordRun(supabase, { job: JOB, userId: owner, startedAt: STARTED, ok: true, summary: `deleted ${removed}` })
 }
 
 main().catch(async (err) => {
-  console.error(`❌ ${err?.message || err}`)
+  console.error(`${err?.message || err}`)
   try {
     const owner = await resolveOwnerUserId(supabase)
     await recordRun(supabase, { job: JOB, userId: owner, startedAt: STARTED, ok: false, summary: String(err?.message || err) })
