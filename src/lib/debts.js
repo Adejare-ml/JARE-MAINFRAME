@@ -12,10 +12,11 @@ export const DIRECTIONS = [
   { value: 'owed_to_me', label: 'Owed to me' },
 ]
 
+/** `icon` is a glyph name for <Icon> (src/components/ui/Icon.jsx). */
 export const KINDS = [
-  { value: 'loan', label: 'Loan', icon: '💳' },
-  { value: 'ajo', label: 'Ajo', icon: '🤝' },
-  { value: 'esusu', label: 'Esusu', icon: '🔄' },
+  { value: 'loan', label: 'Loan', icon: 'card' },
+  { value: 'ajo', label: 'Ajo', icon: 'users' },
+  { value: 'esusu', label: 'Esusu', icon: 'repeat' },
 ]
 
 export const isRotating = (kind) => kind === 'ajo' || kind === 'esusu'
