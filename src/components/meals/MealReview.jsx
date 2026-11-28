@@ -8,10 +8,10 @@ import {
   quantityLabel,
   newItem,
   MEAL_TYPES,
-  MEAL_TYPE_ICONS,
   LIMITS,
 } from '../../lib/meals'
 import { NIGERIAN_ANCHORS, GENERAL_ANCHORS } from '../../lib/mealPrompt'
+import Icon from '../ui/Icon'
 
 /**
  * The step between "the model said" and "logged": every dish on its own
@@ -58,7 +58,7 @@ export function overallConfidence(items) {
 const BAND = {
   high: { text: 'Confident reading', cls: 'text-accent' },
   medium: { text: 'Fair estimate; adjust a portion if it looks off', cls: 'text-muted' },
-  low: { text: 'Rough guess; check the portions', cls: 'text-orange-300' },
+  low: { text: 'Rough guess; check the portions', cls: 'text-warn' },
 }
 
 export default function MealReview({
@@ -139,7 +139,7 @@ export default function MealReview({
                 <p className="text-sm font-bold text-foreground truncate">
                   {item.name}
                   {item.confidence === 'low' && (
-                    <span className="ml-1 text-orange-300" title="The model was unsure about this one" aria-label="uncertain">
+                    <span className="ml-1 text-warn" title="The model was unsure about this one" aria-label="uncertain">
                       ?
                     </span>
                   )}
@@ -152,10 +152,10 @@ export default function MealReview({
               <button
                 type="button"
                 onClick={() => remove(item.id)}
-                className="shrink-0 w-9 h-9 rounded-full bg-surface-2 hover:bg-red-500/20 text-muted hover:text-red-300 flex items-center justify-center text-sm min-h-[48px] min-w-[48px]"
+                className="shrink-0 w-9 h-9 rounded-full bg-surface-2 hover:bg-surface-2 text-muted hover:text-danger flex items-center justify-center text-sm min-h-[48px] min-w-[48px]"
                 aria-label={`Remove ${item.name}`}
               >
-                ✕
+                <Icon name="close" size={18} />
               </button>
             </div>
             <div className="flex items-center justify-between mt-2">
@@ -256,7 +256,7 @@ export default function MealReview({
                 mealType === t ? 'bg-accent/20 border-accent text-foreground' : 'bg-surface-2 border-border text-muted hover:text-foreground'
               }`}
             >
-              <span aria-hidden="true">{MEAL_TYPE_ICONS[t]}</span> {t}
+              {t}
             </button>
           ))}
         </div>

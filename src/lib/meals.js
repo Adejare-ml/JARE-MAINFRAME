@@ -270,7 +270,8 @@ export function mealTypeFor(hour) {
   return 'snack'
 }
 
-export const MEAL_TYPE_ICONS = { breakfast: '🌅', lunch: '☀️', dinner: '🌙', snack: '🍿' }
+// Text only (no emoji): the meal type is named, not pictured.
+export const MEAL_TYPE_ICONS = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snack: 'Snack' }
 
 /**
  * A line of text for a meal's items: "Jollof rice, fried chicken ×2, Coke".

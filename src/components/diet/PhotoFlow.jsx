@@ -11,6 +11,12 @@ import { confirmBuzz } from '../../lib/haptics'
 import { supabase } from '../../lib/supabase'
 import { uploadPhoto, analyzePhoto, acceptPhotoMeal, discardPhotoMeal, photoUrl, loadEstimates, coachMeal } from './api'
 import VerdictBadge from './VerdictBadge'
+import Readout from '../ui/Readout'
+import { SheetBox } from './parts'
+import ListRow, { ListRows } from '../ui/ListRow'
+import Button, { Spinner } from '../ui/Button'
+import Icon from '../ui/Icon'
+import StatusDot from '../ui/StatusDot'
 
 /** 1024 px on the long side, as the build spec asks; JPEG at imagePrep's quality. */
 const PHOTO_EDGE = 1024
@@ -133,64 +139,71 @@ export default function PhotoFlow({ file = null, meal = null, lib, todayLogs = [
     }
   }
 
-  const photo = preview && <img src={preview} alt="The meal" className="w-full max-h-56 object-cover rounded-2xl bg-black" />
+  const photo = preview && <img src={preview} alt="The meal" className="w-full max-h-56 object-cover rounded-panel border border-border bg-surface-2" />
 
   if (stage === 'result' && result) {
     return (
-      <div className="space-y-4" aria-label="The reading">
+      <div className="space-y-3" aria-label="The reading">
         {photo}
-        <div className="flex items-baseline justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold text-muted uppercase tracking-wider">{SLOT_LABELS[result.slot] || 'Meal'}</p>
-            <p className="text-3xl font-extrabold text-foreground tabular-nums leading-tight">
-              {totals.kcal.toLocaleString()} <span className="text-base font-bold text-muted">kcal</span>
-            </p>
-            <p className="text-xs text-muted tabular-nums">
-              {round1(totals.protein_g)} g protein · {round1(totals.carbs_g)} g carbs · {round1(totals.fat_g)} g fat
-            </p>
-          </div>
-          <VerdictBadge verdict={verdict.verdict} />
+        <div className="flex items-end justify-between gap-3">
+          <Readout
+            kind="number"
+            label={SLOT_LABELS[result.slot] || 'Meal'}
+            value={totals.kcal}
+            unit="kcal"
+            sub={`${round1(totals.protein_g)} g protein · ${round1(totals.carbs_g)} g carbs · ${round1(totals.fat_g)} g fat`}
+          />
+          <span className="shrink-0 pb-1">
+            <VerdictBadge verdict={verdict.verdict} />
+          </span>
         </div>
 
-        <ul className="divide-y divide-border rounded-2xl border border-border" aria-label="What the model saw">
-          {items.map((it, i) => (
-            <li key={i} className="px-3 py-2.5">
-              <div className="flex items-baseline justify-between gap-3">
-                <p className="text-sm font-bold text-foreground min-w-0 truncate">
-                  {it.name}
-                  {it.hidden && <span className="text-xs text-muted font-normal"> (hidden)</span>}
-                </p>
-                <p className="text-sm font-bold text-foreground tabular-nums shrink-0">{Number(it.kcal).toLocaleString()}</p>
-              </div>
-              <p className="text-xs text-muted tabular-nums">
-                {round1(it.grams)} g{basisOf(it) ? ` · ${basisOf(it)}` : ''}
-              </p>
-            </li>
-          ))}
-        </ul>
+        <SheetBox label="What the model saw" meta={`${items.length} item${items.length === 1 ? '' : 's'}`}>
+          <ListRows as="ul">
+            {items.map((it, i) => (
+              <ListRow
+                key={i}
+                as="li"
+                wrap
+                title={
+                  <>
+                    {it.name}
+                    {it.hidden && <span className="text-body-sm text-muted"> (hidden)</span>}
+                  </>
+                }
+                subtitle={`${round1(it.grams)} g${basisOf(it) ? ` · ${basisOf(it)}` : ''}`}
+                trailing={<span className="font-medium text-foreground tabular-nums whitespace-nowrap">{Number(it.kcal).toLocaleString()}</span>}
+              />
+            ))}
+          </ListRows>
+        </SheetBox>
 
-        {verdict.reason && <p className="text-xs text-muted leading-relaxed">{verdict.reason}</p>}
-        {result.note && <p className="text-xs text-muted leading-relaxed">{result.note}</p>}
+        {verdict.reason && <p className="text-body-sm text-muted">{verdict.reason}</p>}
+        {result.note && <p className="text-body-sm text-muted">{result.note}</p>}
 
         {models.length > 0 && (
-          <ul className="flex flex-wrap gap-1.5 text-xs" aria-label="How each model did">
+          <ul className="flex flex-wrap gap-x-4 gap-y-1" aria-label="How each model did">
             {models.map((m) => (
-              <li key={m.model_key} className={`px-2 py-1 rounded-full border ${m.status === 'ok' ? 'border-accent/30 text-accent' : 'border-border text-muted'}`} title={m.reason || m.model_id}>
+              <li key={m.model_key} className="inline-flex items-center gap-1.5 type-data text-muted" title={m.reason || m.model_id}>
+                <StatusDot status={m.status === 'ok' ? 'ok' : 'muted'} />
                 {MODEL_LABELS[m.model_key]} {m.status === 'ok' ? `${(m.latency_ms / 1000).toFixed(1)} s` : m.status}
               </li>
             ))}
           </ul>
         )}
 
-        <p className="text-xs text-muted-dim leading-relaxed">
-          {unaccepted
-            ? 'Logged before photo readings became final. Accept it as read; the amounts cannot be changed.'
-            : 'Logged as read. A photo reading is final: it cannot be edited or deleted.'}
+        <p className="flex items-start gap-2 text-body-sm text-muted-dim">
+          <Icon name="lock" size={16} className="shrink-0 mt-0.5" />
+          <span>
+            {unaccepted
+              ? 'Logged before photo readings became final. Accept it as read; the amounts cannot be changed.'
+              : 'Logged as read. A photo reading is final: it cannot be edited or deleted.'}
+          </span>
         </p>
 
-        <button type="button" onClick={finish} disabled={busy} className="w-full min-h-[52px] rounded-xl bg-accent text-on-accent font-extrabold text-sm disabled:opacity-50">
+        <Button full onClick={finish} loading={busy}>
           {busy ? 'Saving…' : unaccepted ? 'Accept as read' : 'Done'}
-        </button>
+        </Button>
       </div>
     )
   }
@@ -199,21 +212,22 @@ export default function PhotoFlow({ file = null, meal = null, lib, todayLogs = [
     <div className="space-y-3" aria-live="polite">
       {photo}
       {(stage === 'preparing' || stage === 'uploading' || stage === 'reading') && (
-        <p className="text-sm text-foreground">
-          {stage === 'preparing' ? 'Getting the photo ready…' : stage === 'uploading' ? 'Saving the photo…' : 'Studying the plate…'}{' '}
-          <span className="text-muted tabular-nums">{elapsed} s</span>
+        <p className="flex items-center gap-2 text-body text-foreground">
+          <Spinner size={16} />
+          <span>{stage === 'preparing' ? 'Getting the photo ready…' : stage === 'uploading' ? 'Saving the photo…' : 'Studying the plate…'}</span>
+          <span className="type-data text-muted-dim tabular-nums">{elapsed} s</span>
         </p>
       )}
-      {stage === 'nofood' && <p className="text-sm text-foreground">No food in that photo. Nothing was logged and the photo was deleted.</p>}
+      {stage === 'nofood' && <p className="text-body text-foreground">No food in that photo. Nothing was logged and the photo was deleted.</p>}
       {stage === 'error' && (
-        <p className="text-sm text-orange-300" role="alert">
+        <p className="text-body-sm text-warn" role="alert">
           Could not read the photo: {error}. Nothing was logged. Try another photo.
         </p>
       )}
       {(stage === 'error' || stage === 'nofood') && (
-        <button type="button" onClick={onCancel} className="w-full min-h-[48px] rounded-xl bg-surface-2 border border-border text-foreground text-sm font-bold">
+        <Button variant="secondary" full onClick={onCancel}>
           Back
-        </button>
+        </Button>
       )}
     </div>
   )
